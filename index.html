@@ -12,227 +12,174 @@
   <title>🎵 Pitch Trainer</title>
   <style>
     *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+      box-sizing: border-box; margin: 0; padding: 0;
       -webkit-tap-highlight-color: transparent;
     }
 
     body {
-      min-height: 100vh;
-      min-height: 100dvh;
-      background: #0f0e17;
-      color: #fffffe;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 16px 12px;
-      gap: 18px;
+      min-height: 100vh; min-height: 100dvh;
+      background: #0f0e17; color: #fffffe;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 12px; gap: 14px;
       touch-action: manipulation;
     }
 
     h1 {
-      font-size: clamp(1.3rem, 5vw, 1.9rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      text-align: center;
+      font-size: clamp(1.2rem, 4.5vw, 1.7rem);
+      font-weight: 800; letter-spacing: -0.02em;
     }
 
-    /* ── Note display ── */
+    /* ── Note card ── */
     .note-card {
-      background: #16213e;
-      border-radius: 20px;
-      padding: 14px 28px;
-      text-align: center;
-      min-width: 200px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      background: #16213e; border-radius: 18px;
+      padding: 10px 28px; text-align: center; min-width: 200px;
       transition: box-shadow 0.25s;
     }
-
-    .note-card.lit {
-      box-shadow: 0 4px 48px rgba(226, 183, 20, 0.45);
-    }
+    .note-card.lit { box-shadow: 0 0 44px rgba(255,215,0,0.4); }
 
     .note-big {
-      font-size: clamp(3rem, 14vw, 5rem);
-      font-weight: 900;
-      line-height: 1;
-      color: #e2b714;
-      min-height: 1.1em;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      font-size: clamp(2.4rem, 11vw, 4rem);
+      font-weight: 900; line-height: 1; color: #e2b714; min-height: 1.1em;
+    }
+    .note-sub {
+      font-size: 0.8rem; color: #5a5a7a; margin-top: 3px; min-height: 1.2em;
     }
 
-    .note-sub {
-      font-size: 0.875rem;
-      color: #5a5a7a;
-      margin-top: 4px;
-      min-height: 1.3em;
+    /* Cents tuning bar */
+    .cents-wrap {
+      position: relative; height: 6px; background: #1e1e38;
+      border-radius: 3px; margin-top: 7px; overflow: visible;
     }
+    /* centre tick */
+    .cents-wrap::after {
+      content: ''; position: absolute;
+      left: 50%; top: -2px; width: 2px; height: 10px;
+      background: #3a3a5a; transform: translateX(-50%);
+    }
+    #centsDot {
+      position: absolute; top: 50%; width: 10px; height: 10px;
+      border-radius: 50%; transform: translate(-50%, -50%);
+      left: 50%; background: #555;
+      transition: left 0.1s ease, background 0.15s ease;
+    }
+
+    /* ── Staff SVG ── */
+    .staff-wrap { width: 100%; max-width: 400px; }
+    #staffSvg { display: block; margin: 0 auto; overflow: visible; }
 
     /* ── Piano ── */
-    .piano-wrap {
-      width: 100%;
-      max-width: 580px;
-    }
+    .piano-wrap { width: 100%; max-width: 580px; }
 
     .piano {
-      position: relative;
-      display: flex;
-      height: 160px;
-      border-radius: 10px;
-      overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+      position: relative; display: flex;
+      height: 150px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.55);
     }
+    @media (max-height: 600px) { .piano { height: 110px; } }
 
-    @media (max-height: 520px) {
-      .piano { height: 110px; }
-    }
-
-    /* White keys */
+    /* White keys — plain cream, glow applied via inline style by JS */
     .wk {
-      flex: 1;
-      border-right: 2px solid rgba(0,0,0,0.25);
-      border-bottom: 5px solid rgba(0,0,0,0.2);
+      flex: 1; background: #f2ede3;
+      border-right: 2px solid rgba(0,0,0,0.12);
+      border-bottom: 5px solid rgba(0,0,0,0.12);
       border-radius: 0 0 6px 6px;
-      position: relative;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 7px;
-      cursor: pointer;
-      user-select: none;
-      transition: filter 0.12s ease, box-shadow 0.12s ease;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 6px; cursor: pointer; user-select: none;
+      transition: background 0.1s, box-shadow 0.1s;
     }
     .wk:last-child { border-right: none; }
-
     .wk .lbl {
-      font-size: clamp(0.55rem, 1.8vw, 0.8rem);
-      font-weight: 700;
-      color: rgba(0,0,0,0.45);
-      pointer-events: none;
-    }
-
-    /* Rainbow key colours — kids love colour */
-    .wk[data-note="C4"] { background: #ffadad; }
-    .wk[data-note="D4"] { background: #ffd6a5; }
-    .wk[data-note="E4"] { background: #fdffb6; }
-    .wk[data-note="F4"] { background: #caffbf; }
-    .wk[data-note="G4"] { background: #9bf6ff; }
-    .wk[data-note="A4"] { background: #a0c4ff; }
-    .wk[data-note="B4"] { background: #c9b1ff; }
-
-    .wk.active {
-      filter: brightness(1.35) saturate(1.6);
-      box-shadow: inset 0 0 0 3px white, 0 0 24px rgba(255,255,255,0.25);
-      animation: wk-pulse 0.55s ease-in-out infinite alternate;
-    }
-
-    @keyframes wk-pulse {
-      from { filter: brightness(1.35) saturate(1.6); }
-      to   { filter: brightness(1.65) saturate(2.2); }
+      font-size: clamp(0.48rem, 1.5vw, 0.68rem);
+      font-weight: 700; color: rgba(0,0,0,0.3); pointer-events: none;
     }
 
     /* Black keys */
     .bk {
-      position: absolute;
-      width: calc(100% * 0.65 / 7);
-      height: 58%;
-      top: 0;
-      background: #1a1a2e;
-      border-radius: 0 0 5px 5px;
-      z-index: 2;
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      padding-bottom: 4px;
-      cursor: pointer;
-      user-select: none;
+      position: absolute; width: calc(100% * 0.62 / 7);
+      height: 58%; top: 0; background: #1e1e38;
+      border-radius: 0 0 5px 5px; z-index: 2;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding-bottom: 4px; cursor: pointer; user-select: none;
       box-shadow: 0 4px 8px rgba(0,0,0,0.65);
-      transition: background 0.12s ease, box-shadow 0.12s ease;
+      transition: background 0.1s, box-shadow 0.1s;
     }
-
     .bk .lbl {
-      font-size: clamp(0.42rem, 1.3vw, 0.58rem);
-      color: #444;
-      font-weight: 600;
-      pointer-events: none;
+      font-size: clamp(0.4rem, 1.2vw, 0.55rem);
+      color: #3a3a5a; font-weight: 600; pointer-events: none;
     }
 
-    /* Black key positions: center = n/7 of container; left = center - halfWidth
-       halfWidth = 0.65/7/2 = 0.325/7
-       left = (n - 0.325)/7 * 100%  */
-    [data-note="Cs4"] { left: calc(100% * 0.675 / 7); }
-    [data-note="Ds4"] { left: calc(100% * 1.675 / 7); }
-    [data-note="Fs4"] { left: calc(100% * 3.675 / 7); }
-    [data-note="Gs4"] { left: calc(100% * 4.675 / 7); }
-    [data-note="As4"] { left: calc(100% * 5.675 / 7); }
+    /* Black key positions: left = (n − 0.31)/7 × 100% */
+    [data-note="Cs4"] { left: calc(100% * 0.69 / 7); }
+    [data-note="Ds4"] { left: calc(100% * 1.69 / 7); }
+    [data-note="Fs4"] { left: calc(100% * 3.69 / 7); }
+    [data-note="Gs4"] { left: calc(100% * 4.69 / 7); }
+    [data-note="As4"] { left: calc(100% * 5.69 / 7); }
 
-    .bk.active {
-      background: #7c3aed;
-      box-shadow: 0 0 18px rgba(139,92,246,0.85), 0 4px 8px rgba(0,0,0,0.65);
-      animation: bk-pulse 0.55s ease-in-out infinite alternate;
-    }
-
-    @keyframes bk-pulse {
-      from { box-shadow: 0 0 18px rgba(139,92,246,0.85), 0 4px 8px rgba(0,0,0,0.65); }
-      to   { box-shadow: 0 0 32px rgba(167,139,250,1),   0 4px 8px rgba(0,0,0,0.65); }
-    }
-
-    /* ── Buttons ── */
+    /* ── Button ── */
     .btn {
-      padding: 14px 38px;
-      font-size: clamp(0.95rem, 4vw, 1.15rem);
-      font-weight: 700;
-      border: none;
-      border-radius: 50px;
-      cursor: pointer;
-      letter-spacing: 0.02em;
-      transition: transform 0.1s, box-shadow 0.1s;
+      padding: 13px 36px;
+      font-size: clamp(0.9rem, 3.5vw, 1.1rem);
+      font-weight: 700; border: none; border-radius: 50px; cursor: pointer;
+      transition: transform 0.1s;
     }
     .btn:active { transform: scale(0.95); }
+    .btn-start { background: #e94560; color: #fff; box-shadow: 0 4px 20px rgba(233,69,96,0.45); }
+    .btn-stop  { background: #2d2d44; color: #ccc; }
 
-    .btn-start {
-      background: #e94560;
-      color: white;
-      box-shadow: 0 4px 22px rgba(233,69,96,0.5);
-    }
-
-    .btn-stop {
-      background: #2d2d44;
-      color: #ccc;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .hint {
-      font-size: 0.78rem;
-      color: #3e3e5e;
-      text-align: center;
-    }
+    .hint { font-size: 0.72rem; color: #3a3a5a; text-align: center; }
   </style>
 </head>
 <body>
   <h1>🎵 Pitch Trainer</h1>
 
+  <!-- Note display -->
   <div class="note-card" id="noteCard">
     <div class="note-big" id="noteName">—</div>
     <div class="note-sub" id="noteSub">tap Start then sing!</div>
+    <div class="cents-wrap"><div id="centsDot"></div></div>
   </div>
 
+  <!-- Musical staff -->
+  <div class="staff-wrap">
+    <svg id="staffSvg" width="300" height="140" viewBox="0 0 300 140">
+      <!-- 5 staff lines (bottom = E4) -->
+      <g stroke="#2e2e50" stroke-width="1.5">
+        <line x1="46" y1="95" x2="294" y2="95"/>
+        <line x1="46" y1="85" x2="294" y2="85"/>
+        <line x1="46" y1="75" x2="294" y2="75"/>
+        <line x1="46" y1="65" x2="294" y2="65"/>
+        <line x1="46" y1="55" x2="294" y2="55"/>
+      </g>
+      <!-- Treble clef -->
+      <text x="2" y="100" font-size="64" fill="#2e2e50"
+            font-family="'Times New Roman', 'FreeSerif', serif">𝄞</text>
+      <!-- Ledger lines (populated by JS) -->
+      <g id="ledgerG" stroke="#2e2e50" stroke-width="1.5"></g>
+      <!-- Note group: translated by JS; elements drawn at y=0 relative origin -->
+      <g id="noteGroup" style="transition: transform 0.12s ease;" display="none">
+        <text id="accidentalEl" x="-20" y="7"
+              font-size="19" fill="#e2b714"
+              font-family="'Times New Roman', serif" display="none">♯</text>
+        <ellipse cx="0" cy="0" rx="11" ry="8"
+                 fill="#e2b714" transform="rotate(-18 0 0)"/>
+        <line id="stemEl" x1="10" y1="0" x2="10" y2="-42"
+              stroke="#e2b714" stroke-width="2.5"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- Piano -->
   <div class="piano-wrap">
-    <div class="piano" id="piano">
-      <!-- White keys (C4 – B4) -->
-      <div class="wk" data-note="C4"><span class="lbl">C</span></div>
-      <div class="wk" data-note="D4"><span class="lbl">D</span></div>
-      <div class="wk" data-note="E4"><span class="lbl">E</span></div>
-      <div class="wk" data-note="F4"><span class="lbl">F</span></div>
-      <div class="wk" data-note="G4"><span class="lbl">G</span></div>
-      <div class="wk" data-note="A4"><span class="lbl">A</span></div>
-      <div class="wk" data-note="B4"><span class="lbl">B</span></div>
-      <!-- Black keys -->
+    <div class="piano">
+      <div class="wk" data-note="C4"><span class="lbl">C4</span></div>
+      <div class="wk" data-note="D4"><span class="lbl">D4</span></div>
+      <div class="wk" data-note="E4"><span class="lbl">E4</span></div>
+      <div class="wk" data-note="F4"><span class="lbl">F4</span></div>
+      <div class="wk" data-note="G4"><span class="lbl">G4</span></div>
+      <div class="wk" data-note="A4"><span class="lbl">A4</span></div>
+      <div class="wk" data-note="B4"><span class="lbl">B4</span></div>
       <div class="bk" data-note="Cs4"><span class="lbl">C#</span></div>
       <div class="bk" data-note="Ds4"><span class="lbl">D#</span></div>
       <div class="bk" data-note="Fs4"><span class="lbl">F#</span></div>
@@ -245,172 +192,287 @@
   <p class="hint" id="hint">Tap Start, then sing or play any note</p>
 
   <script>
-    // ── Music theory constants ──────────────────────────────────────────
+    // ── Music theory ───────────────────────────────────────────────────
     const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-    // Piano key ids matching data-note attributes (C=0 … B=11)
-    const KEY_IDS = ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4'];
+    const KEY_IDS    = ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4'];
+    // Diatonic staff step for each note letter, relative to C (C=0, D=1, … B=6)
+    const DIATONIC   = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 };
 
-    function freqToNoteInfo(freq) {
-      // Semitones from C4 = 261.63 Hz
+    // Staff geometry (matches SVG)
+    const SB      = 95; // Y of bottom staff line (E4), px
+    const LS      = 10; // line spacing, px
+    const NOTE_X  = 185; // X of note head centre in SVG
+
+    function freqToInfo(freq) {
       const semFromC4 = 12 * Math.log2(freq / 261.63);
       const rounded   = Math.round(semFromC4);
-      const idx       = ((rounded % 12) + 12) % 12; // 0=C … 11=B
+      const cents     = Math.round((semFromC4 - rounded) * 100); // −50…+50
+      const idx       = ((rounded % 12) + 12) % 12;
       const octave    = 4 + Math.floor(rounded / 12);
+      const letter    = NOTE_NAMES[idx].replace('#', '');
+      const isSharp   = NOTE_NAMES[idx].includes('#');
+
+      // Adjacent key for gradient glow when off-pitch
+      const adjIdx    = ((idx + (cents >= 0 ? 1 : -1)) + 12) % 12;
+
+      // Staff step: E4 = step 0; each semitone = 0.5 steps diatonic
+      const step = (octave - 4) * 7 + (DIATONIC[letter] - 2); // E4 → 0
+
+      // Octave range label
+      const rangeLabel = ['Very Low','Very Low','Low','Low','Middle','High','High'][
+        Math.min(6, Math.max(0, octave - 1))
+      ] || 'Very High';
+
       return {
-        name:     NOTE_NAMES[idx],
+        name: NOTE_NAMES[idx], letter, isSharp,
         fullName: NOTE_NAMES[idx] + octave,
-        key:      KEY_IDS[idx],
+        key: KEY_IDS[idx], adjKey: KEY_IDS[adjIdx],
+        octave, cents, step, rangeLabel,
+        mainInt: 1 - Math.abs(cents) / 100,  // 1.0 on-note → 0.5 at ±50¢
+        adjInt:  Math.abs(cents) / 100,
       };
     }
 
-    // ── Autocorrelation pitch detector ─────────────────────────────────
-    function detectPitch(buffer, sampleRate) {
-      const n = buffer.length;
-
-      // Silence gate
+    // ── Pitch detection (autocorrelation) ─────────────────────────────
+    function detectPitch(buf, sr) {
+      const n = buf.length;
       let rms = 0;
-      for (let i = 0; i < n; i++) rms += buffer[i] * buffer[i];
+      for (let i = 0; i < n; i++) rms += buf[i] * buf[i];
       if (Math.sqrt(rms / n) < 0.013) return null;
 
-      const minFreq = 60, maxFreq = 2000;
-      const minLag  = Math.floor(sampleRate / maxFreq);
-      const maxLag  = Math.min(Math.ceil(sampleRate / minFreq), n - 1);
-
-      // Compute un-normalised autocorrelation for lags we care about
+      const minLag = Math.floor(sr / 2000);
+      const maxLag = Math.min(Math.ceil(sr / 60), n - 1);
       const ac = new Float32Array(maxLag + 1);
+
       for (let lag = minLag; lag <= maxLag; lag++) {
         let s = 0;
-        for (let i = 0; i < n - lag; i++) s += buffer[i] * buffer[i + lag];
+        for (let i = 0; i < n - lag; i++) s += buf[i] * buf[i + lag];
         ac[lag] = s;
       }
 
-      // Skip the initial descending run to avoid picking lag=0
       let d = minLag;
       while (d < maxLag && ac[d] > ac[d + 1]) d++;
-
-      // Find highest peak after the dip
       let best = d;
-      for (let i = d + 1; i <= maxLag; i++) {
-        if (ac[i] > ac[best]) best = i;
-      }
-
+      for (let i = d + 1; i <= maxLag; i++) if (ac[i] > ac[best]) best = i;
       if (ac[best] <= 0) return null;
 
-      // Sub-sample refinement via parabolic interpolation
       let lag = best;
       if (best > minLag && best < maxLag) {
-        const a = ac[best - 1], b = ac[best], c = ac[best + 1];
-        const denom = 2 * (a - 2 * b + c);
-        if (denom !== 0) lag = best - (a - c) / denom;
+        const a = ac[best-1], b = ac[best], c = ac[best+1];
+        const dn = 2*(a - 2*b + c);
+        if (dn !== 0) lag = best - (a - c) / dn;
       }
-
-      return sampleRate / lag;
+      return sr / lag;
     }
 
-    // ── State ───────────────────────────────────────────────────────────
-    let audioCtx = null, analyser = null, mediaStream = null;
-    let rafId = null, isRunning = false;
-    let activeKey = null;
-    let lastProcessTime = 0;
+    // ── Audio state ────────────────────────────────────────────────────
+    let audioCtx, analyser, mediaStream;
+    let rafId, isRunning = false;
+    let smoothedFreq = null; // exponential moving avg in log-space
+    let silentCount = 0;
+    const SILENCE_HOLD = 6; // ~300ms at 20Hz before clearing display
+    let lastProcTime = 0;
 
-    // Hysteresis: hold a displayed note briefly after signal drops
-    let shownKey = null;
-    let silentFrames = 0;
-    const SILENCE_HOLD = 4; // frames at ~20 Hz → ~200 ms hold
+    // Note-change debounce: need N consistent frames before switching note
+    let pendingKey = null, pendingCount = 0, confirmedKey = null;
+    const CONFIRM_FRAMES = 2;
 
-    function nextShownKey(detected) {
-      if (detected) {
-        silentFrames = 0;
-        shownKey = detected;
+    function debounceKey(rawKey) {
+      if (!rawKey) {
+        pendingKey = null; pendingCount = 0;
+        confirmedKey = null;
+        return null;
+      }
+      if (rawKey === confirmedKey) { pendingKey = null; pendingCount = 0; return confirmedKey; }
+      if (rawKey === pendingKey) {
+        pendingCount++;
+        if (pendingCount >= CONFIRM_FRAMES) { confirmedKey = rawKey; return rawKey; }
+        return confirmedKey; // keep showing old while waiting
+      }
+      pendingKey = rawKey; pendingCount = 1;
+      return confirmedKey;
+    }
+
+    // ── DOM refs ───────────────────────────────────────────────────────
+    const startBtn    = document.getElementById('startBtn');
+    const noteNameEl  = document.getElementById('noteName');
+    const noteSubEl   = document.getElementById('noteSub');
+    const noteCard    = document.getElementById('noteCard');
+    const centsDot    = document.getElementById('centsDot');
+    const noteGroup   = document.getElementById('noteGroup');
+    const stemEl      = document.getElementById('stemEl');
+    const accidentalEl = document.getElementById('accidentalEl');
+    const ledgerG     = document.getElementById('ledgerG');
+    const hint        = document.getElementById('hint');
+
+    // ── Piano glow ─────────────────────────────────────────────────────
+    function clearPiano() {
+      document.querySelectorAll('.wk, .bk').forEach(el => {
+        el.style.background = ''; el.style.boxShadow = '';
+      });
+    }
+
+    function glowKey(keyId, t) { // t = intensity 0…1
+      const el = document.querySelector(`[data-note="${keyId}"]`);
+      if (!el || t < 0.05) return;
+      if (el.classList.contains('bk')) {
+        // Black key: lerp from dark navy to violet
+        const r = Math.round(30  + t * 109);
+        const g = Math.round(30  + t * 62);
+        const bv = Math.round(56  + t * 190);
+        el.style.background = `rgb(${r},${g},${bv})`;
+        el.style.boxShadow  = `0 0 ${Math.round(t*22)}px rgba(139,92,246,${(t*0.85).toFixed(2)}), 0 4px 8px rgba(0,0,0,0.65)`;
       } else {
-        silentFrames++;
-        if (silentFrames > SILENCE_HOLD) shownKey = null;
-      }
-      return shownKey;
-    }
-
-    // ── DOM helpers ────────────────────────────────────────────────────
-    const startBtn = document.getElementById('startBtn');
-    const noteNameEl = document.getElementById('noteName');
-    const noteSubEl  = document.getElementById('noteSub');
-    const noteCard   = document.getElementById('noteCard');
-    const hint       = document.getElementById('hint');
-
-    function setActiveKey(keyId) {
-      if (keyId === activeKey) return;
-      if (activeKey) {
-        document.querySelector(`[data-note="${activeKey}"]`)?.classList.remove('active');
-      }
-      activeKey = keyId;
-      if (keyId) {
-        document.querySelector(`[data-note="${keyId}"]`)?.classList.add('active');
+        // White key: lerp from cream #f2ede3 → gold #ffd700
+        const R = Math.round(242 + (255 - 242) * t);
+        const G = Math.round(237 + (215 - 237) * t);
+        const B = Math.round(227 + (  0 - 227) * t);
+        el.style.background = `rgb(${R},${G},${B})`;
+        el.style.boxShadow  = `inset 0 0 0 ${(t*3).toFixed(1)}px rgba(255,215,0,${t.toFixed(2)}), `
+                            + `0 0 ${Math.round(t*30)}px rgba(255,200,0,${(t*0.55).toFixed(2)})`;
       }
     }
 
-    function updateDisplay(freq, info) {
-      if (info) {
-        noteNameEl.textContent = info.name;
-        noteSubEl.textContent  = `${freq.toFixed(0)} Hz · ${info.fullName}`;
-        noteCard.classList.add('lit');
-        setActiveKey(info.key);
+    // ── Staff display ──────────────────────────────────────────────────
+    function stepToY(step) { return SB - step * (LS / 2); }
+
+    function updateStaff(info) {
+      if (!info) {
+        noteGroup.setAttribute('display', 'none');
+        ledgerG.innerHTML = '';
+        return;
+      }
+
+      const { step, isSharp, letter } = info;
+      const noteY = stepToY(step);
+
+      // Translate the note group to the correct Y
+      noteGroup.style.transform = `translate(${NOTE_X}px, ${noteY}px)`;
+      noteGroup.removeAttribute('display');
+
+      // Stem: up when note is below middle of staff (step < 4)
+      const up = step < 4;
+      const sx = up ? 10 : -10;
+      stemEl.setAttribute('x1', sx); stemEl.setAttribute('x2', sx);
+      stemEl.setAttribute('y1', '0');
+      stemEl.setAttribute('y2', up ? '-42' : '42');
+
+      // Sharp accidental
+      if (isSharp) {
+        accidentalEl.setAttribute('x', '-20');
+        accidentalEl.setAttribute('y', '7');
+        accidentalEl.removeAttribute('display');
       } else {
+        accidentalEl.setAttribute('display', 'none');
+      }
+
+      // Ledger lines (only at even steps outside the staff)
+      ledgerG.innerHTML = '';
+      const lx1 = NOTE_X - 18, lx2 = NOTE_X + 18;
+      if (step <= -2) {
+        for (let s = -2; s >= step; s -= 2) {
+          const ly = stepToY(s);
+          ledgerG.innerHTML += `<line x1="${lx1}" y1="${ly}" x2="${lx2}" y2="${ly}"/>`;
+        }
+      } else if (step >= 10) {
+        for (let s = 10; s <= step; s += 2) {
+          const ly = stepToY(s);
+          ledgerG.innerHTML += `<line x1="${lx1}" y1="${ly}" x2="${lx2}" y2="${ly}"/>`;
+        }
+      }
+    }
+
+    // ── Cents tuning dot ───────────────────────────────────────────────
+    function updateCents(cents) {
+      if (cents === null) { centsDot.style.background = '#555'; return; }
+      const pct = Math.max(3, Math.min(97, 50 + (cents / 50) * 45));
+      centsDot.style.left = `${pct}%`;
+      const abs = Math.abs(cents);
+      centsDot.style.background = abs < 10 ? '#22c55e' : abs < 25 ? '#eab308' : '#ef4444';
+    }
+
+    // ── Full display update ────────────────────────────────────────────
+    function updateDisplay(info) {
+      if (!info) {
         noteNameEl.textContent = '—';
         noteSubEl.textContent  = 'Listening…';
         noteCard.classList.remove('lit');
-        setActiveKey(null);
+        updateCents(null);
+        clearPiano();
+        updateStaff(null);
+        return;
       }
+      const cSign = info.cents >= 0 ? `+${info.cents}¢` : `${info.cents}¢`;
+      noteNameEl.textContent = info.fullName;
+      noteSubEl.textContent  = `${smoothedFreq.toFixed(1)} Hz · ${cSign} · ${info.rangeLabel}`;
+      noteCard.classList.add('lit');
+      updateCents(info.cents);
+      clearPiano();
+      glowKey(info.key,    info.mainInt);
+      glowKey(info.adjKey, info.adjInt * 0.7); // adjacent is dimmer
+      updateStaff(info);
     }
 
-    // ── Main audio loop (~20 Hz processing, RAF rendering) ─────────────
+    // ── Main loop ─────────────────────────────────────────────────────
     function loop(ts) {
       if (!isRunning) return;
       rafId = requestAnimationFrame(loop);
-
-      if (ts - lastProcessTime < 50) return; // cap processing at 20 Hz
-      lastProcessTime = ts;
+      if (ts - lastProcTime < 50) return; // ~20 Hz
+      lastProcTime = ts;
 
       const buf = new Float32Array(analyser.fftSize);
       analyser.getFloatTimeDomainData(buf);
+      const raw = detectPitch(buf, audioCtx.sampleRate);
 
-      const freq = detectPitch(buf, audioCtx.sampleRate);
-      const info = freq ? freqToNoteInfo(freq) : null;
-      const key  = nextShownKey(info?.key ?? null);
-
-      // If hysteresis is holding a key but detected a different one, update immediately
-      updateDisplay(freq, key ? (info ?? { name: key.slice(0,-1).replace('s','#'), fullName: key, key }) : null);
+      if (raw) {
+        silentCount = 0;
+        if (!smoothedFreq) {
+          smoothedFreq = raw;
+        } else {
+          // Octave-error correction: if jump > ±1.5 octaves, suspect harmonic
+          const ratio = raw / smoothedFreq;
+          const adjusted = ratio > 1.7 ? raw / 2 : ratio < 0.6 ? raw * 2 : raw;
+          // Exponential smoothing in log-frequency space (perceptually uniform)
+          smoothedFreq = Math.exp(0.7 * Math.log(smoothedFreq) + 0.3 * Math.log(adjusted));
+        }
+        const info   = freqToInfo(smoothedFreq);
+        const safeKey = debounceKey(info.key);
+        // Show info for the confirmed key but use live cents/freq
+        if (safeKey) updateDisplay(info);
+        else if (confirmedKey) updateDisplay(freqToInfo(smoothedFreq)); // keep last
+      } else {
+        silentCount++;
+        if (silentCount > SILENCE_HOLD) {
+          smoothedFreq = null;
+          debounceKey(null);
+          updateDisplay(null);
+        }
+      }
     }
 
     // ── Start / stop ───────────────────────────────────────────────────
     async function start() {
       try {
-        // Must happen inside user gesture for Safari AudioContext unlock
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
         mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
           video: false,
         });
-
         const src = audioCtx.createMediaStreamSource(mediaStream);
-        analyser  = audioCtx.createAnalyser();
-        analyser.fftSize               = 2048;
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0;
         src.connect(analyser);
 
-        shownKey = null; silentFrames = 0; lastProcessTime = 0;
+        smoothedFreq = null; silentCount = 0; lastProcTime = 0;
+        pendingKey = null; pendingCount = 0; confirmedKey = null;
         isRunning = true;
-
         startBtn.textContent = '⏹ Stop';
         startBtn.className   = 'btn btn-stop';
         hint.textContent     = '🎤 Listening — sing or play a note!';
-
         rafId = requestAnimationFrame(loop);
       } catch (err) {
-        hint.textContent = `Mic error: ${err.message} — allow microphone and retry.`;
+        hint.textContent = `Mic error: ${err.message}`;
       }
     }
 
@@ -419,23 +481,18 @@
       if (rafId) cancelAnimationFrame(rafId);
       mediaStream?.getTracks().forEach(t => t.stop());
       audioCtx?.close();
-
-      setActiveKey(null);
-      noteNameEl.textContent = '—';
-      noteSubEl.textContent  = 'tap Start then sing!';
-      noteCard.classList.remove('lit');
-      startBtn.textContent = '🎤 Start';
-      startBtn.className   = 'btn btn-start';
-      hint.textContent     = 'Tap Start, then sing or play any note';
+      smoothedFreq = null;
+      updateDisplay(null);
+      noteSubEl.textContent = 'tap Start then sing!';
+      startBtn.textContent  = '🎤 Start';
+      startBtn.className    = 'btn btn-start';
+      hint.textContent      = 'Tap Start, then sing or play any note';
     }
 
-    startBtn.addEventListener('click', () => (isRunning ? stop() : start()));
+    startBtn.addEventListener('click', () => isRunning ? stop() : start());
 
-    // ── Service worker ─────────────────────────────────────────────────
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-      });
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
     }
   </script>
 </body>
