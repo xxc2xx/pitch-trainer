@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0f0e17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Pitch Trainer">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>🎵 Pitch Trainer</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: #0f0e17;
+      color: #fffffe;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 12px;
+      gap: 18px;
+      touch-action: manipulation;
+    }
+
+    h1 {
+      font-size: clamp(1.3rem, 5vw, 1.9rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      text-align: center;
+    }
+
+    /* ── Note display ── */
+    .note-card {
+      background: #16213e;
+      border-radius: 20px;
+      padding: 14px 28px;
+      text-align: center;
+      min-width: 200px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+      transition: box-shadow 0.25s;
+    }
+
+    .note-card.lit {
+      box-shadow: 0 4px 48px rgba(226, 183, 20, 0.45);
+    }
+
+    .note-big {
+      font-size: clamp(3rem, 14vw, 5rem);
+      font-weight: 900;
+      line-height: 1;
+      color: #e2b714;
+      min-height: 1.1em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .note-sub {
+      font-size: 0.875rem;
+      color: #5a5a7a;
+      margin-top: 4px;
+      min-height: 1.3em;
+    }
+
+    /* ── Piano ── */
+    .piano-wrap {
+      width: 100%;
+      max-width: 580px;
+    }
+
+    .piano {
+      position: relative;
+      display: flex;
+      height: 160px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+    }
+
+    @media (max-height: 520px) {
+      .piano { height: 110px; }
+    }
+
+    /* White keys */
+    .wk {
+      flex: 1;
+      border-right: 2px solid rgba(0,0,0,0.25);
+      border-bottom: 5px solid rgba(0,0,0,0.2);
+      border-radius: 0 0 6px 6px;
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 7px;
+      cursor: pointer;
+      user-select: none;
+      transition: filter 0.12s ease, box-shadow 0.12s ease;
+    }
+    .wk:last-child { border-right: none; }
+
+    .wk .lbl {
+      font-size: clamp(0.55rem, 1.8vw, 0.8rem);
+      font-weight: 700;
+      color: rgba(0,0,0,0.45);
+      pointer-events: none;
+    }
+
+    /* Rainbow key colours — kids love colour */
+    .wk[data-note="C4"] { background: #ffadad; }
+    .wk[data-note="D4"] { background: #ffd6a5; }
+    .wk[data-note="E4"] { background: #fdffb6; }
+    .wk[data-note="F4"] { background: #caffbf; }
+    .wk[data-note="G4"] { background: #9bf6ff; }
+    .wk[data-note="A4"] { background: #a0c4ff; }
+    .wk[data-note="B4"] { background: #c9b1ff; }
+
+    .wk.active {
+      filter: brightness(1.35) saturate(1.6);
+      box-shadow: inset 0 0 0 3px white, 0 0 24px rgba(255,255,255,0.25);
+      animation: wk-pulse 0.55s ease-in-out infinite alternate;
+    }
+
+    @keyframes wk-pulse {
+      from { filter: brightness(1.35) saturate(1.6); }
+      to   { filter: brightness(1.65) saturate(2.2); }
+    }
+
+    /* Black keys */
+    .bk {
+      position: absolute;
+      width: calc(100% * 0.65 / 7);
+      height: 58%;
+      top: 0;
+      background: #1a1a2e;
+      border-radius: 0 0 5px 5px;
+      z-index: 2;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 4px;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.65);
+      transition: background 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .bk .lbl {
+      font-size: clamp(0.42rem, 1.3vw, 0.58rem);
+      color: #444;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    /* Black key positions: center = n/7 of container; left = center - halfWidth
+       halfWidth = 0.65/7/2 = 0.325/7
+       left = (n - 0.325)/7 * 100%  */
+    [data-note="Cs4"] { left: calc(100% * 0.675 / 7); }
+    [data-note="Ds4"] { left: calc(100% * 1.675 / 7); }
+    [data-note="Fs4"] { left: calc(100% * 3.675 / 7); }
+    [data-note="Gs4"] { left: calc(100% * 4.675 / 7); }
+    [data-note="As4"] { left: calc(100% * 5.675 / 7); }
+
+    .bk.active {
+      background: #7c3aed;
+      box-shadow: 0 0 18px rgba(139,92,246,0.85), 0 4px 8px rgba(0,0,0,0.65);
+      animation: bk-pulse 0.55s ease-in-out infinite alternate;
+    }
+
+    @keyframes bk-pulse {
+      from { box-shadow: 0 0 18px rgba(139,92,246,0.85), 0 4px 8px rgba(0,0,0,0.65); }
+      to   { box-shadow: 0 0 32px rgba(167,139,250,1),   0 4px 8px rgba(0,0,0,0.65); }
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 14px 38px;
+      font-size: clamp(0.95rem, 4vw, 1.15rem);
+      font-weight: 700;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .btn:active { transform: scale(0.95); }
+
+    .btn-start {
+      background: #e94560;
+      color: white;
+      box-shadow: 0 4px 22px rgba(233,69,96,0.5);
+    }
+
+    .btn-stop {
+      background: #2d2d44;
+      color: #ccc;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #3e3e5e;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎵 Pitch Trainer</h1>
+
+  <div class="note-card" id="noteCard">
+    <div class="note-big" id="noteName">—</div>
+    <div class="note-sub" id="noteSub">tap Start then sing!</div>
+  </div>
+
+  <div class="piano-wrap">
+    <div class="piano" id="piano">
+      <!-- White keys (C4 – B4) -->
+      <div class="wk" data-note="C4"><span class="lbl">C</span></div>
+      <div class="wk" data-note="D4"><span class="lbl">D</span></div>
+      <div class="wk" data-note="E4"><span class="lbl">E</span></div>
+      <div class="wk" data-note="F4"><span class="lbl">F</span></div>
+      <div class="wk" data-note="G4"><span class="lbl">G</span></div>
+      <div class="wk" data-note="A4"><span class="lbl">A</span></div>
+      <div class="wk" data-note="B4"><span class="lbl">B</span></div>
+      <!-- Black keys -->
+      <div class="bk" data-note="Cs4"><span class="lbl">C#</span></div>
+      <div class="bk" data-note="Ds4"><span class="lbl">D#</span></div>
+      <div class="bk" data-note="Fs4"><span class="lbl">F#</span></div>
+      <div class="bk" data-note="Gs4"><span class="lbl">G#</span></div>
+      <div class="bk" data-note="As4"><span class="lbl">A#</span></div>
+    </div>
+  </div>
+
+  <button class="btn btn-start" id="startBtn">🎤 Start</button>
+  <p class="hint" id="hint">Tap Start, then sing or play any note</p>
+
+  <script>
+    // ── Music theory constants ──────────────────────────────────────────
+    const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    // Piano key ids matching data-note attributes (C=0 … B=11)
+    const KEY_IDS = ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4'];
+
+    function freqToNoteInfo(freq) {
+      // Semitones from C4 = 261.63 Hz
+      const semFromC4 = 12 * Math.log2(freq / 261.63);
+      const rounded   = Math.round(semFromC4);
+      const idx       = ((rounded % 12) + 12) % 12; // 0=C … 11=B
+      const octave    = 4 + Math.floor(rounded / 12);
+      return {
+        name:     NOTE_NAMES[idx],
+        fullName: NOTE_NAMES[idx] + octave,
+        key:      KEY_IDS[idx],
+      };
+    }
+
+    // ── Autocorrelation pitch detector ─────────────────────────────────
+    function detectPitch(buffer, sampleRate) {
+      const n = buffer.length;
+
+      // Silence gate
+      let rms = 0;
+      for (let i = 0; i < n; i++) rms += buffer[i] * buffer[i];
+      if (Math.sqrt(rms / n) < 0.013) return null;
+
+      const minFreq = 60, maxFreq = 2000;
+      const minLag  = Math.floor(sampleRate / maxFreq);
+      const maxLag  = Math.min(Math.ceil(sampleRate / minFreq), n - 1);
+
+      // Compute un-normalised autocorrelation for lags we care about
+      const ac = new Float32Array(maxLag + 1);
+      for (let lag = minLag; lag <= maxLag; lag++) {
+        let s = 0;
+        for (let i = 0; i < n - lag; i++) s += buffer[i] * buffer[i + lag];
+        ac[lag] = s;
+      }
+
+      // Skip the initial descending run to avoid picking lag=0
+      let d = minLag;
+      while (d < maxLag && ac[d] > ac[d + 1]) d++;
+
+      // Find highest peak after the dip
+      let best = d;
+      for (let i = d + 1; i <= maxLag; i++) {
+        if (ac[i] > ac[best]) best = i;
+      }
+
+      if (ac[best] <= 0) return null;
+
+      // Sub-sample refinement via parabolic interpolation
+      let lag = best;
+      if (best > minLag && best < maxLag) {
+        const a = ac[best - 1], b = ac[best], c = ac[best + 1];
+        const denom = 2 * (a - 2 * b + c);
+        if (denom !== 0) lag = best - (a - c) / denom;
+      }
+
+      return sampleRate / lag;
+    }
+
+    // ── State ───────────────────────────────────────────────────────────
+    let audioCtx = null, analyser = null, mediaStream = null;
+    let rafId = null, isRunning = false;
+    let activeKey = null;
+    let lastProcessTime = 0;
+
+    // Hysteresis: hold a displayed note briefly after signal drops
+    let shownKey = null;
+    let silentFrames = 0;
+    const SILENCE_HOLD = 4; // frames at ~20 Hz → ~200 ms hold
+
+    function nextShownKey(detected) {
+      if (detected) {
+        silentFrames = 0;
+        shownKey = detected;
+      } else {
+        silentFrames++;
+        if (silentFrames > SILENCE_HOLD) shownKey = null;
+      }
+      return shownKey;
+    }
+
+    // ── DOM helpers ────────────────────────────────────────────────────
+    const startBtn = document.getElementById('startBtn');
+    const noteNameEl = document.getElementById('noteName');
+    const noteSubEl  = document.getElementById('noteSub');
+    const noteCard   = document.getElementById('noteCard');
+    const hint       = document.getElementById('hint');
+
+    function setActiveKey(keyId) {
+      if (keyId === activeKey) return;
+      if (activeKey) {
+        document.querySelector(`[data-note="${activeKey}"]`)?.classList.remove('active');
+      }
+      activeKey = keyId;
+      if (keyId) {
+        document.querySelector(`[data-note="${keyId}"]`)?.classList.add('active');
+      }
+    }
+
+    function updateDisplay(freq, info) {
+      if (info) {
+        noteNameEl.textContent = info.name;
+        noteSubEl.textContent  = `${freq.toFixed(0)} Hz · ${info.fullName}`;
+        noteCard.classList.add('lit');
+        setActiveKey(info.key);
+      } else {
+        noteNameEl.textContent = '—';
+        noteSubEl.textContent  = 'Listening…';
+        noteCard.classList.remove('lit');
+        setActiveKey(null);
+      }
+    }
+
+    // ── Main audio loop (~20 Hz processing, RAF rendering) ─────────────
+    function loop(ts) {
+      if (!isRunning) return;
+      rafId = requestAnimationFrame(loop);
+
+      if (ts - lastProcessTime < 50) return; // cap processing at 20 Hz
+      lastProcessTime = ts;
+
+      const buf = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(buf);
+
+      const freq = detectPitch(buf, audioCtx.sampleRate);
+      const info = freq ? freqToNoteInfo(freq) : null;
+      const key  = nextShownKey(info?.key ?? null);
+
+      // If hysteresis is holding a key but detected a different one, update immediately
+      updateDisplay(freq, key ? (info ?? { name: key.slice(0,-1).replace('s','#'), fullName: key, key }) : null);
+    }
+
+    // ── Start / stop ───────────────────────────────────────────────────
+    async function start() {
+      try {
+        // Must happen inside user gesture for Safari AudioContext unlock
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+          video: false,
+        });
+
+        const src = audioCtx.createMediaStreamSource(mediaStream);
+        analyser  = audioCtx.createAnalyser();
+        analyser.fftSize               = 2048;
+        analyser.smoothingTimeConstant = 0;
+        src.connect(analyser);
+
+        shownKey = null; silentFrames = 0; lastProcessTime = 0;
+        isRunning = true;
+
+        startBtn.textContent = '⏹ Stop';
+        startBtn.className   = 'btn btn-stop';
+        hint.textContent     = '🎤 Listening — sing or play a note!';
+
+        rafId = requestAnimationFrame(loop);
+      } catch (err) {
+        hint.textContent = `Mic error: ${err.message} — allow microphone and retry.`;
+      }
+    }
+
+    function stop() {
+      isRunning = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      mediaStream?.getTracks().forEach(t => t.stop());
+      audioCtx?.close();
+
+      setActiveKey(null);
+      noteNameEl.textContent = '—';
+      noteSubEl.textContent  = 'tap Start then sing!';
+      noteCard.classList.remove('lit');
+      startBtn.textContent = '🎤 Start';
+      startBtn.className   = 'btn btn-start';
+      hint.textContent     = 'Tap Start, then sing or play any note';
+    }
+
+    startBtn.addEventListener('click', () => (isRunning ? stop() : start()));
+
+    // ── Service worker ─────────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
