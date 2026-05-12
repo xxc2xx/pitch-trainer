@@ -21,68 +21,67 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 10px 12px; gap: 12px;
+      padding: 10px 12px; gap: 11px;
       touch-action: manipulation;
     }
-
-    h1 { font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: 800; }
+    h1 { font-size: clamp(1.05rem, 3.8vw, 1.45rem); font-weight: 800; }
 
     /* ── Mode tabs ── */
-    .tabs { display: flex; gap: 8px; width: 100%; max-width: 400px; }
+    .tabs { display: flex; gap: 7px; width: 100%; max-width: 400px; }
     .tab {
-      flex: 1; padding: 8px 4px; border: 2px solid #2a2a48;
-      background: transparent; color: #4a4a6a;
-      border-radius: 10px; font-size: 0.8rem; font-weight: 700;
-      cursor: pointer; transition: all 0.15s;
+      flex: 1; padding: 8px 4px;
+      border: 2px solid #242440; background: transparent; color: #484868;
+      border-radius: 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer;
+      transition: all 0.15s;
     }
-    .tab.active { background: #2a2a48; color: #fffffe; border-color: #4a4aaa; }
+    .tab.active { background: #242440; color: #fffffe; border-color: #4444aa; }
 
-    /* ── Note card ── */
+    /* ── Note card (all modes) ── */
     .note-card {
       background: #16213e; border-radius: 16px;
-      padding: 10px 24px; text-align: center; min-width: 190px;
+      padding: 9px 22px; text-align: center; min-width: 185px;
       transition: box-shadow 0.25s;
     }
-    .note-card.lit { box-shadow: 0 0 40px rgba(255,215,0,0.38); }
+    .note-card.lit { box-shadow: 0 0 38px rgba(255,215,0,0.38); }
     .note-big {
-      font-size: clamp(2.2rem, 10vw, 3.8rem);
+      font-size: clamp(2rem, 9.5vw, 3.4rem);
       font-weight: 900; line-height: 1; color: #e2b714; min-height: 1.1em;
     }
-    .note-sub { font-size: 0.75rem; color: #5a5a7a; margin-top: 2px; min-height: 1.1em; }
+    .note-sub { font-size: 0.72rem; color: #5a5a7a; margin-top: 2px; min-height: 1.1em; }
     .cents-wrap {
       position: relative; height: 5px; background: #1e1e38;
       border-radius: 3px; margin-top: 6px;
     }
     .cents-wrap::after {
-      content: ''; position: absolute; left: 50%; top: -2px;
-      width: 2px; height: 9px; background: #2e2e50; transform: translateX(-50%);
+      content:''; position:absolute; left:50%; top:-2px;
+      width:2px; height:9px; background:#2e2e50; transform:translateX(-50%);
     }
     #centsDot {
-      position: absolute; top: 50%; width: 9px; height: 9px; border-radius: 50%;
-      transform: translate(-50%, -50%); left: 50%; background: #555;
-      transition: left 0.1s ease, background 0.15s ease;
+      position:absolute; top:50%; width:9px; height:9px; border-radius:50%;
+      transform:translate(-50%,-50%); left:50%; background:#555;
+      transition: left .1s ease, background .15s ease;
     }
 
-    /* ── Staff SVG ── */
-    .staff-wrap { width: 100%; max-width: 380px; }
+    /* ── Staff (listen + keys) ── */
+    .staff-wrap { width: 100%; max-width: 370px; }
     #staffSvg { display: block; margin: 0 auto; overflow: visible; }
 
-    /* ── Flow canvas ── */
+    /* ── Flow canvas (flow mode only) ── */
     #flowView { width: 100%; max-width: 580px; display: none; }
     #flowCanvas {
-      width: 100%; height: 200px; border-radius: 10px;
-      display: block; background: #080812;
+      width: 100%; height: 210px;
+      display: block; border-radius: 10px; background: #06060f;
     }
-    @media (max-height: 600px) { #flowCanvas { height: 140px; } }
+    @media (max-height: 680px) { #flowCanvas { height: 155px; } }
 
     /* ── Piano ── */
     .piano-wrap { width: 100%; max-width: 580px; }
     .piano {
       position: relative; display: flex;
-      height: 140px; border-radius: 10px; overflow: hidden;
+      height: 135px; border-radius: 10px; overflow: hidden;
       box-shadow: 0 8px 24px rgba(0,0,0,0.55);
     }
-    @media (max-height: 600px) { .piano { height: 100px; } }
+    @media (max-height: 680px) { .piano { height: 100px; } }
 
     .wk {
       flex: 1; background: #f2ede3;
@@ -90,12 +89,12 @@
       border-bottom: 5px solid rgba(0,0,0,0.1);
       border-radius: 0 0 6px 6px;
       display: flex; align-items: flex-end; justify-content: center;
-      padding-bottom: 6px; cursor: pointer; user-select: none;
-      transition: background 0.08s, box-shadow 0.08s;
+      padding-bottom: 5px; cursor: pointer; user-select: none;
+      transition: background .08s, box-shadow .08s;
     }
     .wk:last-child { border-right: none; }
     .wk .lbl {
-      font-size: clamp(0.44rem, 1.4vw, 0.64rem);
+      font-size: clamp(0.44rem, 1.35vw, 0.62rem);
       font-weight: 700; color: rgba(0,0,0,0.28); pointer-events: none;
     }
     .bk {
@@ -105,7 +104,7 @@
       display: flex; align-items: flex-end; justify-content: center;
       padding-bottom: 3px; cursor: pointer; user-select: none;
       box-shadow: 0 4px 8px rgba(0,0,0,0.65);
-      transition: background 0.08s, box-shadow 0.08s;
+      transition: background .08s, box-shadow .08s;
     }
     .bk .lbl {
       font-size: clamp(0.38rem, 1.1vw, 0.52rem);
@@ -117,16 +116,17 @@
     [data-note="Gs4"] { left: calc(100% * 4.69 / 7); }
     [data-note="As4"] { left: calc(100% * 5.69 / 7); }
 
-    /* ── Button ── */
+    /* ── Controls (hidden in keys mode) ── */
+    #controls { display: flex; flex-direction: column; align-items: center; gap: 6px; }
     .btn {
-      padding: 12px 34px; font-size: clamp(0.85rem, 3.5vw, 1.05rem);
+      padding: 11px 32px; font-size: clamp(0.85rem, 3.2vw, 1rem);
       font-weight: 700; border: none; border-radius: 50px; cursor: pointer;
-      transition: transform 0.1s;
+      transition: transform .1s;
     }
     .btn:active { transform: scale(0.95); }
     .btn-start { background: #e94560; color: #fff; box-shadow: 0 4px 18px rgba(233,69,96,0.45); }
     .btn-stop  { background: #2d2d44; color: #ccc; }
-    .hint { font-size: 0.7rem; color: #3a3a5a; text-align: center; }
+    .hint { font-size: 0.68rem; color: #3a3a5a; text-align: center; }
   </style>
 </head>
 <body>
@@ -138,28 +138,27 @@
     <button class="tab"        data-mode="flow"  >🎮 Flow</button>
   </div>
 
-  <!-- Listen + Keys: note card + staff -->
-  <div id="noteView">
-    <div class="note-card" id="noteCard">
-      <div class="note-big" id="noteName">—</div>
-      <div class="note-sub" id="noteSub">tap Start then sing!</div>
-      <div class="cents-wrap"><div id="centsDot"></div></div>
-    </div>
+  <!-- Note card: always visible -->
+  <div class="note-card" id="noteCard">
+    <div class="note-big" id="noteName">—</div>
+    <div class="note-sub" id="noteSub">tap Start then sing!</div>
+    <div class="cents-wrap"><div id="centsDot"></div></div>
   </div>
+
+  <!-- Staff: listen + keys only -->
   <div class="staff-wrap" id="staffView">
     <svg id="staffSvg" width="300" height="140" viewBox="0 0 300 140">
-      <g stroke="#2a2a48" stroke-width="1.5">
+      <g stroke="#252540" stroke-width="1.5">
         <line x1="46" y1="95" x2="292" y2="95"/>
         <line x1="46" y1="85" x2="292" y2="85"/>
         <line x1="46" y1="75" x2="292" y2="75"/>
         <line x1="46" y1="65" x2="292" y2="65"/>
         <line x1="46" y1="55" x2="292" y2="55"/>
       </g>
-      <text x="2" y="100" font-size="64" fill="#2a2a48"
+      <text x="2" y="100" font-size="64" fill="#252540"
             font-family="'Times New Roman','FreeSerif',serif">𝄞</text>
-      <g id="ledgerG" stroke="#2a2a48" stroke-width="1.5"></g>
-      <!-- note group translated by JS; internals drawn at local (0,0) -->
-      <g id="noteGroup" style="transition:transform 0.12s ease;" display="none">
+      <g id="ledgerG" stroke="#252540" stroke-width="1.5"></g>
+      <g id="noteGroup" style="transition:transform .12s ease;" display="none">
         <text id="accidentalEl" x="-20" y="7" font-size="18" fill="#e2b714"
               font-family="'Times New Roman',serif" display="none">♯</text>
         <ellipse cx="0" cy="0" rx="11" ry="8" fill="#e2b714" transform="rotate(-18 0 0)"/>
@@ -169,14 +168,14 @@
     </svg>
   </div>
 
-  <!-- Flow canvas -->
+  <!-- Flow canvas: flow mode only -->
   <div id="flowView">
     <canvas id="flowCanvas"></canvas>
   </div>
 
-  <!-- Piano (all modes) -->
+  <!-- Piano: always visible -->
   <div class="piano-wrap">
-    <div class="piano" id="piano">
+    <div class="piano">
       <div class="wk" data-note="C4"><span class="lbl">C4</span></div>
       <div class="wk" data-note="D4"><span class="lbl">D4</span></div>
       <div class="wk" data-note="E4"><span class="lbl">E4</span></div>
@@ -192,289 +191,333 @@
     </div>
   </div>
 
-  <button class="btn btn-start" id="startBtn">🎤 Start</button>
-  <p class="hint" id="hint">Tap Start, then sing or play any note</p>
+  <!-- Controls: hidden in keys mode -->
+  <div id="controls">
+    <button class="btn btn-start" id="startBtn">🎤 Start</button>
+    <p class="hint" id="hint">Tap Start, then sing or play any note</p>
+  </div>
 
   <script>
   // ── Constants ─────────────────────────────────────────────────────────
-  const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-  const KEY_IDS    = ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4'];
-  const NOTE_FREQS = {
-    C4:261.63, Cs4:277.18, D4:293.66, Ds4:311.13, E4:329.63,
-    F4:349.23, Fs4:369.99, G4:392.00, Gs4:415.30,
-    A4:440.00, As4:466.16, B4:493.88,
+  const NOTE_NAMES  = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  const KEY_IDS     = ['C4','Cs4','D4','Ds4','E4','F4','Fs4','G4','Gs4','A4','As4','B4'];
+  const NOTE_FREQS  = {
+    C4:261.63,Cs4:277.18,D4:293.66,Ds4:311.13,E4:329.63,
+    F4:349.23,Fs4:369.99,G4:392.00,Gs4:415.30,A4:440.00,As4:466.16,B4:493.88
   };
-  const DIATONIC = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 };
+  const DIATONIC  = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
+  const NOTE_COLORS = [
+    '#ff6b6b','#ff9f43','#ffd43b','#a9e34b','#69db7c','#4dabf7',
+    '#74c0fc','#748ffc','#9775fa','#cc5de8','#f783ac','#ff8787'
+  ]; // C … B
 
-  // Staff geometry (matches SVG viewBox)
-  const SB = 95, LS = 10, NOTE_X = 185; // staff bottom Y, line spacing, note X
+  // Staff geometry
+  const SB = 95, LS = 10, NOTE_X = 185;
 
-  // Flow canvas pitch range
-  const FLOW_MIN = -14, FLOW_MAX = 22; // semitones from C4
-
-  // ── Mode state ────────────────────────────────────────────────────────
-  let currentMode = 'listen';
+  // Flow: piano-roll lane definitions (C at bottom → B at top)
+  const LANES_DEF = [
+    {name:'C', idx:0, sharp:false},{name:'C#',idx:1, sharp:true },
+    {name:'D', idx:2, sharp:false},{name:'D#',idx:3, sharp:true },
+    {name:'E', idx:4, sharp:false},{name:'F', idx:5, sharp:false},
+    {name:'F#',idx:6, sharp:true },{name:'G', idx:7, sharp:false},
+    {name:'G#',idx:8, sharp:true },{name:'A', idx:9, sharp:false},
+    {name:'A#',idx:10,sharp:true },{name:'B', idx:11,sharp:false},
+  ];
+  const TOTAL_UNITS = 7*2 + 5*1; // 19 — white keys 2u, sharps 1u
+  const LABEL_W  = 34;
+  const FLOW_SECS = 7;
 
   // ── DOM refs ──────────────────────────────────────────────────────────
-  const noteCard    = document.getElementById('noteCard');
-  const noteNameEl  = document.getElementById('noteName');
-  const noteSubEl   = document.getElementById('noteSub');
-  const centsDot    = document.getElementById('centsDot');
-  const noteView    = document.getElementById('noteView');
-  const staffView   = document.getElementById('staffView');
-  const flowView    = document.getElementById('flowView');
-  const flowCanvas  = document.getElementById('flowCanvas');
-  const noteGroup   = document.getElementById('noteGroup');
-  const stemEl      = document.getElementById('stemEl');
+  const noteCard     = document.getElementById('noteCard');
+  const noteNameEl   = document.getElementById('noteName');
+  const noteSubEl    = document.getElementById('noteSub');
+  const centsDot     = document.getElementById('centsDot');
+  const staffView    = document.getElementById('staffView');
+  const flowView     = document.getElementById('flowView');
+  const flowCanvas   = document.getElementById('flowCanvas');
+  const noteGroup    = document.getElementById('noteGroup');
+  const stemEl       = document.getElementById('stemEl');
   const accidentalEl = document.getElementById('accidentalEl');
-  const ledgerG     = document.getElementById('ledgerG');
-  const startBtn    = document.getElementById('startBtn');
-  const hint        = document.getElementById('hint');
+  const ledgerG      = document.getElementById('ledgerG');
+  const controls     = document.getElementById('controls');
+  const startBtn     = document.getElementById('startBtn');
+  const hint         = document.getElementById('hint');
+
+  // ── Mode ──────────────────────────────────────────────────────────────
+  let currentMode = 'listen';
 
   // ── Music helpers ─────────────────────────────────────────────────────
-  function freqToInfo(freq) {
-    const semFromC4 = 12 * Math.log2(freq / 261.63);
-    const rounded   = Math.round(semFromC4);
-    const cents     = Math.round((semFromC4 - rounded) * 100);
-    const idx       = ((rounded % 12) + 12) % 12;
-    const octave    = 4 + Math.floor(rounded / 12);
-    return buildInfo(idx, octave, cents);
-  }
-
-  function keyIdToInfo(keyId) {
-    const idx = KEY_IDS.indexOf(keyId);
-    return idx < 0 ? null : buildInfo(idx, 4, 0);
-  }
-
   function buildInfo(idx, octave, cents) {
     const name   = NOTE_NAMES[idx];
-    const letter = name.replace('#', '');
+    const letter = name.replace('#','');
     const isSharp = name.includes('#');
     const adjIdx = ((idx + (cents >= 0 ? 1 : -1)) + 12) % 12;
-    const step   = (octave - 4) * 7 + (DIATONIC[letter] - 2); // staff steps from E4
-    const ranges = ['','Very Low','Very Low','Low','Middle','High','High'];
-    const rangeLabel = ranges[Math.min(6, Math.max(1, octave))] || 'Very High';
+    const step   = (octave - 4) * 7 + (DIATONIC[letter] - 2);
+    const rl     = ['','Very Low','Very Low','Low','Middle','High','High'];
     return {
-      name, letter, isSharp,
-      fullName: name + octave,
+      name, letter, isSharp, fullName: name + octave,
       key: KEY_IDS[idx], adjKey: KEY_IDS[adjIdx],
-      octave, cents, step, rangeLabel,
+      octave, cents, step, rangeLabel: rl[Math.min(6, Math.max(1, octave))] || 'High',
       mainInt: 1 - Math.abs(cents) / 100,
       adjInt:  Math.abs(cents) / 100,
     };
+  }
+  function freqToInfo(freq) {
+    const s = 12 * Math.log2(freq / 261.63);
+    const r = Math.round(s);
+    return buildInfo(((r%12)+12)%12, 4 + Math.floor(r/12), Math.round((s-r)*100));
+  }
+  function keyIdToInfo(keyId) {
+    const i = KEY_IDS.indexOf(keyId);
+    return i < 0 ? null : buildInfo(i, 4, 0);
   }
 
   // ── Pitch detection ───────────────────────────────────────────────────
   function detectPitch(buf, sr) {
     const n = buf.length;
     let rms = 0;
-    for (let i = 0; i < n; i++) rms += buf[i] * buf[i];
-    if (Math.sqrt(rms / n) < 0.013) return null;
+    for (let i = 0; i < n; i++) rms += buf[i]*buf[i];
+    if (Math.sqrt(rms/n) < 0.007) return null;          // ← lowered threshold
 
-    const minLag = Math.floor(sr / 2000), maxLag = Math.min(Math.ceil(sr / 60), n - 1);
-    const ac = new Float32Array(maxLag + 1);
+    const minLag = Math.floor(sr/2000), maxLag = Math.min(Math.ceil(sr/60), n-1);
+    const ac = new Float32Array(maxLag+1);
     for (let lag = minLag; lag <= maxLag; lag++) {
       let s = 0;
-      for (let i = 0; i < n - lag; i++) s += buf[i] * buf[i + lag];
+      for (let i = 0; i < n-lag; i++) s += buf[i]*buf[i+lag];
       ac[lag] = s;
     }
     let d = minLag;
-    while (d < maxLag && ac[d] > ac[d + 1]) d++;
+    while (d < maxLag && ac[d] > ac[d+1]) d++;
     let best = d;
-    for (let i = d + 1; i <= maxLag; i++) if (ac[i] > ac[best]) best = i;
+    for (let i = d+1; i <= maxLag; i++) if (ac[i] > ac[best]) best = i;
     if (ac[best] <= 0) return null;
     let lag = best;
     if (best > minLag && best < maxLag) {
-      const a = ac[best-1], b = ac[best], c = ac[best+1];
-      const dn = 2*(a - 2*b + c);
-      if (dn !== 0) lag = best - (a - c) / dn;
+      const a=ac[best-1],b=ac[best],c=ac[best+1],dn=2*(a-2*b+c);
+      if (dn !== 0) lag = best - (a-c)/dn;
     }
-    return sr / lag;
+    return sr/lag;
   }
 
   // ── Piano glow ────────────────────────────────────────────────────────
   function clearPiano() {
     document.querySelectorAll('.wk,.bk').forEach(el => {
-      el.style.background = ''; el.style.boxShadow = '';
+      el.style.background=''; el.style.boxShadow='';
     });
   }
-
-  function glowKey(keyId, t) {
-    const el = document.querySelector(`[data-note="${keyId}"]`);
+  function glowKey(id, t) {
+    const el = document.querySelector(`[data-note="${id}"]`);
     if (!el || t < 0.05) return;
     if (el.classList.contains('bk')) {
-      el.style.background = `rgb(${Math.round(30+t*109)},${Math.round(30+t*62)},${Math.round(56+t*190)})`;
-      el.style.boxShadow  = `0 0 ${Math.round(t*22)}px rgba(139,92,246,${(t*.85).toFixed(2)}),0 4px 8px rgba(0,0,0,.65)`;
+      el.style.background=`rgb(${Math.round(30+t*109)},${Math.round(30+t*62)},${Math.round(56+t*190)})`;
+      el.style.boxShadow =`0 0 ${Math.round(t*22)}px rgba(139,92,246,${(t*.85).toFixed(2)}),0 4px 8px rgba(0,0,0,.65)`;
     } else {
-      const R = Math.round(242+(255-242)*t), G = Math.round(237+(215-237)*t), B = Math.round(227-227*t);
-      el.style.background = `rgb(${R},${G},${B})`;
-      el.style.boxShadow  = `inset 0 0 0 ${(t*3).toFixed(1)}px rgba(255,215,0,${t.toFixed(2)}),`
-                          + `0 0 ${Math.round(t*28)}px rgba(255,200,0,${(t*.5).toFixed(2)})`;
+      const R=Math.round(242+(255-242)*t),G=Math.round(237+(215-237)*t),B=Math.round(227-227*t);
+      el.style.background=`rgb(${R},${G},${B})`;
+      el.style.boxShadow =`inset 0 0 0 ${(t*3).toFixed(1)}px rgba(255,215,0,${t.toFixed(2)}),`
+                         +`0 0 ${Math.round(t*28)}px rgba(255,200,0,${(t*.5).toFixed(2)})`;
     }
   }
 
-  // ── Staff display ─────────────────────────────────────────────────────
-  function stepToY(step) { return SB - step * (LS / 2); }
-
+  // ── Staff ─────────────────────────────────────────────────────────────
+  function stepToY(s) { return SB - s*(LS/2); }
   function updateStaff(info) {
-    if (!info) {
-      noteGroup.setAttribute('display', 'none');
-      ledgerG.innerHTML = '';
-      return;
-    }
-    const { step, isSharp } = info;
-    const noteY = stepToY(step);
-    noteGroup.style.transform = `translate(${NOTE_X}px,${noteY}px)`;
+    if (!info) { noteGroup.setAttribute('display','none'); ledgerG.innerHTML=''; return; }
+    const {step,isSharp} = info;
+    noteGroup.style.transform = `translate(${NOTE_X}px,${stepToY(step)}px)`;
     noteGroup.removeAttribute('display');
-
-    const up = step < 4;
-    const sx = up ? 10 : -10;
-    stemEl.setAttribute('x1', sx); stemEl.setAttribute('x2', sx);
-    stemEl.setAttribute('y2', up ? '-42' : '42');
-
-    if (isSharp) accidentalEl.removeAttribute('display');
-    else accidentalEl.setAttribute('display', 'none');
-
+    const up = step < 4, sx = up ? 10 : -10;
+    stemEl.setAttribute('x1',sx); stemEl.setAttribute('x2',sx);
+    stemEl.setAttribute('y2', up?'-42':'42');
+    isSharp ? accidentalEl.removeAttribute('display') : accidentalEl.setAttribute('display','none');
     ledgerG.innerHTML = '';
-    const lx1 = NOTE_X - 18, lx2 = NOTE_X + 18;
+    const lx1=NOTE_X-18, lx2=NOTE_X+18;
     if (step <= -2) {
-      for (let s = -2; s >= step; s -= 2) {
-        const ly = stepToY(s);
-        ledgerG.innerHTML += `<line x1="${lx1}" y1="${ly}" x2="${lx2}" y2="${ly}"/>`;
-      }
+      for (let s=-2; s>=step; s-=2)
+        ledgerG.innerHTML += `<line x1="${lx1}" y1="${stepToY(s)}" x2="${lx2}" y2="${stepToY(s)}"/>`;
     } else if (step >= 10) {
-      for (let s = 10; s <= step; s += 2) {
-        const ly = stepToY(s);
-        ledgerG.innerHTML += `<line x1="${lx1}" y1="${ly}" x2="${lx2}" y2="${ly}"/>`;
-      }
+      for (let s=10; s<=step; s+=2)
+        ledgerG.innerHTML += `<line x1="${lx1}" y1="${stepToY(s)}" x2="${lx2}" y2="${stepToY(s)}"/>`;
     }
   }
 
-  // ── Cents bar ─────────────────────────────────────────────────────────
-  function updateCents(cents) {
-    if (cents == null) { centsDot.style.background = '#555'; return; }
-    centsDot.style.left = `${Math.max(4,Math.min(96, 50 + (cents/50)*44))}%`;
-    centsDot.style.background = Math.abs(cents)<10 ? '#22c55e' : Math.abs(cents)<25 ? '#eab308' : '#ef4444';
+  // ── Cents + note card ─────────────────────────────────────────────────
+  function updateCents(c) {
+    if (c == null) { centsDot.style.background='#555'; return; }
+    centsDot.style.left = `${Math.max(4,Math.min(96, 50+(c/50)*44))}%`;
+    centsDot.style.background = Math.abs(c)<10?'#22c55e':Math.abs(c)<25?'#eab308':'#ef4444';
   }
-
-  // ── Note card ─────────────────────────────────────────────────────────
   function updateDisplay(info, freq) {
     if (!info) {
       noteNameEl.textContent = '—';
-      noteSubEl.textContent  = currentMode === 'keys' ? 'tap a key to hear it!' : 'Listening…';
-      noteCard.classList.remove('lit');
-      updateCents(null);
+      noteSubEl.textContent  = currentMode==='keys' ? 'tap a key to hear it!' : 'Listening…';
+      noteCard.classList.remove('lit'); updateCents(null);
     } else {
       noteNameEl.textContent = info.fullName;
-      const cSign = info.cents != null
-        ? (info.cents >= 0 ? `+${info.cents}¢` : `${info.cents}¢`) : '';
-      const freqStr = freq ? `${freq.toFixed(1)} Hz` : '';
-      noteSubEl.textContent = [freqStr, cSign, info.rangeLabel].filter(Boolean).join(' · ');
-      noteCard.classList.add('lit');
-      updateCents(info.cents ?? null);
+      const cs = info.cents!=null ? (info.cents>=0?`+${info.cents}¢`:`${info.cents}¢`) : '';
+      const fq = freq ? `${freq.toFixed(1)} Hz` : '';
+      noteSubEl.textContent = [fq,cs,info.rangeLabel].filter(Boolean).join(' · ');
+      noteCard.classList.add('lit'); updateCents(info.cents??null);
     }
   }
 
   // ── Flow canvas ───────────────────────────────────────────────────────
-  const flowData   = []; // { sem, time }
-  const FLOW_SECS  = 7;  // seconds of history shown
-  let   flowRafId  = null;
+  let laneRects = [];
+  const flowSegs = [];  // {noteIdx, name, startTime, endTime?}
+  let currSeg = null, flowRafId = null;
 
-  function semToY(sem, H) {
-    return H * (1 - (sem - FLOW_MIN) / (FLOW_MAX - FLOW_MIN));
-  }
-
-  function pushFlowPoint(freq) {
-    if (!freq) return;
-    flowData.push({ sem: 12 * Math.log2(freq / 261.63), time: performance.now() });
-    const cutoff = performance.now() - (FLOW_SECS + 1) * 1000;
-    while (flowData.length && flowData[0].time < cutoff) flowData.shift();
+  function computeLanes(H) {
+    let cum = 0;
+    return LANES_DEF.map(lane => {
+      const units = lane.sharp ? 1 : 2;
+      const y2 = H - (cum / TOTAL_UNITS) * H;
+      const y1 = H - ((cum + units) / TOTAL_UNITS) * H;
+      cum += units;
+      return { ...lane, y1, y2, cy:(y1+y2)/2, h:y2-y1 };
+    });
   }
 
   function initFlowCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    const cssW = flowView.clientWidth || 340;
-    const cssH = parseInt(getComputedStyle(flowCanvas).height) || 200;
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = flowView.clientWidth  || 340;
+    const cssH = flowCanvas.clientHeight || 210;
     flowCanvas.width  = cssW * dpr;
     flowCanvas.height = cssH * dpr;
-    flowCanvas.style.width  = cssW  + 'px';
-    flowCanvas.style.height = cssH + 'px';
+    laneRects = computeLanes(cssH);
+  }
+
+  function pushFlowNote(freq) {
+    const now = performance.now();
+    if (!freq) {
+      if (currSeg && !currSeg.endTime) { currSeg.endTime = now; currSeg = null; }
+      return;
+    }
+    const noteIdx = (((Math.round(12*Math.log2(freq/261.63)))%12)+12)%12;
+    if (!currSeg || currSeg.noteIdx !== noteIdx) {
+      if (currSeg) currSeg.endTime = now;
+      currSeg = { noteIdx, name: NOTE_NAMES[noteIdx], startTime: now };
+      flowSegs.push(currSeg);
+    }
+    const cutoff = now - (FLOW_SECS+1)*1000;
+    while (flowSegs.length > 1 && flowSegs[0].endTime && flowSegs[0].endTime < cutoff)
+      flowSegs.shift();
+  }
+
+  function hexToRgb(hex) {
+    return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+  }
+  function roundRect(ctx,x,y,w,h,r) {
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
   }
 
   function drawFlow() {
-    const dpr = window.devicePixelRatio || 1;
-    const W   = flowCanvas.width / dpr;
-    const H   = flowCanvas.height / dpr;
-    const ctx = flowCanvas.getContext('2d');
-    const now = performance.now();
+    if (!laneRects.length) return;
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = flowCanvas.width  / dpr;
+    const cssH = flowCanvas.height / dpr;
+    const ctx  = flowCanvas.getContext('2d');
+    const now  = performance.now();
+    const trackX = LABEL_W;
+    const trackW = cssW - trackX;
+    const pxPerMs = trackW / (FLOW_SECS * 1000);
 
     ctx.save();
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, W, H);
+    ctx.clearRect(0,0,cssW,cssH);
 
-    // dark background
-    ctx.fillStyle = '#080812';
-    ctx.fillRect(0, 0, W, H);
+    // ── Background
+    ctx.fillStyle = '#06060f';
+    ctx.fillRect(0,0,cssW,cssH);
 
-    // Reference lines
-    const refs = [
-      { sem:-12, label:'C3', bold:true },
-      { sem: -5, label:'G3', bold:false },
-      { sem:  0, label:'C4', bold:true  },
-      { sem:  7, label:'G4', bold:false },
-      { sem: 12, label:'C5', bold:true  },
-      { sem: 19, label:'G5', bold:false },
-    ];
-    refs.forEach(({ sem, label, bold }) => {
-      const y = semToY(sem, H);
-      ctx.strokeStyle = bold ? 'rgba(50,50,120,0.9)' : 'rgba(30,30,70,0.7)';
-      ctx.lineWidth   = bold ? 1.5 : 0.75;
-      ctx.setLineDash(bold ? [] : [5, 5]);
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      ctx.setLineDash([]);
-      if (bold) {
-        ctx.fillStyle = 'rgba(90,90,160,0.7)';
-        ctx.font = '10px monospace';
-        ctx.fillText(label, 4, y - 3);
+    // ── Lane backgrounds + labels
+    laneRects.forEach(lane => {
+      // Active lane gets subtle glow
+      const isActive = currSeg && !currSeg.endTime && currSeg.noteIdx === lane.idx;
+      if (isActive) {
+        const [r,g,b] = hexToRgb(NOTE_COLORS[lane.idx]);
+        ctx.fillStyle = `rgba(${r},${g},${b},0.12)`;
+      } else {
+        ctx.fillStyle = lane.sharp ? '#08081a' : '#0c0c22';
+      }
+      ctx.fillRect(0, lane.y1, cssW, lane.h);
+
+      // Lane separator
+      ctx.strokeStyle = '#14142e';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0,lane.y2); ctx.lineTo(cssW,lane.y2); ctx.stroke();
+
+      // Note label (left column)
+      const fs = Math.max(7, Math.round(lane.h * (lane.sharp ? 0.68 : 0.52)));
+      ctx.font = `bold ${fs}px monospace`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = lane.sharp ? '#303060' : '#484890';
+      ctx.fillText(lane.name, 4, lane.cy);
+    });
+
+    // Separator between label col and track area
+    ctx.strokeStyle = '#1a1a40'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(trackX,0); ctx.lineTo(trackX,cssH); ctx.stroke();
+
+    // ── Flow segments (pills)
+    flowSegs.forEach(seg => {
+      const endT   = seg.endTime || now;
+      const startX = trackX + trackW - (now - seg.startTime) * pxPerMs; // left edge
+      const endX   = trackX + trackW - (now - endT)         * pxPerMs; // right edge
+
+      const cx1 = Math.max(trackX, startX);
+      const cx2 = Math.min(trackX + trackW, endX);
+      if (cx2 - cx1 < 1) return;
+
+      const lane  = laneRects[seg.noteIdx];
+      if (!lane) return;
+      const age   = now - seg.startTime;
+      const alpha = Math.max(0.18, 1 - age / (FLOW_SECS * 1000));
+      const [r,g,b] = hexToRgb(NOTE_COLORS[seg.noteIdx]);
+      const pillH = lane.h * 0.74;
+      const pillY = lane.cy - pillH/2;
+
+      // Pill fill
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha.toFixed(2)})`;
+      roundRect(ctx, cx1, pillY, cx2-cx1, pillH, 4);
+      ctx.fill();
+
+      // Glow on active (right-edge) pill
+      if (!seg.endTime) {
+        ctx.shadowColor = `rgba(${r},${g},${b},0.7)`;
+        ctx.shadowBlur  = 10;
+        roundRect(ctx, cx1, pillY, cx2-cx1, pillH, 4);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      // Note name inside pill (if wide enough)
+      const pillW = cx2 - cx1;
+      if (pillW > 14) {
+        const fs2 = Math.max(7, Math.round(pillH * 0.58));
+        ctx.font = `bold ${fs2}px sans-serif`;
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = `rgba(0,0,0,${(alpha*0.85).toFixed(2)})`;
+        const tx = Math.min(cx1 + 4, cx2 - 4 - ctx.measureText(seg.name).width);
+        ctx.fillText(seg.name, Math.max(cx1+2, tx), lane.cy);
       }
     });
 
-    // Current-time line (right edge glow)
-    const grad = ctx.createLinearGradient(W - 30, 0, W, 0);
-    grad.addColorStop(0, 'rgba(226,183,20,0)');
-    grad.addColorStop(1, 'rgba(226,183,20,0.08)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(W - 30, 0, 30, H);
-
-    // Pitch trail
-    const window_ms = FLOW_SECS * 1000;
-    const pts = flowData.filter(p => now - p.time < window_ms);
-
-    if (pts.length > 1) {
-      for (let i = 1; i < pts.length; i++) {
-        const p0 = pts[i-1], p1 = pts[i];
-        if (p1.time - p0.time > 250) continue; // gap in signal — don't connect
-        const x0 = W - ((now - p0.time) / window_ms) * W;
-        const x1 = W - ((now - p1.time) / window_ms) * W;
-        const y0 = semToY(p0.sem, H);
-        const y1 = semToY(p1.sem, H);
-        const age = (now - p1.time) / window_ms;
-        const alpha = Math.max(0, 1 - age);
-        ctx.strokeStyle = `rgba(226,183,20,${(alpha * 0.9).toFixed(2)})`;
-        ctx.lineWidth   = 5 * alpha + 1;
-        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
-      }
-    }
-
-    // Leading dot (current note, right edge)
-    if (pts.length > 0 && now - pts[pts.length-1].time < 300) {
-      const yDot = semToY(pts[pts.length-1].sem, H);
-      ctx.shadowColor = '#ffd700'; ctx.shadowBlur = 18;
-      ctx.fillStyle = '#ffd700';
-      ctx.beginPath(); ctx.arc(W - 6, yDot, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-    }
+    // Right-edge "now" glow
+    const nowGrad = ctx.createLinearGradient(trackX+trackW-14,0,trackX+trackW,0);
+    nowGrad.addColorStop(0,'rgba(255,255,255,0)');
+    nowGrad.addColorStop(1,'rgba(255,255,255,0.06)');
+    ctx.fillStyle = nowGrad;
+    ctx.fillRect(trackX+trackW-14, 0, 14, cssH);
 
     ctx.restore();
   }
@@ -482,41 +525,36 @@
   function startFlowLoop() {
     if (flowRafId) return;
     (function tick() {
+      if (currentMode !== 'flow') { flowRafId = null; return; }
       drawFlow();
-      if (currentMode === 'flow') flowRafId = requestAnimationFrame(tick);
-      else flowRafId = null;
+      flowRafId = requestAnimationFrame(tick);
     })();
   }
 
-  // ── Keyboard sound synthesis ──────────────────────────────────────────
+  // ── Keyboard sound ────────────────────────────────────────────────────
   let kbCtx = null, kbTimeout = null;
 
   function playNote(keyId) {
     if (!kbCtx) kbCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const freq = NOTE_FREQS[keyId];
-    if (!freq) return;
+    const freq = NOTE_FREQS[keyId]; if (!freq) return;
 
     clearTimeout(kbTimeout);
     const info = keyIdToInfo(keyId);
     clearPiano(); glowKey(keyId, 1.0);
     updateDisplay(info, freq); updateStaff(info);
 
-    // Two sine waves: fundamental + quiet 2nd harmonic for warmth
     const master = kbCtx.createGain();
     master.connect(kbCtx.destination);
-    [1, 2].forEach((mult, i) => {
-      const osc = kbCtx.createOscillator();
-      const g   = kbCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq * mult;
-      g.gain.value = i === 0 ? 1 : 0.18;
-      osc.connect(g); g.connect(master);
-      osc.start(); osc.stop(kbCtx.currentTime + 2.4);
+    [[1,1],[2,0.18],[3,0.06]].forEach(([mult,vol]) => {
+      const o=kbCtx.createOscillator(), g=kbCtx.createGain();
+      o.type='sine'; o.frequency.value=freq*mult; g.gain.value=vol;
+      o.connect(g); g.connect(master);
+      o.start(); o.stop(kbCtx.currentTime+2.4);
     });
-    const t = kbCtx.currentTime;
-    master.gain.setValueAtTime(0.001, t);
-    master.gain.linearRampToValueAtTime(0.42, t + 0.012);
-    master.gain.exponentialRampToValueAtTime(0.001, t + 2.4);
+    const t=kbCtx.currentTime;
+    master.gain.setValueAtTime(0.001,t);
+    master.gain.linearRampToValueAtTime(0.42,t+0.014);
+    master.gain.exponentialRampToValueAtTime(0.001,t+2.4);
 
     kbTimeout = setTimeout(() => {
       clearPiano(); updateDisplay(null); updateStaff(null);
@@ -525,59 +563,56 @@
 
   // ── Listen / Flow audio loop ───────────────────────────────────────────
   let audioCtx, analyser, mediaStream;
-  let rafId, isRunning = false;
-  let smoothedFreq = null, silentCount = 0, lastProcTime = 0;
-  let pendingKey = null, pendingCount = 0, confirmedKey = null;
-  const SILENCE_HOLD = 6, CONFIRM = 2;
+  let rafId, isRunning=false, smoothedFreq=null, silentCount=0, lastProcTime=0;
+  let pendingKey=null, pendingCount=0, confirmedKey=null;
+  const SILENCE_HOLD=5, CONFIRM=1;      // ← CONFIRM=1: respond faster
 
   function debounceKey(raw) {
-    if (!raw) { pendingKey = confirmedKey = null; pendingCount = 0; return null; }
-    if (raw === confirmedKey) { pendingKey = null; pendingCount = 0; return raw; }
-    if (raw === pendingKey) {
-      if (++pendingCount >= CONFIRM) { confirmedKey = raw; return raw; }
+    if (!raw) { pendingKey=confirmedKey=null; pendingCount=0; return null; }
+    if (raw===confirmedKey) { pendingKey=null; pendingCount=0; return raw; }
+    if (raw===pendingKey) {
+      if (++pendingCount>=CONFIRM) { confirmedKey=raw; return raw; }
       return confirmedKey;
     }
-    pendingKey = raw; pendingCount = 1;
-    return confirmedKey;
+    pendingKey=raw; pendingCount=1; return confirmedKey;
   }
 
   function loop(ts) {
     if (!isRunning) return;
     rafId = requestAnimationFrame(loop);
-    if (currentMode === 'flow') drawFlow();         // 60fps canvas scroll
-    if (ts - lastProcTime < 50) return;             // 20Hz pitch detection
+    if (currentMode==='flow') drawFlow();      // 60fps scroll
+    if (ts-lastProcTime < 50) return;          // 20Hz pitch
     lastProcTime = ts;
 
-    const buf = new Float32Array(analyser.fftSize);
+    const buf=new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(buf);
-    const raw = detectPitch(buf, audioCtx.sampleRate);
+    const raw=detectPitch(buf,audioCtx.sampleRate);
 
     if (raw) {
-      silentCount = 0;
+      silentCount=0;
       if (!smoothedFreq) {
-        smoothedFreq = raw;
+        smoothedFreq=raw;
       } else {
-        const ratio = raw / smoothedFreq;
-        const adj   = ratio > 1.7 ? raw / 2 : ratio < 0.6 ? raw * 2 : raw;
-        smoothedFreq = Math.exp(0.7 * Math.log(smoothedFreq) + 0.3 * Math.log(adj));
+        const ratio=raw/smoothedFreq;
+        const adj=ratio>1.7?raw/2:ratio<0.6?raw*2:raw;
+        smoothedFreq=Math.exp(0.7*Math.log(smoothedFreq)+0.3*Math.log(adj));
       }
-      if (currentMode === 'flow') pushFlowPoint(smoothedFreq);
-
-      const info = freqToInfo(smoothedFreq);
-      const key  = debounceKey(info.key);
+      if (currentMode==='flow') pushFlowNote(smoothedFreq);
+      const info=freqToInfo(smoothedFreq);
+      const key=debounceKey(info.key);
       if (key) {
         clearPiano();
-        glowKey(info.key,    info.mainInt);
-        glowKey(info.adjKey, info.adjInt * 0.65);
-        if (currentMode !== 'flow') updateDisplay(info, smoothedFreq);
-        else { updateDisplay(info, smoothedFreq); } // show in card even in flow
-        updateStaff(info);
+        glowKey(info.key,   info.mainInt);
+        glowKey(info.adjKey,info.adjInt*0.65);
+        updateDisplay(info,smoothedFreq);
+        if (currentMode!=='flow') updateStaff(info);
       }
     } else {
-      if (++silentCount > SILENCE_HOLD) {
-        smoothedFreq = null;
-        debounceKey(null);
-        clearPiano(); updateDisplay(null); updateStaff(null);
+      if (++silentCount>SILENCE_HOLD) {
+        smoothedFreq=null; debounceKey(null);
+        if (currentMode==='flow') pushFlowNote(null);
+        clearPiano(); updateDisplay(null);
+        if (currentMode!=='flow') updateStaff(null);
       }
     }
   }
@@ -586,62 +621,59 @@
     try {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false },
-        video: false,
+        audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},
+        video:false,
       });
-      const src = audioCtx.createMediaStreamSource(mediaStream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048; analyser.smoothingTimeConstant = 0;
+      const src=audioCtx.createMediaStreamSource(mediaStream);
+      analyser=audioCtx.createAnalyser();
+      analyser.fftSize=2048; analyser.smoothingTimeConstant=0;
       src.connect(analyser);
-      smoothedFreq = null; silentCount = 0; lastProcTime = 0;
-      pendingKey = null; pendingCount = 0; confirmedKey = null;
-      isRunning = true;
-      startBtn.textContent = '⏹ Stop'; startBtn.className = 'btn btn-stop';
-      hint.textContent = currentMode === 'flow'
-        ? '🎤 Sing — watch the trail!' : '🎤 Listening — sing or play!';
-      rafId = requestAnimationFrame(loop);
-    } catch (err) {
-      hint.textContent = `Mic error: ${err.message}`;
-    }
+      smoothedFreq=null; silentCount=0; lastProcTime=0;
+      pendingKey=null; pendingCount=0; confirmedKey=null;
+      isRunning=true;
+      startBtn.textContent='⏹ Stop'; startBtn.className='btn btn-stop';
+      hint.textContent = currentMode==='flow'
+        ? '🎤 Sing anything — watch it flow!' : '🎤 Listening — sing or play!';
+      rafId=requestAnimationFrame(loop);
+    } catch(err) { hint.textContent=`Mic error: ${err.message}`; }
   }
 
   function stop() {
-    isRunning = false;
+    isRunning=false;
     if (rafId) cancelAnimationFrame(rafId);
-    mediaStream?.getTracks().forEach(t => t.stop());
+    mediaStream?.getTracks().forEach(t=>t.stop());
     audioCtx?.close();
-    smoothedFreq = null;
-    clearPiano(); updateDisplay(null); updateStaff(null);
-    startBtn.textContent = '🎤 Start'; startBtn.className = 'btn btn-start';
-    const h = { listen:'Tap Start, then sing any note',
-                flow:'Tap Start, then sing — watch your pitch!' };
-    hint.textContent = h[currentMode] || '';
+    smoothedFreq=null;
+    clearPiano(); updateDisplay(null);
+    if (currentMode!=='flow') updateStaff(null);
+    startBtn.textContent='🎤 Start'; startBtn.className='btn btn-start';
+    hint.textContent = currentMode==='flow'
+      ? 'Tap Start, then sing — watch your pitch!' : 'Tap Start, then sing any note';
   }
 
   // ── Mode switching ────────────────────────────────────────────────────
   function setMode(mode) {
     if (isRunning) stop();
     clearTimeout(kbTimeout);
+    flowSegs.length=0; currSeg=null;
     clearPiano(); updateDisplay(null); updateStaff(null);
-    currentMode = mode;
+    currentMode=mode;
 
     document.querySelectorAll('.tab').forEach(t =>
-      t.classList.toggle('active', t.dataset.mode === mode));
+      t.classList.toggle('active', t.dataset.mode===mode));
 
-    noteView.style.display  = mode !== 'flow'  ? '' : 'none';
-    staffView.style.display = mode !== 'flow'  ? '' : 'none';
-    flowView.style.display  = mode === 'flow'  ? '' : 'none';
-    startBtn.parentElement.style.display = mode === 'keys' ? 'none' : '';
+    staffView.style.display = mode==='flow' ? 'none' : '';
+    flowView.style.display  = mode==='flow' ? ''     : 'none';
+    controls.style.display  = mode==='keys' ? 'none' : '';   // ← correct: targets #controls div
 
-    const h = {
-      listen: 'Tap Start, then sing any note',
-      keys:   'Tap the piano keys to hear each note',
-      flow:   'Tap Start — sing and watch your pitch trail!',
+    const hints = {
+      listen:'Tap Start, then sing any note',
+      keys:  'Tap the piano keys to hear each note',
+      flow:  'Tap Start, then sing — watch your pitch!',
     };
-    hint.textContent = h[mode];
+    hint.textContent = hints[mode];
 
-    if (mode === 'flow') {
-      // Allow layout to settle before measuring canvas
+    if (mode==='flow') {
       requestAnimationFrame(() => { initFlowCanvas(); startFlowLoop(); });
     }
   }
@@ -649,26 +681,18 @@
   // ── Event listeners ───────────────────────────────────────────────────
   startBtn.addEventListener('click', () => isRunning ? stop() : start());
 
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => setMode(tab.dataset.mode));
-  });
+  document.querySelectorAll('.tab').forEach(tab =>
+    tab.addEventListener('click', () => setMode(tab.dataset.mode)));
 
-  // Piano keys: play sound in Keys mode, do nothing extra in other modes
-  document.querySelectorAll('.wk, .bk').forEach(el => {
+  document.querySelectorAll('.wk,.bk').forEach(el =>
     el.addEventListener('pointerdown', e => {
       e.preventDefault();
-      if (currentMode === 'keys') playNote(el.dataset.note);
-    });
-  });
+      if (currentMode==='keys') playNote(el.dataset.note);
+    }));
 
-  // Hide start button wrapper in keys mode initially
-  startBtn.parentElement.style.display = '';
-
-  // ── Service worker ────────────────────────────────────────────────────
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator)
     window.addEventListener('load', () =>
-      navigator.serviceWorker.register('sw.js').catch(() => {}));
-  }
+      navigator.serviceWorker.register('sw.js').catch(()=>{}));
   </script>
 </body>
 </html>
