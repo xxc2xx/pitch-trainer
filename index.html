@@ -432,7 +432,7 @@
   let lastBeatTime=0,bgFlashAt=0,beatFlashAt=0;
   let smoothedBPM=null,currentBeat=-1;
   let metroRafId=null;
-  let bpmStableCount=0,bpmLocked=false;
+  let bpmStableCount=0,bpmLocked=false,bpmDriftCount=0;
   let lastHistAt=0;
 
   // Pendulum state
@@ -447,7 +447,7 @@
     bpmHist.fill(0);onsetTimes.length=0;
     lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
-    bpmStableCount=0;bpmLocked=false;lastHistAt=0;
+    bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
@@ -568,16 +568,27 @@
       const abpm=updateBpmHist(now);
       if(abpm && abpm>=40 && abpm<=220){
         if(!smoothedBPM){
-          smoothedBPM=abpm; bpmStableCount=0; bpmLocked=false;
+          smoothedBPM=abpm; bpmStableCount=0; bpmLocked=false; bpmDriftCount=0;
         } else {
           const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
           if(bpmLocked){
-            smoothedBPM=smoothedBPM*0.98+abpm*0.02; // nearly frozen when locked
-            if(pct>0.07){bpmLocked=false;bpmStableCount=0;}
+            // Locked: BPM is frozen. Count sustained divergence before unlocking.
+            // Normal histogram noise stays within ~10%; a real tempo change
+            // will push it above 12% for several consecutive readings.
+            if(pct>0.12) bpmDriftCount++;
+            else bpmDriftCount=Math.max(0,bpmDriftCount-1);
+            if(bpmDriftCount>=6){
+              // Genuine tempo change confirmed (~3 seconds of divergence).
+              // Unlock and clear histogram so re-lock is fast.
+              bpmLocked=false; bpmStableCount=0; bpmDriftCount=0;
+              bpmHist.fill(0);
+              smoothedBPM=abpm;
+            }
+            // Else: BPM stays exactly as locked — do not drift.
           } else {
-            smoothedBPM=smoothedBPM*0.65+abpm*0.35;
+            smoothedBPM=smoothedBPM*0.60+abpm*0.40;
             if(pct<0.03) bpmStableCount++; else bpmStableCount=Math.max(0,bpmStableCount-2);
-            if(bpmStableCount>=10) bpmLocked=true;
+            if(bpmStableCount>=10){bpmLocked=true;bpmDriftCount=0;}
           }
         }
         noteNameEl.textContent=Math.round(smoothedBPM);
@@ -1487,21 +1498,40 @@
         'anthropic-dangerous-direct-browser-access':'true',
       },
       body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:1024,
+        model:'claude-sonnet-4-6',
+        max_tokens:2048,
         messages:[{role:'user',content:[
           {type:'image',source:{type:'base64',media_type:mime,data:base64}},
           {type:'text',text:
-`You are reading sheet music. Output ONLY a space-separated note sequence — nothing else.
+`You are an expert music transcriptionist. Read this sheet music image precisely.
 
-Format: NoteOctave:beats
-• Note = letter A–G with optional # or b  (e.g. C, F#, Bb)
-• Octave = single digit 2–7  (middle C = C4)
-• Beats = duration in quarter notes  (1 = quarter, 2 = half, 4 = whole, 0.5 = eighth)
-• R:beats for rests
+TREBLE CLEF reference (memorise before reading):
+  Staff lines bottom→top:  E4  G4  B4  D5  F5
+  Staff spaces bottom→top: F4  A4  C5  E5
+  Below staff (ledger):    D4  C4  B3  A3  G3
+  Above staff (ledger):    G5  A5  B5  C6
 
-Read left to right, top staff first. Include all notes and rests.
-Output the sequence only, no explanation, no punctuation except spaces.`
+PROCEDURE — do this in order:
+1. Key signature: count sharps (#) or flats (b) at the clef. Every note of that letter is sharpened/flattened throughout UNLESS a natural sign (♮) appears in that bar.
+2. Time signature: note the top number — tells you beats per bar.
+3. Read bar by bar, left to right. For each note: identify its staff position carefully, count ledger lines, apply key signature, read duration.
+
+DURATION in quarter-note beats:
+  whole=4  dotted-half=3  half=2  dotted-quarter=1.5  quarter=1  eighth=0.5  sixteenth=0.25
+
+OUTPUT FORMAT — space-separated tokens, NOTHING else:
+  Note: Letter + optional # or b + octave + : + beats   →  C4:1  F#4:0.5  Bb3:2
+  Rest: R + : + beats                                   →  R:1  R:2
+
+Rules:
+- Middle C = C4 (sits on its own ledger line below treble staff)
+- Sharps and flats in the key signature apply to ALL octaves of that letter
+- A note written with an accidental (#/b) in the score overrides key signature for that bar only
+- If two staves shown (grand staff), read treble clef only
+- Ties connect notes of same pitch into one longer note (add their durations)
+- Chords: output only the highest (melody) note
+
+Output the note/rest sequence only. No bar lines, no labels, no explanation.`
           }
         ]}]
       })
