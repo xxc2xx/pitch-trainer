@@ -228,7 +228,7 @@
     <!-- Score canvas -->
     <div id="scoreScroll"><canvas id="scoreCanvas"></canvas></div>
     <!-- Note sequence (editable) -->
-    <textarea id="playInput" placeholder="Notes appear here after upload — or type: C4:1 D4:1 E4:1 …"></textarea>
+    <textarea id="playInput" placeholder="Type a song name or describe a melody — Claude will compose it. Or drop a sheet photo above."></textarea>
     <!-- Controls -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
@@ -238,7 +238,7 @@
       <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁</label>
       <button class="btn btn-start" id="playBtn" style="padding:7px 20px;font-size:.88rem;">▶ Play</button>
     </div>
-    <p id="playStatus">Drop a sheet music photo above — or pick a demo song</p>
+    <p id="playStatus">Type a song name and press ▶ Play — Claude will compose it</p>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -1592,13 +1592,22 @@
     scoreScroll.scrollLeft=Math.max(0,x-scoreScroll.clientWidth*0.3);
   }
 
-  // Auto-render score on paste/type
+  // Returns true if most tokens look like note notation (vs. free-text description)
+  function looksLikeNoteSeq(text){
+    const tokens=text.trim().split(/\s+/).filter(Boolean);
+    if(!tokens.length) return false;
+    const re=/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i;
+    return tokens.filter(t=>re.test(t)).length/tokens.length>0.6;
+  }
+
+  // Auto-render score when pasted/typed content looks like actual note notation
   let scoreRenderTimer=null;
   document.getElementById('playInput').addEventListener('input',()=>{
     document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
     clearTimeout(scoreRenderTimer);
     scoreRenderTimer=setTimeout(()=>{
-      if(!isPlaying) renderScore(parseNoteList(document.getElementById('playInput').value));
+      const v=document.getElementById('playInput').value;
+      if(!isPlaying&&looksLikeNoteSeq(v)) renderScore(parseNoteList(v));
     },400);
   });
 
@@ -1663,6 +1672,47 @@
   });
 
   // ── Sheet music image → Claude Vision ───────────────────────────────
+  async function interpretTextAsNotes(description){
+    if(!claudeApiKey) throw new Error('No API key — save your Anthropic key above first');
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key':claudeApiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body:JSON.stringify({
+        model:'claude-opus-4-7',
+        max_tokens:1024,
+        messages:[
+          {role:'user',content:
+`Convert this song or melody request into a note sequence for a simple melody player.
+
+Request: "${description}"
+
+OUTPUT RULES — critically important:
+• Output ONE LINE of space-separated tokens only — no other text whatsoever.
+• Note format: Letter(A-G) + optional #/b + octave digit + colon + beat value
+  Examples: C4:1  F#4:0.5  Bb3:2  G5:0.25
+• Rest format: R:beats  →  R:1
+• Quarter note = 1 beat. Use: 0.25 0.5 0.75 1 1.5 2 3 4
+• Middle C = C4. Use octaves 3–5 for the main melody.
+• Output melody only — no chords.
+• Aim for 16–40 notes covering the most recognisable phrase of the song.
+• No explanations, no labels, ONLY note tokens.`},
+          {role:'assistant',content:''}
+        ]
+      })
+    });
+    if(!resp.ok){const t=await resp.text();throw new Error(`API ${resp.status}: ${t.slice(0,200)}`);}
+    const json=await resp.json();
+    const raw=json.content[0].text.trim();
+    const clean=raw.split(/\s+/).filter(t=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(t)).join(' ');
+    if(!clean) throw new Error("Claude couldn't generate notes — try a different description.");
+    return clean;
+  }
+
   async function analyzeSheetImage(base64,mime){
     if(!claudeApiKey) throw new Error('No API key — enter it above first');
     const resp=await fetch('https://api.anthropic.com/v1/messages',{
@@ -1828,16 +1878,44 @@ DURATIONS (quarter note = 1 beat):
     o.start(when); o.stop(when+0.07);
   }
 
-  function startPlay(){
-    const notes=parseNoteList(document.getElementById('playInput').value.trim());
-    if(!notes.length){playStatus.textContent='Paste a note sequence above first ↑';return;}
-    if(isPlaying) stopPlay();
+  async function startPlay(){
+    if(isPlaying){stopPlay();return;}
+    const inp=document.getElementById('playInput');
+    let text=inp.value.trim();
+    if(!text){playStatus.textContent='Type a song name or description above ↑';return;}
+
+    // Create AudioContext immediately inside the click handler so the user-gesture
+    // window stays open even though we may await an API call below.
+    playCtx2=new(window.AudioContext||window.webkitAudioContext)();
+    playCtx2.resume();
+
+    // If the text is a description (not already note tokens), ask Claude Opus to compose it.
+    if(!looksLikeNoteSeq(text)){
+      if(!claudeApiKey){
+        playStatus.textContent='⚠ Save your Anthropic API key above to interpret song names';
+        playCtx2.close();playCtx2=null;return;
+      }
+      playBtn.disabled=true;
+      playStatus.innerHTML='<span class="spin">⟳</span> Asking Claude Opus…';
+      try{
+        text=await interpretTextAsNotes(text);
+        inp.value=text;  // show the generated notes in the textarea
+      }catch(err){
+        playStatus.textContent='⚠ '+err.message;
+        playStatus.style.color='#ef4444';
+        setTimeout(()=>{playStatus.style.color='';},4000);
+        playBtn.disabled=false;
+        playCtx2.close();playCtx2=null;return;
+      }
+      playBtn.disabled=false;
+    }
+
+    const notes=parseNoteList(text);
+    if(!notes.length){playStatus.textContent='No valid notes — try a different description';playCtx2.close();playCtx2=null;return;}
     renderScore(notes);
     const bpm=parseInt(document.getElementById('playBpmSlider').value)||100;
     const usePiano=document.getElementById('playSoundOn').checked;
     const useMet=document.getElementById('playMetroOn').checked;
-    playCtx2=new(window.AudioContext||window.webkitAudioContext)();
-    playCtx2.resume();
     isPlaying=true;
     playBtn.textContent='⏹ Stop'; playBtn.className='btn btn-stop';
     playStatus.textContent=`Playing ${notes.length} notes at ${bpm} BPM…`;
@@ -1870,7 +1948,7 @@ DURATIONS (quarter note = 1 beat):
   document.getElementById('playBpmSlider').addEventListener('input',e=>{
     document.getElementById('playBpmVal').textContent=e.target.value;
   });
-  playBtn.addEventListener('click',()=>isPlaying?stopPlay():startPlay());
+  playBtn.addEventListener('click',()=>startPlay());
 
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
