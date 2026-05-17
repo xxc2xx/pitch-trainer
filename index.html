@@ -447,6 +447,16 @@
   const beatHistory=[];  // {time, num} — last 9s of PLO-confirmed beats
   let lastRegCache=null, lastRegCacheAt=0;  // last successful regression result
 
+  // ── Accuracy tracking ────────────────────────────────────────────────
+  const phaseErrors=[];  // last 16 confirmed beat phase errors (ms)
+  const hitWindow=[];    // last 16 beat outcomes: true=hit, false=miss
+  let ploHits=0, ploMisses=0;  // session totals
+  // Multi-band flux ring buffers
+  const eBufBass=new Float32Array(METRO_BUF);
+  const eBufMid =new Float32Array(METRO_BUF);
+  let curBassFlux=0, curMidFlux=0;
+  let bassRunAvg=1e-9, midRunAvg=1e-9;  // running avgs for band meters
+
   // Pendulum state
   const MAX_PEND=0.85;  // wider swing (~49°)
   let pendOriginTime=null, pendBeatPhase=0;
@@ -462,6 +472,10 @@
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
     ploActive=false;ploPhase=0;ploPeriod=0;ploConf=0;
     beatHistory.length=0;lastRegCache=null;lastRegCacheAt=0;
+    phaseErrors.length=0;hitWindow.length=0;
+    ploHits=0;ploMisses=0;
+    eBufBass.fill(0);eBufMid.fill(0);
+    curBassFlux=0;curMidFlux=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
@@ -518,17 +532,28 @@
       if(onsetTimes[i]<now-win) break;
     }
 
+    // Track hit/miss window for adaptive correction strength
+    hitWindow.push(bestOnset!==null);
+    if(hitWindow.length>16) hitWindow.shift();
+    const hitRate=hitWindow.length>0?hitWindow.filter(Boolean).length/hitWindow.length:0.5;
+    const meanErr=phaseErrors.length>0?phaseErrors.reduce((a,b)=>a+b)/phaseErrors.length:30;
+
+    // Adaptive gains: tight when well-locked, aggressive when re-acquiring
+    const phaseGain=hitRate>0.82&&meanErr<18?0.10:hitRate<0.50?0.26:0.18;
+    const tempoGain=hitRate>0.82&&meanErr<18?0.005:hitRate<0.50?0.020:0.012;
+
     if(bestOnset!==null){
-      // Correction: pull phase and period toward real onset (PLL feedback)
-      const err=(bestOnset-now)/ploPeriod;  // signed error, |err|<0.28
-      ploPhase+=err*0.18;                    // 18% phase correction
-      ploPeriod+=err*ploPeriod*0.012;        // 1.2% tempo correction per beat
+      phaseErrors.push(bestDist);
+      if(phaseErrors.length>16) phaseErrors.shift();
+      ploHits++;
+      const err=(bestOnset-now)/ploPeriod;
+      ploPhase+=err*phaseGain;
+      ploPeriod+=err*ploPeriod*tempoGain;
       ploPeriod=Math.max(273,Math.min(1500,ploPeriod));
       ploConf=Math.min(16,ploConf+1);
     } else {
-      // Missed beat — prediction continues unchanged, no correction
+      ploMisses++;
       if(--ploConf<-3){
-        // Confidence exhausted after 3 consecutive misses → unlock
         ploActive=false; bpmLocked=false;
         bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
         return;
@@ -554,27 +579,33 @@
   // Clock-driven beat counter — 1-2-3-4 advances at exact clock intervals
   let clockRefTime=null, clockRefBeat=0;
 
-  // Read bass bins from frequency data (FFT bins covering ~60-250 Hz).
-  // dB values → linear magnitude, then spectral flux (positive delta only).
-  // This is the industry-standard onset detection function.
-  function computeFlux(freqBuf){
-    // Bass bin range: depends on sampleRate / fftSize. At 44.1 kHz, 2048-pt FFT:
-    // bin width ≈ 21.5 Hz → bins 3..12 ≈ 64–258 Hz (kick + bass fundamentals)
-    // At 48 kHz: bin width ≈ 23.4 Hz → same bin range gives 70–281 Hz. Both fine.
+  // Three-band spectral flux: bass (kick), mid (snare/guitar), high-mid (hi-hat).
+  // Returns {bass, mid, high, combined} — combined is weighted for waveform display.
+  function computeMultiBandFlux(freqBuf){
     if(!prevFreqFrame){
       prevFreqFrame=freqBuf.slice(0);
-      return 0;
+      return {bass:0,mid:0,high:0,combined:0};
     }
-    let flux=0;
+    let bass=0,mid=0,high=0;
+    // Bass: ~70-327 Hz (kick drum, bass guitar fundamentals)
     for(let b=3;b<=14;b++){
-      // Convert dB to linear power (dB values are negative, typically -160..0)
-      const curr=Math.pow(10,freqBuf[b]/10);
-      const prev=Math.pow(10,prevFreqFrame[b]/10);
-      const d=curr-prev;
-      if(d>0) flux+=d;
+      const d=Math.pow(10,freqBuf[b]/10)-Math.pow(10,prevFreqFrame[b]/10);
+      if(d>0) bass+=d;
     }
-    for(let b=3;b<=14;b++) prevFreqFrame[b]=freqBuf[b];
-    return flux;
+    // Mid: ~350-1290 Hz (snare body, guitar, vocal attack)
+    for(let b=15;b<=55;b++){
+      const d=Math.pow(10,freqBuf[b]/10)-Math.pow(10,prevFreqFrame[b]/10);
+      if(d>0) mid+=d;
+    }
+    // High-mid: ~1300-3050 Hz (hi-hat edge, snare crack, cymbal shimmer)
+    for(let b=56;b<=130;b++){
+      const d=Math.pow(10,freqBuf[b]/10)-Math.pow(10,prevFreqFrame[b]/10);
+      if(d>0) high+=d;
+    }
+    prevFreqFrame.set(freqBuf);  // update all bins (was only updating bass bins)
+    // Bass-dominant weighting: kick carries beat timing
+    const combined=bass*0.60+mid*0.32+high*0.08;
+    return {bass,mid,high,combined};
   }
 
   // Beat histogram BPM: accumulate all inter-onset intervals.
@@ -612,16 +643,20 @@
   }
 
   function processMetroFrame(freqBuf){
-    const flux=computeFlux(freqBuf);
-    eBuf[eHead%METRO_BUF]=flux;
+    const {bass,mid,combined}=computeMultiBandFlux(freqBuf);
+    const flux=combined;
+    curBassFlux=bass; curMidFlux=mid;
+    const idx=eHead%METRO_BUF;
+    eBuf[idx]=flux; eBufBass[idx]=bass; eBufMid[idx]=mid;
     eHead++;
     if(eHead>=METRO_BUF) eFull=true;
 
-    // Running average for adaptive onset threshold
-    let avg=0;
+    // Running averages for adaptive thresholds
+    let avg=0,bassAvg=0,midAvg=0;
     const len=eFull?METRO_BUF:eHead;
-    for(let i=0;i<len;i++) avg+=eBuf[i];
-    avg/=len;
+    for(let i=0;i<len;i++){avg+=eBuf[i];bassAvg+=eBufBass[i];midAvg+=eBufMid[i];}
+    avg/=len; bassAvg/=len; midAvg/=len;
+    bassRunAvg=bassAvg; midRunAvg=midAvg;
 
     const now=performance.now();
 
@@ -629,10 +664,16 @@
     // Local spectral-flux peak, purely relative threshold (distance-invariant).
     const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.60):230;
     const since=now-lastBeatTime;
-    const prev1=eBuf[(eHead-2+METRO_BUF)%METRO_BUF];
-    const prev2=eBuf[(eHead-3+METRO_BUF)%METRO_BUF];
-    const isPeak=flux>prev1&&flux>prev2;
-    if(isPeak && flux>avg*1.4 && flux>1e-8 && since>minSince){
+    // Per-band peaks for kick (bass) and snare (mid) detection
+    const p1b=eBufBass[(eHead-2+METRO_BUF)%METRO_BUF];
+    const p2b=eBufBass[(eHead-3+METRO_BUF)%METRO_BUF];
+    const p1m=eBufMid[(eHead-2+METRO_BUF)%METRO_BUF];
+    const p2m=eBufMid[(eHead-3+METRO_BUF)%METRO_BUF];
+    // Kick: strong bass peak above adaptive threshold
+    const kickOnset=bass>bassAvg*1.45&&bass>p1b&&bass>p2b&&bass>1e-9;
+    // Snare/clap: strong mid peak with some bass presence (avoids pure hi-hat triggers)
+    const snareOnset=mid>midAvg*1.60&&mid>p1m&&mid>p2m&&bass>bassAvg*0.35&&mid>1e-9;
+    if((kickOnset||snareOnset)&&since>minSince){
       lastBeatTime=now;
       onsetTimes.push(now);
 
@@ -854,6 +895,39 @@
       ctx.fillStyle=frac>.15?`rgba(255,255,255,${(.7+frac*.28).toFixed(2)})`:
                              `rgba(${r2},${g2},${b2},0.45)`;
       ctx.fillText(String(i+1),bx2+boxW/2,BOXES_MID);
+    }
+
+    // ── Accuracy / confidence display (between boxes and waveform) ──────
+    if(ploActive && hitWindow.length>=4){
+      const hitRate=hitWindow.filter(Boolean).length/hitWindow.length;
+      const meanErr=phaseErrors.length>0?phaseErrors.reduce((a,b)=>a+b)/phaseErrors.length:0;
+      const barY=WAVE_TOP-H*0.085;
+      // Confidence bar background + fill
+      ctx.fillStyle='rgba(25,25,55,0.7)';
+      ctx.fillRect(0,barY,W,5);
+      const confCol=hitRate>0.80?'#22c55e':hitRate>0.55?'#e2b714':'#ef4444';
+      ctx.fillStyle=confCol;
+      ctx.fillRect(0,barY,W*hitRate,5);
+      // Stats text (right-aligned)
+      ctx.font=`${Math.round(H*0.036)}px sans-serif`;
+      ctx.textAlign='right'; ctx.textBaseline='bottom';
+      ctx.fillStyle='rgba(140,140,200,0.70)';
+      ctx.fillText(`${Math.round(hitRate*100)}% · ±${Math.round(meanErr)}ms`,W-6,barY-3);
+      // Band activity meters (left side) — B=bass, M=mid
+      const mH=H*0.042,mW=Math.round(W*0.055);
+      const bassLv=Math.min(1,curBassFlux/(bassRunAvg*3+1e-12));
+      const midLv =Math.min(1,curMidFlux /(midRunAvg*3 +1e-12));
+      [[bassLv,'rgba(100,140,255,0.55)','B'],[midLv,'rgba(60,200,170,0.55)','M']].forEach(([lv,col,lbl],ki)=>{
+        const mx=6+ki*(mW+5), myTop=barY-mH-2;
+        ctx.fillStyle='rgba(25,25,55,0.6)';
+        ctx.fillRect(mx,myTop,mW,mH);
+        ctx.fillStyle=col;
+        ctx.fillRect(mx,myTop+mH*(1-lv),mW,mH*lv);
+        ctx.font=`${Math.round(H*0.026)}px sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillStyle='rgba(100,100,160,0.7)';
+        ctx.fillText(lbl,mx+mW/2,myTop-1);
+      });
     }
 
     // ── Beat waveform ─────────────────────────────────────────────────
