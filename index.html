@@ -111,12 +111,14 @@
     #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
     .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
     #playInput{
-      width:100%;height:64px;background:#0a0918;color:#ccc;
+      width:100%;height:56px;background:#0a0918;color:#ccc;
       border:1px solid #222238;border-radius:8px;padding:8px;
       font-size:.78rem;font-family:monospace;resize:none;outline:none;
     }
     #playInput::placeholder{color:#2a2a44;}
     #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
+
+    /* Song picker */
     #songPicker{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
     .song-btn{
       background:#0e0e1c;border:1.5px solid #1e1e38;color:#5858a8;
@@ -124,6 +126,31 @@
       transition:all .12s;white-space:nowrap;
     }
     .song-btn:active,.song-btn.picked{background:#1a1a40;border-color:#5555cc;color:#aaaaee;}
+
+    /* Sheet upload drop zone */
+    #sheetZone{
+      width:100%;border:2px dashed #1e1e38;border-radius:12px;
+      padding:18px 12px;text-align:center;cursor:pointer;
+      transition:border-color .2s,background .2s;color:#3a3a6a;font-size:.78rem;
+      position:relative;
+    }
+    #sheetZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
+    #sheetZone .zone-icon{font-size:1.8rem;display:block;margin-bottom:4px;}
+    #sheetZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    #sheetPreview{width:100%;max-height:140px;object-fit:contain;border-radius:8px;display:none;background:#06050f;}
+    #apiKeyWrap{display:flex;align-items:center;gap:6px;font-size:.72rem;color:#3a3a5a;}
+    #apiKeyWrap input{
+      flex:1;background:#0a0918;color:#aaa;border:1px solid #1a1a38;
+      border-radius:6px;padding:4px 8px;font-size:.72rem;outline:none;
+      font-family:monospace;
+    }
+    #apiKeySave{
+      background:#1a1a40;border:1.5px solid #3a3aaa;color:#8888dd;
+      border-radius:8px;padding:3px 10px;font-size:.7rem;cursor:pointer;white-space:nowrap;
+    }
+    #apiKeyStatus{font-size:.68rem;}
+    .spin{display:inline-block;animation:spin .8s linear infinite;}
+    @keyframes spin{to{transform:rotate(360deg);}}
 
     /* Instrument selector */
     #instBar{display:none;flex-wrap:wrap;gap:5px;justify-content:center;padding:5px 0 2px;}
@@ -175,18 +202,33 @@
   <div id="metroView"><canvas id="metroCanvas"></canvas></div>
 
   <div id="playView">
-    <!-- Song picker -->
+    <!-- API key row -->
+    <div id="apiKeyWrap">
+      <span>🔑 Anthropic API key:</span>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-…  (saved locally, never sent except to Anthropic)">
+      <button id="apiKeySave">Save</button>
+      <span id="apiKeyStatus"></span>
+    </div>
+    <!-- Sheet music upload drop zone -->
+    <div id="sheetZone">
+      <span class="zone-icon">🎼</span>
+      Drop a photo of sheet music here, or tap to upload<br>
+      <small style="color:#2a2a4a;">(JPG / PNG / GIF — read by Claude Vision)</small>
+      <input type="file" id="sheetFile" accept="image/*,audio/midi,.mid,.midi">
+    </div>
+    <img id="sheetPreview" alt="uploaded sheet">
+    <!-- Song picker (quick demos) -->
     <div id="songPicker">
-      <button class="song-btn" data-song="twinkle">⭐ Twinkle Twinkle</button>
-      <button class="song-btn" data-song="mary">🐑 Mary Had a Lamb</button>
+      <button class="song-btn" data-song="twinkle">⭐ Twinkle</button>
+      <button class="song-btn" data-song="mary">🐑 Mary</button>
       <button class="song-btn" data-song="buns">🥐 Hot Cross Buns</button>
       <button class="song-btn" data-song="ode">🎵 Ode to Joy</button>
-      <button class="song-btn" data-song="birthday">🎂 Happy Birthday</button>
+      <button class="song-btn" data-song="birthday">🎂 Birthday</button>
     </div>
-    <!-- Score canvas — notes rendered here, highlights as they play -->
+    <!-- Score canvas -->
     <div id="scoreScroll"><canvas id="scoreCanvas"></canvas></div>
-    <!-- Note input -->
-    <textarea id="playInput" placeholder="Or type custom notes: C4:1 D4:1 E4:1 F4:1 G4:2&#10;Format: NoteOctave:beats  (e.g. C4:1 D4:0.5 E#4:1 R:1)"></textarea>
+    <!-- Note sequence (editable) -->
+    <textarea id="playInput" placeholder="Notes appear here after upload — or type: C4:1 D4:1 E4:1 …"></textarea>
     <!-- Controls -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
@@ -196,7 +238,7 @@
       <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁</label>
       <button class="btn btn-start" id="playBtn" style="padding:7px 20px;font-size:.88rem;">▶ Play</button>
     </div>
-    <p id="playStatus">Pick a song above or type notes — then press ▶ Play</p>
+    <p id="playStatus">Drop a sheet music photo above — or pick a demo song</p>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -376,18 +418,22 @@
   }
 
   // ── Beat / BPM detection ──────────────────────────────────────────────
-  const METRO_BUF=80;                        // 80 frames × 25 ms = 2 s history
+  // Ring buffer stores spectral flux values at 25 ms/frame
+  const METRO_BUF=160;  // 4 seconds of history
   const eBuf=new Float32Array(METRO_BUF);
-  let eHead=0,eFull=false,prevEnergy=0;
+  let eHead=0,eFull=false;
+  // Previous FFT frame for spectral flux computation
+  let prevFreqFrame=null;
+  // Inter-onset interval histogram: bins of 10 ms, covering 230–1600 ms (37–260 BPM)
+  const HIST_MIN=230,HIST_MAX=1600,HIST_BIN=10;
+  const HIST_LEN=Math.ceil((HIST_MAX-HIST_MIN)/HIST_BIN);
+  const bpmHist=new Float32Array(HIST_LEN);
+  const onsetTimes=[];  // rolling 6-second onset history
   let lastBeatTime=0,bgFlashAt=0,beatFlashAt=0;
   let smoothedBPM=null,currentBeat=-1;
   let metroRafId=null;
-
-  // Bass bandpass IIR filter state (persists across frames)
-  let bassLp1=0,bassLp2=0;
-
-  // Autocorrelation BPM state
-  let lastAutocorrAt=0,bpmStableCount=0,bpmLocked=false;
+  let bpmStableCount=0,bpmLocked=false;
+  let lastHistAt=0;
 
   // Pendulum state
   const MAX_PEND=0.62;
@@ -397,93 +443,141 @@
   let countdownVal=0, countdownTimer=null;
 
   function resetMetro(){
-    eBuf.fill(0);eHead=0;eFull=false;prevEnergy=0;
+    eBuf.fill(0);eHead=0;eFull=false;prevFreqFrame=null;
+    bpmHist.fill(0);onsetTimes.length=0;
     lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
-    bassLp1=0;bassLp2=0;
-    lastAutocorrAt=0;bpmStableCount=0;bpmLocked=false;
+    bpmStableCount=0;bpmLocked=false;lastHistAt=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
   }
 
-  // Clock-driven beat counter — once BPM is known, 1-2-3-4 advances at
-  // exact clock intervals regardless of mic noise
+  // Clock-driven beat counter — 1-2-3-4 advances at exact clock intervals
   let clockRefTime=null, clockRefBeat=0;
 
-  // Autocorrelation over eBuf ring buffer → dominant period in BPM.
-  // Checks lags 11–60 frames (40–218 BPM at 25 ms/frame).
-  // Also tests double-lag to resolve half-tempo ambiguity.
-  function computeAutocorrBPM(){
-    let mx=0;
-    for(let i=0;i<METRO_BUF;i++) if(eBuf[i]>mx) mx=eBuf[i];
-    if(mx<1e-18) return null;
-    let bestLag=0,bestCorr=-Infinity;
-    for(let lag=11;lag<=60;lag++){
-      let corr=0,n=0;
-      for(let i=0;i+lag<METRO_BUF;i++){corr+=eBuf[i]*eBuf[i+lag];n++;}
-      corr=n?corr/n:0;
-      if(corr>bestCorr){bestCorr=corr;bestLag=lag;}
+  // Read bass bins from frequency data (FFT bins covering ~60-250 Hz).
+  // dB values → linear magnitude, then spectral flux (positive delta only).
+  // This is the industry-standard onset detection function.
+  function computeFlux(freqBuf){
+    // Bass bin range: depends on sampleRate / fftSize. At 44.1 kHz, 2048-pt FFT:
+    // bin width ≈ 21.5 Hz → bins 3..12 ≈ 64–258 Hz (kick + bass fundamentals)
+    // At 48 kHz: bin width ≈ 23.4 Hz → same bin range gives 70–281 Hz. Both fine.
+    if(!prevFreqFrame){
+      prevFreqFrame=freqBuf.slice(0);
+      return 0;
     }
-    if(bestLag===0||bestLag===11||bestLag===60) return null;
-    // If double-lag also has strong correlation, half-tempo is the real beat
-    const dl=bestLag*2;
-    if(dl<=60){
-      let c2=0,n2=0;
-      for(let i=0;i+dl<METRO_BUF;i++){c2+=eBuf[i]*eBuf[i+dl];n2++;}
-      if(n2&&c2/n2>bestCorr*0.82) bestLag=dl;
+    let flux=0;
+    for(let b=3;b<=14;b++){
+      // Convert dB to linear power (dB values are negative, typically -160..0)
+      const curr=Math.pow(10,freqBuf[b]/10);
+      const prev=Math.pow(10,prevFreqFrame[b]/10);
+      const d=curr-prev;
+      if(d>0) flux+=d;
     }
-    return 60000/(bestLag*25);
+    for(let b=3;b<=14;b++) prevFreqFrame[b]=freqBuf[b];
+    return flux;
   }
 
-  function processMetroFrame(buf){
-    // Bass bandpass: HPF ~60 Hz (removes DC/sub-bass) → LPF ~250 Hz
-    // Kick drums and bass guitar are omnidirectional at 60-250 Hz —
-    // far more consistent than voice at varying mic distances.
-    const sr=audioCtx?.sampleRate||44100;
-    const aLo=1-Math.exp(-2*Math.PI*60/sr);
-    const aHi=1-Math.exp(-2*Math.PI*250/sr);
-    let sum=0;
-    for(let i=0;i<buf.length;i++){
-      bassLp1+=aLo*(buf[i]-bassLp1);
-      const hp=buf[i]-bassLp1;
-      bassLp2+=aHi*(hp-bassLp2);
-      sum+=bassLp2*bassLp2;
+  // Beat histogram BPM: accumulate all inter-onset intervals.
+  // Each onset pair votes for a tempo. Decay old votes.
+  // Far more noise-resistant than autocorrelation on raw energy.
+  function updateBpmHist(now){
+    // Decay histogram (half-life ~4 seconds = each 500 ms update × 0.917)
+    for(let i=0;i<HIST_LEN;i++) bpmHist[i]*=0.917;
+    // Vote: every recent onset pair
+    const cutoff=now-6000;
+    while(onsetTimes.length&&onsetTimes[0]<cutoff) onsetTimes.shift();
+    for(let i=1;i<onsetTimes.length;i++){
+      const iv=onsetTimes[i]-onsetTimes[i-1];
+      if(iv<HIST_MIN||iv>HIST_MAX) continue;
+      const bin=Math.floor((iv-HIST_MIN)/HIST_BIN);
+      if(bin>=0&&bin<HIST_LEN) bpmHist[bin]+=1;
+      // Also vote at integer multiples (handles missed beats)
+      for(let m=2;m<=3;m++){
+        const miv=iv/m;
+        if(miv>=HIST_MIN&&miv<HIST_MAX){
+          const mb=Math.floor((miv-HIST_MIN)/HIST_BIN);
+          if(mb>=0&&mb<HIST_LEN) bpmHist[mb]+=0.6/m;
+        }
+      }
     }
-    const energy=sum/buf.length;
-    const onset=Math.max(0,energy-prevEnergy);
-    prevEnergy=energy;
+    // Find peak bin (with parabolic interpolation for sub-bin precision)
+    let bestBin=0,bestVal=0;
+    for(let i=1;i<HIST_LEN-1;i++) if(bpmHist[i]>bestVal){bestVal=bpmHist[i];bestBin=i;}
+    if(bestVal<0.5) return null;  // not enough data yet
+    // Parabolic interpolation
+    const l=bpmHist[bestBin-1]||0,c=bpmHist[bestBin],r=bpmHist[bestBin+1]||0;
+    const offset=(l<r)?0.5*(r-l)/(2*c-l-r):0;
+    const peakMs=HIST_MIN+(bestBin+offset)*HIST_BIN;
+    return 60000/peakMs;
+  }
 
-    eBuf[eHead%METRO_BUF]=onset;
+  function processMetroFrame(freqBuf){
+    const flux=computeFlux(freqBuf);
+    eBuf[eHead%METRO_BUF]=flux;
     eHead++;
     if(eHead>=METRO_BUF) eFull=true;
-    const len=eFull?METRO_BUF:eHead;
-    if(len<6) return;
 
+    // Running average for adaptive onset threshold
     let avg=0;
-    for(let i=0;i<METRO_BUF;i++) avg+=eBuf[i];
-    avg/=METRO_BUF;
+    const len=eFull?METRO_BUF:eHead;
+    for(let i=0;i<len;i++) avg+=eBuf[i];
+    avg/=len;
 
     const now=performance.now();
 
-    // ── Autocorrelation BPM (every 500 ms) ─────────────────────────────
-    if(eFull && now-lastAutocorrAt>500){
-      lastAutocorrAt=now;
-      const abpm=computeAutocorrBPM();
+    // ── Onset detection ─────────────────────────────────────────────────
+    // Threshold: local flux must exceed mean by >140% AND be a local peak.
+    // Purely relative → works at any mic distance.
+    const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.60):230;
+    const since=now-lastBeatTime;
+    const prev1=eBuf[(eHead-2+METRO_BUF)%METRO_BUF];
+    const prev2=eBuf[(eHead-3+METRO_BUF)%METRO_BUF];
+    const isPeak=flux>prev1&&flux>prev2;  // local maximum
+    if(isPeak && flux>avg*1.4 && flux>1e-8 && since>minSince){
+      lastBeatTime=now;
+      onsetTimes.push(now);
+
+      // Sync pendulum/clock to onset only when it's on-beat
+      let doSync=true;
+      if(smoothedBPM && clockRefTime!==null){
+        const beatMs=60000/smoothedBPM;
+        const elapsed=now-clockRefTime;
+        const nearestBeat=Math.round(elapsed/beatMs)*beatMs;
+        doSync=Math.abs(elapsed-nearestBeat)<beatMs*0.30;
+      }
+      if(doSync){
+        pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
+        pendOriginTime=now;
+        if(smoothedBPM && clockRefTime!==null){
+          const beatMs=60000/smoothedBPM;
+          clockRefBeat=(clockRefBeat+Math.round((now-clockRefTime)/beatMs))%4;
+        } else {
+          clockRefBeat=0;
+        }
+        clockRefTime=now;
+        bgFlashAt=now; beatFlashAt=now;
+      }
+    }
+
+    // ── BPM histogram update (every 500 ms) ─────────────────────────────
+    if(onsetTimes.length>=3 && now-lastHistAt>500){
+      lastHistAt=now;
+      const abpm=updateBpmHist(now);
       if(abpm && abpm>=40 && abpm<=220){
         if(!smoothedBPM){
-          smoothedBPM=abpm;
-          bpmStableCount=0; bpmLocked=false;
+          smoothedBPM=abpm; bpmStableCount=0; bpmLocked=false;
         } else {
           const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
           if(bpmLocked){
-            smoothedBPM=smoothedBPM*0.97+abpm*0.03;
-            if(pct>0.08){bpmLocked=false;bpmStableCount=0;}
+            smoothedBPM=smoothedBPM*0.98+abpm*0.02; // nearly frozen when locked
+            if(pct>0.07){bpmLocked=false;bpmStableCount=0;}
           } else {
-            smoothedBPM=smoothedBPM*0.70+abpm*0.30;
-            if(pct<0.04) bpmStableCount++; else bpmStableCount=Math.max(0,bpmStableCount-1);
-            if(bpmStableCount>=8) bpmLocked=true;
+            smoothedBPM=smoothedBPM*0.65+abpm*0.35;
+            if(pct<0.03) bpmStableCount++; else bpmStableCount=Math.max(0,bpmStableCount-2);
+            if(bpmStableCount>=10) bpmLocked=true;
           }
         }
         noteNameEl.textContent=Math.round(smoothedBPM);
@@ -491,34 +585,6 @@
         noteCard.classList.add('lit');
         updateCents(null);
         if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
-      }
-    }
-
-    // ── Onset detection — pendulum / clock sync only ────────────────────
-    // Purely relative threshold: works regardless of mic distance/volume.
-    const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.65):230;
-    const since=now-lastBeatTime;
-    if(onset>avg*1.35 && onset>1e-16 && since>minSince){
-      lastBeatTime=now;
-      let doSync=true;
-      if(smoothedBPM && clockRefTime!==null){
-        const beatMs=60000/smoothedBPM;
-        const elapsed=now-clockRefTime;
-        const nearestBeat=Math.round(elapsed/beatMs)*beatMs;
-        doSync=Math.abs(elapsed-nearestBeat)<beatMs*0.32;
-      }
-      if(doSync){
-        pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
-        pendOriginTime=now;
-        if(smoothedBPM && clockRefTime!==null){
-          const beatMs=60000/smoothedBPM;
-          const beatsElapsed=Math.round((now-clockRefTime)/beatMs);
-          clockRefBeat=(clockRefBeat+beatsElapsed)%4;
-        } else {
-          clockRefBeat=0;
-        }
-        clockRefTime=now;
-        bgFlashAt=now; beatFlashAt=now;
       }
     }
   }
@@ -1016,9 +1082,9 @@
     if(currentMode==='flow'){
       if(ts-lastProcTime<25) return;
       lastProcTime=ts;
-      const buf=new Float32Array(analyser.fftSize);
-      analyser.getFloatTimeDomainData(buf);
-      processMetroFrame(buf);
+      const freqBuf=new Float32Array(analyser.frequencyBinCount);
+      analyser.getFloatFrequencyData(freqBuf);
+      processMetroFrame(freqBuf);
       return;
     }
 
@@ -1390,9 +1456,100 @@
       document.getElementById('playBpmVal').textContent=s.bpm;
       document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
       btn.classList.add('picked');
+      document.getElementById('sheetPreview').style.display='none';
       renderScore(parseNoteList(s.notes));
       playStatus.textContent=`${s.name} · ${s.bpm} BPM — press ▶ Play`;
     });
+  });
+
+  // ── API key management ───────────────────────────────────────────────
+  let claudeApiKey=localStorage.getItem('pitchy_api_key')||'';
+  const apiKeyInput=document.getElementById('apiKeyInput');
+  const apiKeyStatus=document.getElementById('apiKeyStatus');
+  if(claudeApiKey){ apiKeyInput.value=claudeApiKey; apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e'; }
+  document.getElementById('apiKeySave').addEventListener('click',()=>{
+    const k=apiKeyInput.value.trim();
+    if(!k){ apiKeyStatus.textContent='enter key'; apiKeyStatus.style.color='#ef4444'; return; }
+    claudeApiKey=k;
+    localStorage.setItem('pitchy_api_key',k);
+    apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e';
+  });
+
+  // ── Sheet music image → Claude Vision ───────────────────────────────
+  async function analyzeSheetImage(base64,mime){
+    if(!claudeApiKey) throw new Error('No API key — enter it above first');
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key':claudeApiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true',
+      },
+      body:JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:1024,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mime,data:base64}},
+          {type:'text',text:
+`You are reading sheet music. Output ONLY a space-separated note sequence — nothing else.
+
+Format: NoteOctave:beats
+• Note = letter A–G with optional # or b  (e.g. C, F#, Bb)
+• Octave = single digit 2–7  (middle C = C4)
+• Beats = duration in quarter notes  (1 = quarter, 2 = half, 4 = whole, 0.5 = eighth)
+• R:beats for rests
+
+Read left to right, top staff first. Include all notes and rests.
+Output the sequence only, no explanation, no punctuation except spaces.`
+          }
+        ]}]
+      })
+    });
+    if(!resp.ok){
+      const txt=await resp.text();
+      throw new Error(`API error ${resp.status}: ${txt.slice(0,120)}`);
+    }
+    const json=await resp.json();
+    return json.content[0].text.trim();
+  }
+
+  function loadImageFile(file){
+    const preview=document.getElementById('sheetPreview');
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      const dataUrl=e.target.result;
+      preview.src=dataUrl; preview.style.display='block';
+      const base64=dataUrl.split(',')[1];
+      const mime=file.type||'image/jpeg';
+      playStatus.textContent='🔍 Reading sheet music… ';
+      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude…';
+      try{
+        const notes=await analyzeSheetImage(base64,mime);
+        const inp=document.getElementById('playInput');
+        inp.value=notes;
+        document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
+        renderScore(parseNoteList(notes));
+        playStatus.textContent=`✓ ${notes.split(/\s+/).length} notes loaded — press ▶ Play`;
+      }catch(err){
+        playStatus.textContent='⚠ '+err.message;
+        playStatus.style.color='#ef4444';
+        setTimeout(()=>{ playStatus.style.color=''; },4000);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // File input + drag-and-drop
+  const sheetZone=document.getElementById('sheetZone');
+  const sheetFile=document.getElementById('sheetFile');
+  sheetFile.addEventListener('change',e=>{ if(e.target.files[0]) loadImageFile(e.target.files[0]); });
+  sheetZone.addEventListener('dragover',e=>{e.preventDefault();sheetZone.classList.add('drag');});
+  sheetZone.addEventListener('dragleave',()=>sheetZone.classList.remove('drag'));
+  sheetZone.addEventListener('drop',e=>{
+    e.preventDefault(); sheetZone.classList.remove('drag');
+    const f=e.dataTransfer.files[0];
+    if(f&&f.type.startsWith('image/')) loadImageFile(f);
   });
 
   // ── Note synthesis ────────────────────────────────────────────────────
