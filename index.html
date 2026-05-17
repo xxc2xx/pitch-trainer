@@ -444,7 +444,8 @@
   let ploPhase=0;       // [0,1) — fractional position within current beat
   let ploPeriod=0;      // ms per beat
   let ploConf=0;        // confidence counter; drop below 0 → unlock
-  const beatHistory=[];  // {time, num} — last 4s of PLO-confirmed beats
+  const beatHistory=[];  // {time, num} — last 9s of PLO-confirmed beats
+  let lastRegCache=null, lastRegCacheAt=0;  // last successful regression result
 
   // Pendulum state
   const MAX_PEND=0.85;  // wider swing (~49°)
@@ -460,7 +461,7 @@
     smoothedBPM=null;currentBeat=-1;
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
     ploActive=false;ploPhase=0;ploPeriod=0;ploConf=0;
-    beatHistory.length=0;
+    beatHistory.length=0;lastRegCache=null;lastRegCacheAt=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
@@ -856,12 +857,12 @@
     }
 
     // ── Beat waveform ─────────────────────────────────────────────────
-    // Layout: past zone (left 78%) | NOW line | future zone (right 22%)
+    // Layout: past zone (left 60%) | NOW line | future zone (right 40%)
     const wH=H*0.27, wBottom=WAVE_TOP+wH;
-    const nowX=W*0.78;           // "NOW" line x position
+    const nowX=W*0.60;           // "NOW" line x position (near centre)
     const futureW=W-nowX;        // future zone width
     const histMs=4000;           // history shown (ms)
-    const futureMs=1000;         // future zone spans 1 second ahead
+    const futureMs=2000;         // future zone spans 2 seconds ahead
     const bwid=nowX/METRO_BUF;  // bar width scaled to past zone
 
     // Normalize bars
@@ -941,31 +942,39 @@
     ctx.fillText('NOW',nowX,WAVE_TOP-10);
 
     // ── Future zone: regression-projected beats (ghost markers) ──
-    if(ploActive && ploPeriod>0){
+    // Update regression cache — keep the last good result for up to 2.5s so
+    // brief PLO unlock gaps don't blank the future zone.
+    const reg=beatRegression(now);
+    if(reg){lastRegCache=reg;lastRegCacheAt=now;}
+    const useReg=reg||(lastRegCache&&now-lastRegCacheAt<2500?lastRegCache:null);
+    const showFuture=(ploActive&&ploPeriod>0)||useReg;
+
+    if(showFuture){
       // Light background tint for future zone
       ctx.fillStyle='rgba(20,20,50,0.35)';
       ctx.fillRect(nowX,WAVE_TOP-9,futureW,wH+11);
 
-      // Prefer regression over raw PLO phase for projection accuracy
-      const reg=beatRegression(now);
-      const refPeriod=reg?reg.slope:ploPeriod;
-      const msToNext=reg?(reg.nextBeatTime-now):(ploPeriod*(1-ploPhase));
-      // Trust indicator: thin coloured edge on the future zone
+      const refPeriod=useReg?useReg.slope:(ploPeriod||800);
+      // msToNext from regression; if stale, advance by periods to stay in the future
+      let msToNext=useReg?(useReg.nextBeatTime-now):(ploPeriod*(1-ploPhase));
+      while(msToNext<-refPeriod*0.05) msToNext+=refPeriod;
+
+      // Trust indicator: green = live regression, blue = PLO or cached
       const confCol=reg
-        ?`rgba(80,220,120,${(0.2+0.3*reg.r2).toFixed(2)})`
+        ?`rgba(80,220,120,${(0.15+0.35*reg.r2).toFixed(2)})`
         :'rgba(100,100,255,0.15)';
       ctx.fillStyle=confCol;
       ctx.fillRect(nowX,WAVE_TOP-9,3,wH+11);
 
-      for(let i=0;i<3;i++){
+      for(let i=0;i<4;i++){
         const msAhead=msToNext+i*refPeriod;
-        if(msAhead<0||msAhead>futureMs*1.5) continue;
+        if(msAhead<0) continue;
         if(msAhead>futureMs) break;
         const xFut=nowX+(msAhead/futureMs)*futureW;
         const projNum=(clockRefBeat+1+i)%4;
         const col=BEAT_COLS[projNum];
         const[cr,cg,cb]=hexRgb(col);
-        const alpha=0.5*(1-msAhead/futureMs);
+        const alpha=0.55*(1-msAhead/futureMs);
         // Ghost dashed line
         ctx.strokeStyle=`rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
         ctx.lineWidth=1.5; ctx.setLineDash([2,5]);
