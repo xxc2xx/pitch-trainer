@@ -45,10 +45,10 @@
     .staff-wrap{width:100%;max-width:370px;}
     #staffSvg{display:block;margin:0 auto;overflow:visible;}
 
-    /* Metronome canvas — taller for pendulum */
+    /* Metronome canvas */
     #metroView{width:100%;max-width:580px;display:none;}
-    #metroCanvas{width:100%;height:390px;display:block;border-radius:14px;background:#06060f;}
-    @media(max-height:700px){#metroCanvas{height:290px;}}
+    #metroCanvas{width:100%;height:340px;display:block;border-radius:14px;background:#06060f;}
+    @media(max-height:700px){#metroCanvas{height:260px;}}
 
     /* Piano */
     .piano-area{width:100%;max-width:580px;}
@@ -404,15 +404,13 @@
     const ctx=metroCanvas.getContext('2d');
     const now=performance.now();
 
-    // Layout bands
-    const PEND_TOP    = H*0.02;   // pendulum pivot zone
-    const PEND_H      = H*0.52;   // height reserved for pendulum
-    const BOXES_MID   = H*0.71;   // centre of beat boxes
-    const WAVE_TOP    = H*0.85;   // energy waveform
-
-    const pivX=W/2, pivY=PEND_TOP+H*0.05;
-    const armLen=PEND_H*0.78;
-    const ballR=Math.min(24,W*0.068);
+    // Layout bands — pendulum top 46%, BPM strip 46-55%, boxes 56-80%, wave 83-97%
+    const pivX=W/2, pivY=H*0.06;
+    const armLen=H*0.36;
+    const ballR=Math.min(22,W*0.062);
+    const BPM_Y    = H*0.51;   // BPM label row
+    const BOXES_MID= H*0.68;   // centre of beat boxes
+    const WAVE_TOP = H*0.83;   // energy waveform
 
     // Flash states
     const sinceFlash=now-beatFlashAt;
@@ -485,44 +483,50 @@
       ctx.shadowBlur=0;
     }
 
-    // ── Countdown overlay (before BPM detected) ──
-    if(!smoothedBPM && isRunning){
-      ctx.textAlign='center'; ctx.textBaseline='middle';
+    // ── BPM / countdown label strip (between pendulum and boxes) ──
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    if(smoothedBPM){
+      // BPM number
+      ctx.font=`900 ${Math.round(H*.13)}px sans-serif`;
+      ctx.shadowColor='rgba(226,183,20,0.5)'; ctx.shadowBlur=20;
+      ctx.fillStyle='#e2b714';
+      ctx.fillText(Math.round(smoothedBPM), W/2, BPM_Y);
+      ctx.shadowBlur=0;
+      ctx.font=`600 ${Math.round(H*.052)}px sans-serif`;
+      ctx.fillStyle='#5a5a7a';
+      ctx.fillText('BPM', W/2, BPM_Y + Math.round(H*.1));
+    } else if(isRunning){
       if(countdownVal>0){
-        // Circular progress ring around countdown
-        const cx=W/2, cy=pivY+armLen*0.42, ringR=H*.082;
-        const progress=countdownVal/10;
+        const ringR=Math.min(H*.075, 28);
+        const cx=W/2, cy=BPM_Y-ringR*.1;
+        // Ring background
+        ctx.beginPath(); ctx.arc(cx,cy,ringR,0,Math.PI*2);
+        ctx.strokeStyle='rgba(40,40,80,0.9)'; ctx.lineWidth=5; ctx.stroke();
+        // Ring progress
         ctx.beginPath();
-        ctx.arc(cx,cy,ringR,0,Math.PI*2);
-        ctx.strokeStyle='rgba(40,40,80,0.8)'; ctx.lineWidth=5; ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(cx,cy,ringR,-Math.PI/2,-Math.PI/2+Math.PI*2*progress);
-        ctx.strokeStyle='rgba(226,183,20,0.75)'; ctx.lineWidth=5;
+        ctx.arc(cx,cy,ringR,-Math.PI/2,-Math.PI/2+Math.PI*2*(countdownVal/10));
+        ctx.strokeStyle='rgba(226,183,20,0.85)'; ctx.lineWidth=5;
         ctx.lineCap='round'; ctx.stroke();
-        // Number inside ring
-        ctx.font=`900 ${Math.round(ringR*1.2)}px sans-serif`;
-        ctx.fillStyle='rgba(226,183,20,0.9)';
-        ctx.fillText(String(countdownVal),cx,cy);
-        // Label below ring
-        ctx.font=`${Math.round(H*.048)}px sans-serif`;
+        // Number
+        ctx.font=`900 ${Math.round(ringR*1.15)}px sans-serif`;
+        ctx.fillStyle='rgba(226,183,20,0.95)';
+        ctx.fillText(String(countdownVal), cx, cy);
+        ctx.font=`${Math.round(H*.044)}px sans-serif`;
         ctx.fillStyle='#3a3a6a';
-        ctx.fillText('Listening for beat…',W/2,cy+ringR+H*.038);
+        ctx.fillText('Listening for beat…', W/2, cy+ringR+H*.04);
       } else {
-        // Countdown expired with no result
-        ctx.font=`${Math.round(H*.052)}px sans-serif`;
-        ctx.fillStyle='rgba(200,80,80,0.85)';
-        ctx.fillText('Try louder! Play music near the mic',W/2,pivY+armLen*0.42);
+        ctx.font=`${Math.round(H*.046)}px sans-serif`;
+        ctx.fillStyle='rgba(200,80,80,0.9)';
+        ctx.fillText('Try louder! Play music near the mic', W/2, BPM_Y);
       }
-    }
-    if(!smoothedBPM && !isRunning){
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.font=`${Math.round(H*.05)}px sans-serif`;
+    } else {
+      ctx.font=`${Math.round(H*.046)}px sans-serif`;
       ctx.fillStyle='#2a2a48';
-      ctx.fillText('Tap Start → play music or clap 🎵',W/2,pivY+armLen*0.42);
+      ctx.fillText('Tap Start → play music or clap 🎵', W/2, BPM_Y);
     }
 
     // ── Beat boxes 1 2 3 4 ──
-    const boxW=Math.min(W*.165,66), boxH=Math.min(H*.115,52);
+    const boxW=Math.min(W*.165,66), boxH=Math.min(H*.175,65);
     const gap=(W-boxW*4)/5;
     for(let i=0;i<4;i++){
       const bx2=gap+i*(boxW+gap);
@@ -551,7 +555,7 @@
     }
 
     // ── Energy onset waveform ──
-    const wH=H*.08, bwid=W/METRO_BUF;
+    const wH=H*.1, bwid=W/METRO_BUF;
     for(let i=0;i<METRO_BUF;i++){
       const idx=(eHead-METRO_BUF+i+METRO_BUF*2)%METRO_BUF;
       const e=eBuf[idx]||0;
@@ -578,9 +582,7 @@
   let kbCtx=null, kbTimeout=null;
 
   async function playKeyNote(bare,freq){
-    if(!kbCtx||kbCtx.state==='closed')
-      kbCtx=new(window.AudioContext||window.webkitAudioContext)();
-    await kbCtx.resume();
+    // kbCtx already created + resumed by the pointerdown handler
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
     noteNameEl.textContent=bare.replace('s','#')+currentOctave;
@@ -764,6 +766,7 @@
     metroView.style.display =mode==='flow'?'':'none';
     pianoArea.style.display =mode==='flow'?'none':'';
     controls.style.display  =mode==='keys'?'none':'';
+    noteCard.style.display  =mode==='flow'?'none':'';
     octaveBar.classList.toggle('show',mode!=='flow');
     octDown.style.display=mode==='keys'?'':'none';
     octUp  .style.display=mode==='keys'?'':'none';
@@ -787,12 +790,16 @@
   document.querySelectorAll('.tab').forEach(t=>
     t.addEventListener('click',()=>setMode(t.dataset.mode)));
   document.querySelectorAll('.wk,.bk').forEach(el=>
-    el.addEventListener('pointerdown',async e=>{
+    el.addEventListener('pointerdown', e=>{
       e.preventDefault();
-      if(currentMode==='keys'){
-        const bare=el.dataset.note;
-        await playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),currentOctave));
-      }
+      if(currentMode!=='keys') return;
+      // Create / unlock AudioContext synchronously inside the gesture (iOS Safari requirement)
+      if(!kbCtx||kbCtx.state==='closed')
+        kbCtx=new(window.AudioContext||window.webkitAudioContext)();
+      // Resume is async but fire-and-forget is fine here; actual sound nodes start after it resolves
+      const bare=el.dataset.note;
+      const freq=getFreq(NOTE_BARE.indexOf(bare),currentOctave);
+      kbCtx.resume().then(()=>playKeyNote(bare,freq));
     }));
 
   if('serviceWorker' in navigator)
