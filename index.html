@@ -45,18 +45,18 @@
     .staff-wrap{width:100%;max-width:370px;}
     #staffSvg{display:block;margin:0 auto;overflow:visible;}
 
-    /* Metronome canvas */
+    /* Metronome canvas — taller for pendulum */
     #metroView{width:100%;max-width:580px;display:none;}
-    #metroCanvas{width:100%;height:280px;display:block;border-radius:14px;background:#06060f;}
-    @media(max-height:680px){#metroCanvas{height:210px;}}
+    #metroCanvas{width:100%;height:390px;display:block;border-radius:14px;background:#06060f;}
+    @media(max-height:700px){#metroCanvas{height:290px;}}
 
-    /* Piano + octave area */
+    /* Piano */
     .piano-area{width:100%;max-width:580px;}
     .piano{
       position:relative;display:flex;height:135px;
       border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.55);
     }
-    @media(max-height:680px){.piano{height:100px;}}
+    @media(max-height:700px){.piano{height:100px;}}
 
     .wk{
       flex:1;background:#f2ede3;border-right:2px solid rgba(0,0,0,.1);
@@ -81,15 +81,11 @@
     [data-note="As"]{left:calc(100% * 5.69 / 7);}
 
     /* Octave bar */
-    #octaveBar{
-      display:none;align-items:center;justify-content:center;
-      gap:12px;padding:6px 0 2px;
-    }
+    #octaveBar{display:none;align-items:center;justify-content:center;gap:12px;padding:6px 0 2px;}
     #octaveBar.show{display:flex;}
     .oct-btn{
       background:#1e1e3a;border:2px solid #3a3a6a;color:#9898c8;
-      border-radius:8px;padding:3px 14px;cursor:pointer;font-size:1rem;
-      transition:background .1s;
+      border-radius:8px;padding:3px 14px;cursor:pointer;font-size:1rem;transition:background .1s;
     }
     .oct-btn:active{background:#2e2e5a;}
     .oct-btn:disabled{opacity:.25;cursor:default;}
@@ -143,12 +139,8 @@
     </svg>
   </div>
 
-  <!-- Beat / metronome canvas -->
-  <div id="metroView">
-    <canvas id="metroCanvas"></canvas>
-  </div>
+  <div id="metroView"><canvas id="metroCanvas"></canvas></div>
 
-  <!-- Piano + octave bar -->
   <div class="piano-area" id="pianoArea">
     <div class="piano">
       <div class="wk" data-note="C" ><span class="lbl">C4</span></div>
@@ -183,6 +175,9 @@
   const DIATONIC   = {C:0,D:1,E:2,F:3,G:4,A:5,B:6};
   const SB=95, LS=10, NOTE_X=185;
 
+  // Beat box / flash colours for each of the 4 beats
+  const BEAT_COLS = ['#ff6b6b','#4dabf7','#a9e34b','#cc5de8'];
+
   // ── DOM ───────────────────────────────────────────────────────────────
   const noteCard     = document.getElementById('noteCard');
   const noteNameEl   = document.getElementById('noteName');
@@ -207,55 +202,43 @@
   let currentMode   = 'listen';
   let currentOctave = 4;
 
-  // ── Frequency / note helpers ──────────────────────────────────────────
-  function getFreq(noteIdx, octave) {
-    return 440 * Math.pow(2, (noteIdx - 9 + (octave - 4) * 12) / 12);
+  // ── Note helpers ──────────────────────────────────────────────────────
+  function getFreq(idx, oct){ return 440*Math.pow(2,(idx-9+(oct-4)*12)/12); }
+  function buildInfo(idx,octave,cents){
+    const name=NOTE_NAMES[idx], letter=name.replace('#',''), isSharp=name.includes('#');
+    const adjIdx=((idx+(cents>=0?1:-1))+12)%12;
+    const step=(octave-4)*7+(DIATONIC[letter]-2);
+    const rl=['','Very Low','Very Low','Low','Middle','High','High'];
+    return{name,letter,isSharp,fullName:name+octave,
+      bareKey:NOTE_BARE[idx],adjBare:NOTE_BARE[adjIdx],
+      octave,cents,step,rangeLabel:rl[Math.min(6,Math.max(1,octave))]||'High',
+      mainInt:1-Math.abs(cents)/100,adjInt:Math.abs(cents)/100};
   }
-  function buildInfo(idx, octave, cents) {
-    const name    = NOTE_NAMES[idx];
-    const letter  = name.replace('#','');
-    const isSharp = name.includes('#');
-    const adjIdx  = ((idx + (cents >= 0 ? 1 : -1)) + 12) % 12;
-    const step    = (octave - 4) * 7 + (DIATONIC[letter] - 2);
-    const rl      = ['','Very Low','Very Low','Low','Middle','High','High'];
-    return {
-      name, letter, isSharp, fullName: name+octave,
-      bareKey: NOTE_BARE[idx], adjBare: NOTE_BARE[adjIdx],
-      octave, cents, step,
-      rangeLabel: rl[Math.min(6,Math.max(1,octave))]||'High',
-      mainInt: 1 - Math.abs(cents)/100,
-      adjInt:  Math.abs(cents)/100,
-    };
-  }
-  function freqToInfo(freq) {
-    const s = 12*Math.log2(freq/261.63), r = Math.round(s);
-    return buildInfo(((r%12)+12)%12, 4+Math.floor(r/12), Math.round((s-r)*100));
+  function freqToInfo(freq){
+    const s=12*Math.log2(freq/261.63),r=Math.round(s);
+    return buildInfo(((r%12)+12)%12,4+Math.floor(r/12),Math.round((s-r)*100));
   }
 
   // ── Octave control ────────────────────────────────────────────────────
-  function setOctave(oct) {
-    currentOctave = Math.max(1, Math.min(7, oct));
-    octLabel.textContent = `Octave ${currentOctave}  (C${currentOctave} – B${currentOctave})`;
-    document.querySelectorAll('.wk').forEach(el => {
-      el.querySelector('.lbl').textContent = el.dataset.note + currentOctave;
-    });
-    octDown.disabled = currentOctave <= 1;
-    octUp.disabled   = currentOctave >= 7;
+  function setOctave(o){
+    currentOctave=Math.max(1,Math.min(7,o));
+    octLabel.textContent=`Octave ${currentOctave}  (C${currentOctave} – B${currentOctave})`;
+    document.querySelectorAll('.wk').forEach(el=>
+      el.querySelector('.lbl').textContent=el.dataset.note+currentOctave);
+    octDown.disabled=currentOctave<=1; octUp.disabled=currentOctave>=7;
   }
-  octDown.addEventListener('click', () => setOctave(currentOctave - 1));
-  octUp  .addEventListener('click', () => setOctave(currentOctave + 1));
+  octDown.addEventListener('click',()=>setOctave(currentOctave-1));
+  octUp  .addEventListener('click',()=>setOctave(currentOctave+1));
   setOctave(4);
 
   // ── Piano glow ────────────────────────────────────────────────────────
-  function clearPiano() {
-    document.querySelectorAll('.wk,.bk').forEach(el => {
-      el.style.background=''; el.style.boxShadow='';
-    });
+  function clearPiano(){
+    document.querySelectorAll('.wk,.bk').forEach(el=>{el.style.background='';el.style.boxShadow='';});
   }
-  function glowKey(bare, t) {
-    const el = document.querySelector(`[data-note="${bare}"]`);
-    if (!el || t < 0.05) return;
-    if (el.classList.contains('bk')) {
+  function glowKey(bare,t){
+    const el=document.querySelector(`[data-note="${bare}"]`);
+    if(!el||t<0.05) return;
+    if(el.classList.contains('bk')){
       el.style.background=`rgb(${Math.round(30+t*109)},${Math.round(30+t*62)},${Math.round(56+t*190)})`;
       el.style.boxShadow=`0 0 ${Math.round(t*22)}px rgba(139,92,246,${(t*.85).toFixed(2)}),0 4px 8px rgba(0,0,0,.65)`;
     } else {
@@ -274,7 +257,8 @@
     noteGroup.style.transform=`translate(${NOTE_X}px,${stepToY(step)}px)`;
     noteGroup.removeAttribute('display');
     const up=step<4,sx=up?10:-10;
-    stemEl.setAttribute('x1',sx);stemEl.setAttribute('x2',sx);stemEl.setAttribute('y2',up?'-42':'42');
+    stemEl.setAttribute('x1',sx);stemEl.setAttribute('x2',sx);
+    stemEl.setAttribute('y2',up?'-42':'42');
     isSharp?accidentalEl.removeAttribute('display'):accidentalEl.setAttribute('display','none');
     ledgerG.innerHTML='';
     const lx1=NOTE_X-18,lx2=NOTE_X+18;
@@ -284,7 +268,7 @@
       ledgerG.innerHTML+=`<line x1="${lx1}" y1="${stepToY(s)}" x2="${lx2}" y2="${stepToY(s)}"/>`;
   }
 
-  // ── Note card + cents ─────────────────────────────────────────────────
+  // ── Note card ─────────────────────────────────────────────────────────
   function updateCents(c){
     if(c==null){centsDot.style.background='#555';centsDot.style.left='50%';return;}
     centsDot.style.left=`${Math.max(4,Math.min(96,50+(c/50)*44))}%`;
@@ -293,8 +277,8 @@
   function updateDisplay(info,freq){
     if(!info){
       noteNameEl.textContent='—';
-      noteSubEl.textContent=currentMode==='keys'?'tap a key to hear it!'
-                           :currentMode==='flow'?'Play music or clap…':'Listening…';
+      noteSubEl.textContent=currentMode==='keys'?'tap a key to hear it!':
+                            currentMode==='flow'?'Play music or clap…':'Listening…';
       noteCard.classList.remove('lit');updateCents(null);
     } else {
       noteNameEl.textContent=info.fullName;
@@ -305,41 +289,44 @@
     }
   }
 
-  // ── Beat / Metronome detection ────────────────────────────────────────
-  // Uses energy ONSET (derivative) so continuous music triggers beats,
-  // not just silence→sound transitions.
-  const METRO_BUF = 80;                     // ~2s history at 40Hz
-  const eBuf      = new Float32Array(METRO_BUF); // onset strength history
-  let   eHead=0, eFull=false, prevEnergy=0;
+  // ── Beat / BPM detection ──────────────────────────────────────────────
+  const METRO_BUF=80;
+  const eBuf=new Float32Array(METRO_BUF);
+  let eHead=0,eFull=false,prevEnergy=0;
   const beatTimes=[];
-  let   lastBeatTime=0, bgFlashAt=0, beatFlashAt=0;
-  let   smoothedBPM=null, currentBeat=-1;
-  let   metroRafId=null;
+  let lastBeatTime=0,bgFlashAt=0,beatFlashAt=0;
+  let smoothedBPM=null,currentBeat=-1;
+  let metroRafId=null;
+
+  // Pendulum state
+  const MAX_PEND=0.62; // radians (~35°)
+  let pendOriginTime=null, pendBeatPhase=0;
+
+  // Countdown state
+  let countdownVal=0, countdownTimer=null;
 
   function resetMetro(){
     eBuf.fill(0);eHead=0;eFull=false;prevEnergy=0;
     beatTimes.length=0;lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
+    pendOriginTime=null;pendBeatPhase=0;
+    countdownVal=0;
+    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
   }
 
   function processMetroFrame(buf){
-    // Frame energy
     let sum=0;
     for(let i=0;i<buf.length;i++) sum+=buf[i]*buf[i];
     const energy=sum/buf.length;
-
-    // Onset = positive energy delta (sudden increase = beat transient)
-    const onset=Math.max(0, energy-prevEnergy);
+    const onset=Math.max(0,energy-prevEnergy); // energy increase = beat transient
     prevEnergy=energy;
 
     eBuf[eHead%METRO_BUF]=onset;
     eHead++;
     if(eHead>=METRO_BUF) eFull=true;
-
     const len=eFull?METRO_BUF:eHead;
     if(len<6) return;
 
-    // Adaptive threshold: beat onset must be > 1.3× mean onset AND > small floor
     let avg=0;
     for(let i=0;i<METRO_BUF;i++) avg+=eBuf[i];
     avg/=METRO_BUF;
@@ -347,11 +334,16 @@
     const now=performance.now();
     const since=now-lastBeatTime;
 
-    if(onset > avg*1.3 && onset > 0.00005 && since > 230){
+    if(onset>avg*1.3 && onset>0.00005 && since>230){
       lastBeatTime=now; bgFlashAt=now; beatFlashAt=now;
+      currentBeat=(currentBeat+1)%4;
+
+      // Sync pendulum to this beat (always alternate side on beat)
+      pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
+      pendOriginTime=now;
+
       beatTimes.push(now);
       if(beatTimes.length>10) beatTimes.shift();
-      currentBeat=(currentBeat+1)%4;
 
       if(beatTimes.length>=3){
         const ivs=[];
@@ -365,17 +357,29 @@
           const bpm=60000/med;
           if(bpm>=40&&bpm<=220){
             smoothedBPM=smoothedBPM?smoothedBPM*0.65+bpm*0.35:bpm;
-            // Update note card with BPM
+            // Show BPM in note card
             noteNameEl.textContent=Math.round(smoothedBPM);
-            noteSubEl.textContent='BPM';
+            noteSubEl.textContent='BPM  ♩';
             noteCard.classList.add('lit');
             updateCents(null);
+            // BPM found: stop countdown
+            if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
           }
         }
       }
     }
   }
 
+  // ── Pendulum angle (synced to beats) ─────────────────────────────────
+  function getPendAngle(t){
+    if(pendOriginTime===null) return 0;
+    const bpm=smoothedBPM||70; // default swing while counting down
+    const beatMs=60000/bpm;
+    const elapsed=t-pendOriginTime;
+    return MAX_PEND*Math.cos(Math.PI*elapsed/beatMs+pendBeatPhase);
+  }
+
+  // ── Canvas helpers ────────────────────────────────────────────────────
   function roundRect(ctx,x,y,w,h,r){
     r=Math.min(r,w/2,h/2);
     ctx.beginPath();
@@ -385,13 +389,12 @@
     ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
     ctx.closePath();
   }
+  function hexRgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
 
   function initMetroCanvas(){
     const dpr=window.devicePixelRatio||1;
-    const cw=metroView.clientWidth||340;
-    const ch=metroCanvas.clientHeight||280;
-    metroCanvas.width=cw*dpr;
-    metroCanvas.height=ch*dpr;
+    metroCanvas.width =(metroView.clientWidth ||340)*dpr;
+    metroCanvas.height=(metroCanvas.clientHeight||390)*dpr;
   }
 
   function drawMetronome(){
@@ -400,60 +403,165 @@
     if(!W||!H) return;
     const ctx=metroCanvas.getContext('2d');
     const now=performance.now();
+
+    // Layout bands
+    const PEND_TOP    = H*0.02;   // pendulum pivot zone
+    const PEND_H      = H*0.52;   // height reserved for pendulum
+    const BOXES_MID   = H*0.71;   // centre of beat boxes
+    const WAVE_TOP    = H*0.85;   // energy waveform
+
+    const pivX=W/2, pivY=PEND_TOP+H*0.05;
+    const armLen=PEND_H*0.78;
+    const ballR=Math.min(24,W*0.068);
+
+    // Flash states
     const sinceFlash=now-beatFlashAt;
     const sinceBg=now-bgFlashAt;
-    const flashFrac=currentBeat>=0?Math.max(0,1-sinceFlash/280):0;
-    const bgFrac=Math.max(0,1-sinceBg/180);
+    const flashFrac=currentBeat>=0?Math.max(0,1-sinceFlash/300):0;
+    const bgFrac=Math.max(0,1-sinceBg/220);
 
     ctx.save(); ctx.scale(dpr,dpr);
+
+    // ── Background ──
     ctx.fillStyle='#06060f'; ctx.fillRect(0,0,W,H);
     if(bgFrac>0){
-      ctx.fillStyle=`rgba(226,183,20,${(bgFrac*.09).toFixed(3)})`;
+      const[br,bg,bb]=hexRgb(BEAT_COLS[Math.max(0,currentBeat)]);
+      ctx.fillStyle=`rgba(${br},${bg},${bb},${(bgFrac*.08).toFixed(3)})`;
       ctx.fillRect(0,0,W,H);
     }
 
-    // No BPM yet — show hint in canvas
-    if(!smoothedBPM){
-      ctx.font=`${Math.round(H*.065)}px sans-serif`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle='#2a2a48';
-      ctx.fillText(isRunning?'Listening for beat…':'Tap Start, then play music or clap',W/2,H*.28);
+    // ── Pendulum sweep arc (faint runway) ──
+    ctx.beginPath();
+    ctx.arc(pivX,pivY,armLen,Math.PI/2-MAX_PEND,Math.PI/2+MAX_PEND);
+    ctx.strokeStyle='rgba(60,60,120,0.25)';
+    ctx.lineWidth=ballR*2.2;
+    ctx.lineCap='round';
+    ctx.stroke();
+
+    // ── Ghost trail (last 18 frames) ──
+    for(let i=18;i>=1;i--){
+      const ta=getPendAngle(now-i*17);
+      const tx=pivX+Math.sin(ta)*armLen, ty=pivY+Math.cos(ta)*armLen;
+      const al=(0.25*(1-i/18)).toFixed(3);
+      const tr=ballR*(0.35+0.35*(18-i)/18);
+      ctx.beginPath(); ctx.arc(tx,ty,tr,0,Math.PI*2);
+      ctx.fillStyle=`rgba(226,183,20,${al})`; ctx.fill();
     }
 
-    // Beat boxes (1 2 3 4)
-    const boxW=Math.min(W*.17,70), boxH=Math.min(H*.22,62);
-    const gap=(W-boxW*4)/5, boxY=H*.58;
+    // ── Pendulum arm ──
+    const ang=getPendAngle(now);
+    const bx=pivX+Math.sin(ang)*armLen, by=pivY+Math.cos(ang)*armLen;
+    ctx.beginPath(); ctx.moveTo(pivX,pivY); ctx.lineTo(bx,by);
+    ctx.strokeStyle='rgba(160,160,230,0.55)'; ctx.lineWidth=2.8; ctx.lineCap='round'; ctx.stroke();
 
-    for(let i=0;i<4;i++){
-      const bx=gap+i*(boxW+gap);
-      const frac=i===currentBeat?flashFrac:0;
-      ctx.fillStyle=frac>.05
-        ?`rgba(226,183,20,${(0.12+frac*.83).toFixed(2)})`
-        :'rgba(26,26,55,0.9)';
-      roundRect(ctx,bx,boxY-boxH/2,boxW,boxH,11); ctx.fill();
-      if(frac>.08){
-        ctx.shadowColor=`rgba(226,183,20,${frac.toFixed(2)})`;
-        ctx.shadowBlur=22*frac;
-        roundRect(ctx,bx,boxY-boxH/2,boxW,boxH,11); ctx.fill();
-        ctx.shadowBlur=0;
+    // Pivot dot
+    ctx.beginPath(); ctx.arc(pivX,pivY,5.5,0,Math.PI*2);
+    ctx.fillStyle='#303060'; ctx.fill();
+
+    // ── Main ball ──
+    const glow=Math.max(0,1-(now-beatFlashAt)/250);
+    const col=BEAT_COLS[Math.max(0,currentBeat)];
+    const[cr,cg,cb]=hexRgb(col);
+    ctx.beginPath(); ctx.arc(bx,by,ballR,0,Math.PI*2);
+    const ballAlpha=glow>.05?0.75+glow*.25:0.5;
+    ctx.fillStyle=glow>.05
+      ?`rgba(${cr},${cg},${cb},${ballAlpha.toFixed(2)})`
+      :'rgba(80,80,210,0.65)';
+    if(glow>.05){ctx.shadowColor=col;ctx.shadowBlur=28*glow;}
+    ctx.fill(); ctx.shadowBlur=0;
+    // Highlight
+    ctx.beginPath(); ctx.arc(bx-ballR*.28,by-ballR*.28,ballR*.3,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,255,255,${(0.25+glow*.2).toFixed(2)})`; ctx.fill();
+
+    // ── Beat number flash (large, shows in pendulum area) ──
+    if(currentBeat>=0 && flashFrac>0.05){
+      const[fr,fg,fb]=hexRgb(BEAT_COLS[currentBeat]);
+      const sz=Math.round(H*.19);
+      ctx.font=`900 ${sz}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor=BEAT_COLS[currentBeat]; ctx.shadowBlur=40*flashFrac;
+      ctx.fillStyle=`rgba(${fr},${fg},${fb},${(flashFrac*.95).toFixed(2)})`;
+      ctx.fillText(String(currentBeat+1), W/2, pivY+armLen*0.42);
+      ctx.shadowBlur=0;
+    }
+
+    // ── Countdown overlay (before BPM detected) ──
+    if(!smoothedBPM && isRunning){
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      if(countdownVal>0){
+        // Circular progress ring around countdown
+        const cx=W/2, cy=pivY+armLen*0.42, ringR=H*.082;
+        const progress=countdownVal/10;
+        ctx.beginPath();
+        ctx.arc(cx,cy,ringR,0,Math.PI*2);
+        ctx.strokeStyle='rgba(40,40,80,0.8)'; ctx.lineWidth=5; ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx,cy,ringR,-Math.PI/2,-Math.PI/2+Math.PI*2*progress);
+        ctx.strokeStyle='rgba(226,183,20,0.75)'; ctx.lineWidth=5;
+        ctx.lineCap='round'; ctx.stroke();
+        // Number inside ring
+        ctx.font=`900 ${Math.round(ringR*1.2)}px sans-serif`;
+        ctx.fillStyle='rgba(226,183,20,0.9)';
+        ctx.fillText(String(countdownVal),cx,cy);
+        // Label below ring
+        ctx.font=`${Math.round(H*.048)}px sans-serif`;
+        ctx.fillStyle='#3a3a6a';
+        ctx.fillText('Listening for beat…',W/2,cy+ringR+H*.038);
+      } else {
+        // Countdown expired with no result
+        ctx.font=`${Math.round(H*.052)}px sans-serif`;
+        ctx.fillStyle='rgba(200,80,80,0.85)';
+        ctx.fillText('Try louder! Play music near the mic',W/2,pivY+armLen*0.42);
       }
-      ctx.font=`900 ${Math.round(boxH*.54)}px sans-serif`;
+    }
+    if(!smoothedBPM && !isRunning){
       ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=frac>.2?`rgba(10,10,20,${(.7+frac*.28).toFixed(2)})`:'#2a2a5a';
-      ctx.fillText(String(i+1),bx+boxW/2,boxY);
+      ctx.font=`${Math.round(H*.05)}px sans-serif`;
+      ctx.fillStyle='#2a2a48';
+      ctx.fillText('Tap Start → play music or clap 🎵',W/2,pivY+armLen*0.42);
     }
 
-    // Energy onset waveform at bottom
-    const wH=H*.11, wY=H-wH-6, bw=W/METRO_BUF;
+    // ── Beat boxes 1 2 3 4 ──
+    const boxW=Math.min(W*.165,66), boxH=Math.min(H*.115,52);
+    const gap=(W-boxW*4)/5;
+    for(let i=0;i<4;i++){
+      const bx2=gap+i*(boxW+gap);
+      const isAct=i===currentBeat, frac=isAct?flashFrac:0;
+      const[r2,g2,b2]=hexRgb(BEAT_COLS[i]);
+      // Box fill
+      ctx.fillStyle=frac>.05
+        ?`rgba(${r2},${g2},${b2},${(0.15+frac*.82).toFixed(2)})`
+        :`rgba(${r2},${g2},${b2},0.08)`;
+      roundRect(ctx,bx2,BOXES_MID-boxH/2,boxW,boxH,12); ctx.fill();
+      // Border
+      ctx.strokeStyle=`rgba(${r2},${g2},${b2},${frac>.1?0.8:0.2})`;
+      ctx.lineWidth=2;
+      roundRect(ctx,bx2,BOXES_MID-boxH/2,boxW,boxH,12); ctx.stroke();
+      // Glow
+      if(frac>.08){
+        ctx.shadowColor=BEAT_COLS[i]; ctx.shadowBlur=18*frac;
+        roundRect(ctx,bx2,BOXES_MID-boxH/2,boxW,boxH,12); ctx.fill(); ctx.shadowBlur=0;
+      }
+      // Number
+      ctx.font=`900 ${Math.round(boxH*.56)}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle=frac>.15?`rgba(255,255,255,${(.7+frac*.28).toFixed(2)})`:
+                             `rgba(${r2},${g2},${b2},0.45)`;
+      ctx.fillText(String(i+1),bx2+boxW/2,BOXES_MID);
+    }
+
+    // ── Energy onset waveform ──
+    const wH=H*.08, bwid=W/METRO_BUF;
     for(let i=0;i<METRO_BUF;i++){
       const idx=(eHead-METRO_BUF+i+METRO_BUF*2)%METRO_BUF;
       const e=eBuf[idx]||0;
-      const bh=Math.min(wH, Math.sqrt(e)*wH*30);
+      const bh=Math.min(wH,Math.sqrt(e)*wH*32);
       const age=(METRO_BUF-1-i)/METRO_BUF;
-      const al=(.2+(1-age)*.5).toFixed(2);
+      const al=(0.18+(1-age)*.5).toFixed(2);
       ctx.fillStyle=i===METRO_BUF-1?`rgba(226,183,20,${al})`:`rgba(80,80,200,${al})`;
-      if(bh>0.5) ctx.fillRect(i*bw,wY+wH-bh,bw-1,bh);
+      if(bh>0.5) ctx.fillRect(i*bwid,WAVE_TOP+wH-bh,bwid-1,bh);
     }
+
     ctx.restore();
   }
 
@@ -466,26 +574,21 @@
     })();
   }
 
-  // ── Piano sound synthesis ─────────────────────────────────────────────
-  // Sine harmonics with inharmonicity + filter sweep + hammer noise.
-  // await resume() required for iOS Safari.
+  // ── Piano sound ───────────────────────────────────────────────────────
   let kbCtx=null, kbTimeout=null;
 
-  async function playKeyNote(bare, freq){
+  async function playKeyNote(bare,freq){
     if(!kbCtx||kbCtx.state==='closed')
-      kbCtx=new (window.AudioContext||window.webkitAudioContext)();
-    await kbCtx.resume();   // essential on iOS
-
+      kbCtx=new(window.AudioContext||window.webkitAudioContext)();
+    await kbCtx.resume();
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
     noteNameEl.textContent=bare.replace('s','#')+currentOctave;
     noteSubEl.textContent=`${freq.toFixed(1)} Hz`;
     noteCard.classList.add('lit'); updateCents(null);
 
-    const ac=kbCtx, t=ac.currentTime;
+    const ac=kbCtx,t=ac.currentTime;
     const master=ac.createGain();
-
-    // Filter: sweeps from very bright → warm (piano character)
     const filt=ac.createBiquadFilter();
     filt.type='lowpass'; filt.Q.value=0.6;
     filt.frequency.setValueAtTime(Math.min(freq*20,20000),t);
@@ -493,31 +596,23 @@
     filt.frequency.exponentialRampToValueAtTime(Math.min(freq*3,6000),t+0.5);
     master.connect(filt); filt.connect(ac.destination);
 
-    // Harmonic partials — inharmonic ratios above 4th give piano character
-    // [freq_mult, initial_gain, decay_s]
     [[1,0.52,2.5],[2,0.28,1.1],[3,0.14,0.55],[4.01,0.08,0.3],[5.09,0.04,0.18],[7.2,0.02,0.1]]
     .forEach(([m,v,d])=>{
       const o=ac.createOscillator(),g=ac.createGain();
       o.type='sine'; o.frequency.value=freq*m;
-      g.gain.setValueAtTime(v,t);
-      g.gain.exponentialRampToValueAtTime(0.0001,t+d);
-      o.connect(g); g.connect(master);
-      o.start(t); o.stop(t+d+0.05);
+      g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+d+0.05);
     });
 
-    // Hammer noise — very short white noise burst at attack
     const nhz=Math.round(ac.sampleRate*0.014);
     const nb=ac.createBuffer(1,nhz,ac.sampleRate);
     const nd=nb.getChannelData(0);
     for(let i=0;i<nhz;i++) nd[i]=Math.random()*2-1;
-    const ns=ac.createBufferSource(), ng=ac.createGain();
+    const ns=ac.createBufferSource(),ng=ac.createGain();
     ns.buffer=nb;
-    ng.gain.setValueAtTime(0.14,t);
-    ng.gain.exponentialRampToValueAtTime(0.0001,t+0.014);
-    ns.connect(ng); ng.connect(filt);
-    ns.start(t);
+    ng.gain.setValueAtTime(0.14,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.014);
+    ns.connect(ng); ng.connect(filt); ns.start(t);
 
-    // Master envelope: 5ms attack, then natural piano decay
     master.gain.setValueAtTime(0.001,t);
     master.gain.linearRampToValueAtTime(0.48,t+0.005);
     master.gain.exponentialRampToValueAtTime(0.22,t+0.08);
@@ -525,26 +620,23 @@
 
     kbTimeout=setTimeout(()=>{
       clearPiano();
-      noteNameEl.textContent='—';
-      noteSubEl.textContent='tap a key to hear it!';
+      noteNameEl.textContent='—'; noteSubEl.textContent='tap a key to hear it!';
       noteCard.classList.remove('lit'); updateCents(null);
     },2500);
   }
 
   // ── Pitch detection ───────────────────────────────────────────────────
   function detectPitch(buf,sr){
-    const n=buf.length;
-    let rms=0; for(let i=0;i<n;i++) rms+=buf[i]*buf[i];
+    const n=buf.length; let rms=0;
+    for(let i=0;i<n;i++) rms+=buf[i]*buf[i];
     if(Math.sqrt(rms/n)<0.004) return null;
-    const minL=Math.floor(sr/2000), maxL=Math.min(Math.ceil(sr/60),n-1);
+    const minL=Math.floor(sr/2000),maxL=Math.min(Math.ceil(sr/60),n-1);
     const ac=new Float32Array(maxL+1);
     for(let lag=minL;lag<=maxL;lag++){
       let s=0; for(let i=0;i<n-lag;i++) s+=buf[i]*buf[i+lag]; ac[lag]=s;
     }
-    let d=minL;
-    while(d<maxL&&ac[d]>ac[d+1]) d++;
-    let best=d;
-    for(let i=d+1;i<=maxL;i++) if(ac[i]>ac[best]) best=i;
+    let d=minL; while(d<maxL&&ac[d]>ac[d+1]) d++;
+    let best=d; for(let i=d+1;i<=maxL;i++) if(ac[i]>ac[best]) best=i;
     if(ac[best]<=0) return null;
     let lag=best;
     if(best>minL&&best<maxL){
@@ -554,11 +646,11 @@
     return sr/lag;
   }
 
-  // ── Listen/flow audio loop ────────────────────────────────────────────
+  // ── Main audio loop ───────────────────────────────────────────────────
   let audioCtx,analyser,mediaStream;
   let rafId,isRunning=false,smoothedFreq=null,silentCount=0,lastProcTime=0;
   let pendingKey=null,pendingCount=0,confirmedKey=null;
-  const SILENCE_HOLD=3, CONFIRM=1;
+  const SILENCE_HOLD=3,CONFIRM=1;
 
   function debounceKey(raw){
     if(!raw){pendingKey=confirmedKey=null;pendingCount=0;return null;}
@@ -571,7 +663,6 @@
     if(!isRunning) return;
     rafId=requestAnimationFrame(loop);
 
-    // Beat mode: process at ~40Hz, canvas drawn by its own loop
     if(currentMode==='flow'){
       if(ts-lastProcTime<25) return;
       lastProcTime=ts;
@@ -581,7 +672,6 @@
       return;
     }
 
-    // Listen mode: process at ~33Hz
     if(ts-lastProcTime<30) return;
     lastProcTime=ts;
     const buf=new Float32Array(analyser.fftSize);
@@ -590,9 +680,8 @@
 
     if(raw){
       silentCount=0;
-      if(!smoothedFreq){
-        smoothedFreq=raw;
-      } else {
+      if(!smoothedFreq) smoothedFreq=raw;
+      else {
         const ratio=raw/smoothedFreq;
         const adj=ratio>1.7?raw/2:ratio<0.6?raw*2:raw;
         smoothedFreq=Math.exp(0.55*Math.log(smoothedFreq)+0.45*Math.log(adj));
@@ -600,10 +689,7 @@
       const info=freqToInfo(smoothedFreq);
       const key=debounceKey(info.bareKey);
       if(key){
-        // Auto-follow octave in listen mode
-        if(info.octave!==currentOctave){
-          setOctave(info.octave);
-        }
+        if(info.octave!==currentOctave) setOctave(info.octave);
         clearPiano();
         glowKey(info.bareKey,info.mainInt);
         glowKey(info.adjBare,info.adjInt*0.65);
@@ -620,7 +706,7 @@
 
   async function start(){
     try{
-      audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+      audioCtx=new(window.AudioContext||window.webkitAudioContext)();
       mediaStream=await navigator.mediaDevices.getUserMedia({
         audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false},video:false,
       });
@@ -630,7 +716,20 @@
       src.connect(analyser);
       smoothedFreq=null;silentCount=0;lastProcTime=0;
       pendingKey=null;pendingCount=0;confirmedKey=null;
-      if(currentMode==='flow') resetMetro();
+
+      if(currentMode==='flow'){
+        resetMetro();
+        pendOriginTime=performance.now(); // pendulum starts swinging immediately
+        // 10-second countdown
+        countdownVal=10;
+        countdownTimer=setInterval(()=>{
+          if(!isRunning||currentMode!=='flow'||smoothedBPM){
+            clearInterval(countdownTimer);countdownTimer=null;return;
+          }
+          countdownVal=Math.max(0,countdownVal-1);
+        },1000);
+      }
+
       isRunning=true;
       startBtn.textContent='⏹ Stop'; startBtn.className='btn btn-stop';
       hint.textContent=currentMode==='flow'
@@ -642,6 +741,7 @@
   function stop(){
     isRunning=false;
     if(rafId) cancelAnimationFrame(rafId);
+    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
     mediaStream?.getTracks().forEach(t=>t.stop());
     audioCtx?.close();
     smoothedFreq=null;
@@ -658,52 +758,45 @@
     clearTimeout(kbTimeout);
     clearPiano();updateDisplay(null);updateStaff(null);
     currentMode=mode;
-
     document.querySelectorAll('.tab').forEach(t=>
       t.classList.toggle('active',t.dataset.mode===mode));
-
-    staffView.style.display  = mode==='flow'?'none':'';
-    metroView.style.display  = mode==='flow'?'':'none';
-    pianoArea.style.display  = mode==='flow'?'none':'';
-    controls.style.display   = mode==='keys'?'none':'';
-
-    // Octave bar: show in both listen and keys; hide buttons in listen
-    octaveBar.classList.toggle('show', mode!=='flow');
-    octDown.style.display = mode==='keys'?'':'none';
-    octUp  .style.display = mode==='keys'?'':'none';
-
+    staffView.style.display =mode==='flow'?'none':'';
+    metroView.style.display =mode==='flow'?'':'none';
+    pianoArea.style.display =mode==='flow'?'none':'';
+    controls.style.display  =mode==='keys'?'none':'';
+    octaveBar.classList.toggle('show',mode!=='flow');
+    octDown.style.display=mode==='keys'?'':'none';
+    octUp  .style.display=mode==='keys'?'':'none';
     const hints={
       listen:'Tap Start, then sing any note',
       keys:'Tap the piano keys to hear each note',
-      flow:'Tap Start, play music or clap to detect beat',
+      flow:'Tap Start, then play music or clap 🎵',
     };
     hint.textContent=hints[mode];
-
     if(mode==='flow'){
-      if(smoothedBPM){noteNameEl.textContent='—';noteSubEl.textContent='Play music or clap…';}
+      noteNameEl.textContent='—';
+      noteSubEl.textContent='Play music or clap…';
+      noteCard.classList.remove('lit');
+      updateCents(null);
       requestAnimationFrame(()=>{initMetroCanvas();startMetroLoop();});
     }
   }
 
-  // ── Event listeners ───────────────────────────────────────────────────
+  // ── Events ────────────────────────────────────────────────────────────
   startBtn.addEventListener('click',()=>isRunning?stop():start());
-  document.querySelectorAll('.tab').forEach(tab=>
-    tab.addEventListener('click',()=>setMode(tab.dataset.mode)));
-
+  document.querySelectorAll('.tab').forEach(t=>
+    t.addEventListener('click',()=>setMode(t.dataset.mode)));
   document.querySelectorAll('.wk,.bk').forEach(el=>
-    el.addEventListener('pointerdown', async e=>{
+    el.addEventListener('pointerdown',async e=>{
       e.preventDefault();
       if(currentMode==='keys'){
         const bare=el.dataset.note;
-        const noteIdx=NOTE_BARE.indexOf(bare);
-        const freq=getFreq(noteIdx,currentOctave);
-        await playKeyNote(bare,freq);
+        await playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),currentOctave));
       }
     }));
 
   if('serviceWorker' in navigator)
-    window.addEventListener('load',()=>
-      navigator.serviceWorker.register('sw.js').catch(()=>{}));
+    window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
   </script>
 </body>
 </html>
