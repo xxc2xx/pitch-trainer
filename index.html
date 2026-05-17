@@ -117,6 +117,13 @@
     }
     #playInput::placeholder{color:#2a2a44;}
     #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
+    #songPicker{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
+    .song-btn{
+      background:#0e0e1c;border:1.5px solid #1e1e38;color:#5858a8;
+      border-radius:18px;padding:4px 13px;font-size:.72rem;cursor:pointer;
+      transition:all .12s;white-space:nowrap;
+    }
+    .song-btn:active,.song-btn.picked{background:#1a1a40;border-color:#5555cc;color:#aaaaee;}
 
     /* Instrument selector */
     #instBar{display:none;flex-wrap:wrap;gap:5px;justify-content:center;padding:5px 0 2px;}
@@ -168,10 +175,18 @@
   <div id="metroView"><canvas id="metroCanvas"></canvas></div>
 
   <div id="playView">
+    <!-- Song picker -->
+    <div id="songPicker">
+      <button class="song-btn" data-song="twinkle">⭐ Twinkle Twinkle</button>
+      <button class="song-btn" data-song="mary">🐑 Mary Had a Lamb</button>
+      <button class="song-btn" data-song="buns">🥐 Hot Cross Buns</button>
+      <button class="song-btn" data-song="ode">🎵 Ode to Joy</button>
+      <button class="song-btn" data-song="birthday">🎂 Happy Birthday</button>
+    </div>
     <!-- Score canvas — notes rendered here, highlights as they play -->
     <div id="scoreScroll"><canvas id="scoreCanvas"></canvas></div>
     <!-- Note input -->
-    <textarea id="playInput" placeholder="Paste notes here: C4:1 D4:1 E4:0.5 F4:0.5 G4:2 …&#10;Share sheet music in chat and I'll transcribe it ♩"></textarea>
+    <textarea id="playInput" placeholder="Or type custom notes: C4:1 D4:1 E4:1 F4:1 G4:2&#10;Format: NoteOctave:beats  (e.g. C4:1 D4:0.5 E#4:1 R:1)"></textarea>
     <!-- Controls -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
@@ -181,7 +196,7 @@
       <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁</label>
       <button class="btn btn-start" id="playBtn" style="padding:7px 20px;font-size:.88rem;">▶ Play</button>
     </div>
-    <p id="playStatus">♩ Share a sheet music photo in chat — I'll transcribe it</p>
+    <p id="playStatus">Pick a song above or type notes — then press ▶ Play</p>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -1284,10 +1299,57 @@
   // Auto-render score on paste/type
   let scoreRenderTimer=null;
   document.getElementById('playInput').addEventListener('input',()=>{
+    document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
     clearTimeout(scoreRenderTimer);
     scoreRenderTimer=setTimeout(()=>{
       if(!isPlaying) renderScore(parseNoteList(document.getElementById('playInput').value));
     },400);
+  });
+
+  // ── Preset songs ─────────────────────────────────────────────────────
+  const SONGS={
+    twinkle:{name:'Twinkle Twinkle',bpm:90,notes:
+      'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 '+
+      'F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2 '+
+      'G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 '+
+      'G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 '+
+      'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 '+
+      'F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2'},
+    mary:{name:'Mary Had a Little Lamb',bpm:100,notes:
+      'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:2 '+
+      'D4:1 D4:1 D4:2 E4:1 G4:1 G4:2 '+
+      'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:1 E4:1 '+
+      'D4:1 D4:1 E4:1 D4:1 C4:2'},
+    buns:{name:'Hot Cross Buns',bpm:100,notes:
+      'E4:1 D4:1 C4:2 E4:1 D4:1 C4:2 '+
+      'C4:0.5 C4:0.5 C4:0.5 C4:0.5 D4:0.5 D4:0.5 D4:0.5 D4:0.5 '+
+      'E4:1 D4:1 C4:2'},
+    ode:{name:'Ode to Joy',bpm:100,notes:
+      'E4:1 E4:1 F4:1 G4:1 G4:1 F4:1 E4:1 D4:1 '+
+      'C4:1 C4:1 D4:1 E4:1 E4:1.5 D4:0.5 D4:2 '+
+      'E4:1 E4:1 F4:1 G4:1 G4:1 F4:1 E4:1 D4:1 '+
+      'C4:1 C4:1 D4:1 E4:1 D4:1.5 C4:0.5 C4:2 '+
+      'D4:1 D4:1 E4:1 C4:1 D4:1 E4:0.5 F4:0.5 E4:1 C4:1 '+
+      'D4:1 E4:0.5 F4:0.5 E4:1 D4:1 C4:1 D4:1 G3:2'},
+    birthday:{name:'Happy Birthday',bpm:120,notes:
+      'C4:0.5 C4:0.5 D4:1 C4:1 F4:1 E4:2 '+
+      'C4:0.5 C4:0.5 D4:1 C4:1 G4:1 F4:2 '+
+      'C4:0.5 C4:0.5 C5:1 A4:1 F4:1 E4:1 D4:2 '+
+      'Bb4:0.5 Bb4:0.5 A4:1 F4:1 G4:1 F4:2'},
+  };
+
+  document.querySelectorAll('.song-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const s=SONGS[btn.dataset.song]; if(!s) return;
+      const inp=document.getElementById('playInput');
+      inp.value=s.notes;
+      document.getElementById('playBpmSlider').value=s.bpm;
+      document.getElementById('playBpmVal').textContent=s.bpm;
+      document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
+      btn.classList.add('picked');
+      renderScore(parseNoteList(s.notes));
+      playStatus.textContent=`${s.name} · ${s.bpm} BPM — press ▶ Play`;
+    });
   });
 
   // ── Note synthesis ────────────────────────────────────────────────────
