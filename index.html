@@ -403,7 +403,8 @@
   const HIST_MIN=230,HIST_MAX=1600,HIST_BIN=10;
   const HIST_LEN=Math.ceil((HIST_MAX-HIST_MIN)/HIST_BIN);
   const bpmHist=new Float32Array(HIST_LEN);
-  const onsetTimes=[];  // rolling 6-second onset history
+  const onsetTimes=[];      // rolling 6-second onset timestamps
+  const onsetStrengths=[];  // parallel array: flux/avg ratio at each onset
   let lastBeatTime=0,bgFlashAt=0,beatFlashAt=0;
   let smoothedBPM=null,currentBeat=-1;
   let metroRafId=null;
@@ -441,7 +442,7 @@
 
   function resetMetro(){
     eBuf.fill(0);eHead=0;eFull=false;prevFreqFrame=null;
-    bpmHist.fill(0);onsetTimes.length=0;
+    bpmHist.fill(0);onsetTimes.length=0;onsetStrengths.length=0;
     lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
@@ -499,7 +500,8 @@
 
     // ── Beat predicted here ───────────────────────────────────────────
     // Look for confirming onset within ±28% of beat period
-    const win=ploPeriod*0.28;
+    // Window tightens as confidence grows: 28% at lock-on → 13% at full confidence
+    const win=ploPeriod*Math.max(0.13,0.28-(ploConf/16)*0.15);
     let bestOnset=null,bestDist=win;
     for(let i=onsetTimes.length-1;i>=0;i--){
       const d=Math.abs(onsetTimes[i]-now);
@@ -589,20 +591,23 @@
   function updateBpmHist(now){
     // Decay histogram (half-life ~4 seconds = each 500 ms update × 0.917)
     for(let i=0;i<HIST_LEN;i++) bpmHist[i]*=0.917;
-    // Vote: every recent onset pair
+    // Vote: every recent onset pair, weighted by onset strength
     const cutoff=now-6000;
-    while(onsetTimes.length&&onsetTimes[0]<cutoff) onsetTimes.shift();
+    while(onsetTimes.length&&onsetTimes[0]<cutoff){
+      onsetTimes.shift(); onsetStrengths.shift();
+    }
     for(let i=1;i<onsetTimes.length;i++){
       const iv=onsetTimes[i]-onsetTimes[i-1];
       if(iv<HIST_MIN||iv>HIST_MAX) continue;
+      // Geometric mean of adjacent onset strengths — weak pairs cast low votes
+      const w=Math.max(0.3,Math.min(3.0,Math.sqrt(onsetStrengths[i]*onsetStrengths[i-1])));
       const bin=Math.floor((iv-HIST_MIN)/HIST_BIN);
-      if(bin>=0&&bin<HIST_LEN) bpmHist[bin]+=1;
-      // Also vote at integer multiples (handles missed beats)
+      if(bin>=0&&bin<HIST_LEN) bpmHist[bin]+=w;
       for(let m=2;m<=3;m++){
         const miv=iv/m;
         if(miv>=HIST_MIN&&miv<HIST_MAX){
           const mb=Math.floor((miv-HIST_MIN)/HIST_BIN);
-          if(mb>=0&&mb<HIST_LEN) bpmHist[mb]+=0.6/m;
+          if(mb>=0&&mb<HIST_LEN) bpmHist[mb]+=w*0.6/m;
         }
       }
     }
@@ -626,31 +631,41 @@
     eHead++;
     if(eHead>=METRO_BUF) eFull=true;
 
-    // Running averages for adaptive thresholds
+    // Running averages + stddev for adaptive per-band thresholds
     let avg=0,bassAvg=0,midAvg=0;
     const len=eFull?METRO_BUF:eHead;
     for(let i=0;i<len;i++){avg+=eBuf[i];bassAvg+=eBufBass[i];midAvg+=eBufMid[i];}
     avg/=len; bassAvg/=len; midAvg/=len;
     bassRunAvg=bassAvg; midRunAvg=midAvg;
+    let bassVar=0,midVar=0;
+    for(let i=0;i<len;i++){
+      bassVar+=(eBufBass[i]-bassAvg)**2;
+      midVar+=(eBufMid[i]-midAvg)**2;
+    }
+    const bassStd=Math.sqrt(bassVar/len);
+    const midStd=Math.sqrt(midVar/len);
+    // mean+1.5σ threshold — adapts to signal dynamics; floor at 1.25/1.30× mean
+    const bassThr=Math.max(bassAvg*1.25,bassAvg+1.5*bassStd);
+    const midThr =Math.max(midAvg*1.30, midAvg+1.6*midStd);
 
     const now=performance.now();
 
     // ── Onset detection ─────────────────────────────────────────────────
-    // Local spectral-flux peak, purely relative threshold (distance-invariant).
     const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.60):230;
     const since=now-lastBeatTime;
-    // Per-band peaks for kick (bass) and snare (mid) detection
     const p1b=eBufBass[(eHead-2+METRO_BUF)%METRO_BUF];
     const p2b=eBufBass[(eHead-3+METRO_BUF)%METRO_BUF];
     const p1m=eBufMid[(eHead-2+METRO_BUF)%METRO_BUF];
     const p2m=eBufMid[(eHead-3+METRO_BUF)%METRO_BUF];
-    // Kick: strong bass peak above adaptive threshold
-    const kickOnset=bass>bassAvg*1.45&&bass>p1b&&bass>p2b&&bass>1e-9;
-    // Snare/clap: strong mid peak with some bass presence (avoids pure hi-hat triggers)
-    const snareOnset=mid>midAvg*1.60&&mid>p1m&&mid>p2m&&bass>bassAvg*0.35&&mid>1e-9;
+    // Kick: bass peak crosses stddev-adaptive threshold
+    const kickOnset=bass>bassThr&&bass>p1b&&bass>p2b&&bass>1e-9;
+    // Snare/clap: mid peak crosses stddev-adaptive threshold, minimal bass presence
+    const snareOnset=mid>midThr&&mid>p1m&&mid>p2m&&bass>bassAvg*0.35&&mid>1e-9;
     if((kickOnset||snareOnset)&&since>minSince){
       lastBeatTime=now;
+      const strength=Math.min(3.0,flux/(avg+1e-12));
       onsetTimes.push(now);
+      onsetStrengths.push(strength);
 
       // Pre-PLO: sync pendulum/clock directly from detected onsets
       if(!ploActive){
@@ -1708,7 +1723,6 @@ DURATIONS (quarter note = 1 beat):
             }
           ]},
           // Prefill forces Claude to output notes immediately, no preamble
-          {role:'assistant',content:'['}
         ]
       })
     });
@@ -1717,8 +1731,6 @@ DURATIONS (quarter note = 1 beat):
       throw new Error(`API error ${resp.status}: ${txt.slice(0,200)}`);
     }
     const json=await resp.json();
-    // Strip any label text the model prepended; keep only valid note/rest tokens.
-    // Token regex: letter A-G or R, optional #/b, optional octave digit, optional :beats
     const raw=json.content[0].text.trim();
     const clean=raw.split(/\s+/)
       .filter(tok=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(tok))
