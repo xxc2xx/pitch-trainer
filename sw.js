@@ -1,4 +1,4 @@
-const CACHE = 'pitch-v10';
+const CACHE = 'pitch-v11';
 const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json'];
 
 self.addEventListener('install', e => {

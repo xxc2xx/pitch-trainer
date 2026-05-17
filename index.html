@@ -101,6 +101,35 @@
     .btn-start{background:#e94560;color:#fff;box-shadow:0 4px 18px rgba(233,69,96,.45);}
     .btn-stop{background:#2d2d44;color:#ccc;}
     .hint{font-size:.68rem;color:#3a3a5a;text-align:center;}
+
+    /* Play tab */
+    #playView{width:100%;max-width:580px;display:none;flex-direction:column;gap:10px;}
+    .play-scroll{
+      display:flex;gap:8px;overflow-x:auto;padding:10px 8px;
+      scroll-snap-type:x mandatory;min-height:72px;align-items:center;
+      background:#080815;border-radius:12px;border:1px solid #1a1a30;
+    }
+    .pnc{
+      flex-shrink:0;scroll-snap-align:center;background:#12112a;
+      border:2px solid #1e1e38;border-radius:10px;padding:8px 14px;
+      text-align:center;font-size:1.1rem;font-weight:800;color:#3a3a6a;
+      min-width:48px;transition:all .12s;
+    }
+    .pnc.on{background:#18184a;border-color:#5050ee;color:#e2b714;
+      box-shadow:0 0 18px rgba(80,80,220,.4);}
+    .pnc-sub{font-size:.58rem;color:#2a2a50;margin-top:1px;}
+    .pnc.on .pnc-sub{color:#6060aa;}
+    .play-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;}
+    #playBpmSlider{width:90px;accent-color:#e2b714;}
+    #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
+    .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
+    #playInput{
+      width:100%;height:70px;background:#0a0918;color:#ccc;
+      border:1px solid #222238;border-radius:8px;padding:8px;
+      font-size:.8rem;font-family:monospace;resize:none;outline:none;
+    }
+    #playInput::placeholder{color:#2a2a44;}
+    #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
   </style>
 </head>
 <body>
@@ -110,6 +139,7 @@
     <button class="tab active" data-mode="listen">🎤 Listen</button>
     <button class="tab"        data-mode="keys"  >🎹 Keys</button>
     <button class="tab"        data-mode="flow"  >🥁 Beat</button>
+    <button class="tab"        data-mode="play"  >▶ Play</button>
   </div>
 
   <div class="note-card" id="noteCard">
@@ -140,6 +170,24 @@
   </div>
 
   <div id="metroView"><canvas id="metroCanvas"></canvas></div>
+
+  <div id="playView">
+    <div class="play-scroll" id="playScroll">
+      <span style="color:#1e1e38;font-size:.82rem;padding:0 8px;">Type notes below → tap ▶ Play</span>
+    </div>
+    <div class="play-row">
+      <label class="play-chk" style="color:#6868a8;">BPM</label>
+      <input type="range" id="playBpmSlider" min="40" max="200" value="100">
+      <span id="playBpmVal">100</span>
+      <label class="play-chk"><input type="checkbox" id="playSoundOn" checked> 🎹 Piano</label>
+      <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁 Click</label>
+    </div>
+    <textarea id="playInput" placeholder="C4 E4 G4 C5 G4 E4 C4&#10;Add duration (beats): C4:2 D4:0.5 E4:1&#10;Use R for rest. Sharp: F#4  Flat: Bb3"></textarea>
+    <div style="text-align:center;display:flex;gap:8px;justify-content:center;">
+      <button class="btn btn-start" id="playBtn">▶ Play</button>
+    </div>
+    <p id="playStatus"></p>
+  </div>
 
   <div class="piano-area" id="pianoArea">
     <div class="piano">
@@ -186,6 +234,9 @@
   const staffView    = document.getElementById('staffView');
   const metroView    = document.getElementById('metroView');
   const metroCanvas  = document.getElementById('metroCanvas');
+  const playView     = document.getElementById('playView');
+  const playBtn      = document.getElementById('playBtn');
+  const playStatus   = document.getElementById('playStatus');
   const pianoArea    = document.getElementById('pianoArea');
   const noteGroup    = document.getElementById('noteGroup');
   const stemEl       = document.getElementById('stemEl');
@@ -393,13 +444,15 @@
 
   function initMetroCanvas(){
     const dpr=window.devicePixelRatio||1;
-    metroCanvas.width =(metroView.clientWidth ||340)*dpr;
-    metroCanvas.height=(metroCanvas.clientHeight||340)*dpr;
+    const rect=metroCanvas.getBoundingClientRect();
+    metroCanvas.width =(rect.width  ||metroView.clientWidth ||340)*dpr;
+    metroCanvas.height=(rect.height ||340)*dpr;
   }
 
   function drawMetronome(){
     const dpr=window.devicePixelRatio||1;
-    const W=metroCanvas.width/dpr, H=metroCanvas.height/dpr;
+    let W=metroCanvas.width/dpr, H=metroCanvas.height/dpr;
+    if(!W||!H||W<50||H<50){ initMetroCanvas(); W=metroCanvas.width/dpr; H=metroCanvas.height/dpr; }
     if(!W||!H) return;
     const ctx=metroCanvas.getContext('2d');
     const now=performance.now();
@@ -566,28 +619,48 @@
       if(bh>0.5) ctx.fillRect(i*bwid,WAVE_TOP+wH-bh,bwid-1,bh);
     }
 
+    // ── Debug status ──
+    ctx.textAlign='left'; ctx.textBaseline='bottom';
+    ctx.fillStyle='rgba(80,80,130,0.55)'; ctx.font='10px monospace';
+    ctx.fillText(`${Math.round(W)}×${Math.round(H)} | ${isRunning?'RUN':'IDLE'} | bpm:${smoothedBPM?Math.round(smoothedBPM):'—'}`,4,H-2);
+
     ctx.restore();
   }
 
+  let metroWatchdog=null;
   function startMetroLoop(){
-    if(metroRafId) return;
+    // Always force-restart to clear any dead RAF
+    if(metroRafId){cancelAnimationFrame(metroRafId);metroRafId=null;}
+    if(metroWatchdog){clearInterval(metroWatchdog);metroWatchdog=null;}
     (function tick(){
       if(currentMode!=='flow'){metroRafId=null;return;}
-      try{ drawMetronome(); }catch(e){ console.error('drawMetronome',e); }
+      try{ drawMetronome(); }catch(e){ console.error('metro:',e); }
       metroRafId=requestAnimationFrame(tick);
     })();
+    // Watchdog: if RAF died, restart every 2s
+    metroWatchdog=setInterval(()=>{
+      if(currentMode!=='flow'){clearInterval(metroWatchdog);metroWatchdog=null;return;}
+      if(!metroRafId) startMetroLoop();
+    },2000);
+  }
+  function stopMetroLoop(){
+    if(metroRafId){cancelAnimationFrame(metroRafId);metroRafId=null;}
+    if(metroWatchdog){clearInterval(metroWatchdog);metroWatchdog=null;}
   }
 
   // ── Piano sound ───────────────────────────────────────────────────────
   let kbCtx=null, kbTimeout=null;
 
-  function playKeyNote(bare,freq){
-    // kbCtx already created + resumed by the pointerdown handler
+  function playKeyNote(bare,freq,dispOct){
+    const showOct = dispOct !== undefined ? dispOct : currentOctave;
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
-    noteNameEl.textContent=bare.replace('s','#')+currentOctave;
+    noteNameEl.textContent=bare.replace('s','#')+showOct;
     noteSubEl.textContent=`${freq.toFixed(1)} Hz`;
     noteCard.classList.add('lit'); updateCents(null);
+    // Update staff
+    const idx=NOTE_BARE.indexOf(bare);
+    if(idx>=0) updateStaff(buildInfo(idx,showOct,0));
 
     const ac=kbCtx,t=ac.currentTime;
     const master=ac.createGain();
@@ -621,7 +694,7 @@
     master.gain.exponentialRampToValueAtTime(0.0001,t+2.5);
 
     kbTimeout=setTimeout(()=>{
-      clearPiano();
+      clearPiano(); updateStaff(null);
       noteNameEl.textContent='—'; noteSubEl.textContent='tap a key to hear it!';
       noteCard.classList.remove('lit'); updateCents(null);
     },2500);
@@ -759,31 +832,36 @@
   // ── Mode switching ────────────────────────────────────────────────────
   function setMode(mode){
     if(isRunning) stop();
+    if(isPlaying) stopPlay();
+    if(currentMode==='flow' && mode!=='flow') stopMetroLoop();
     clearTimeout(kbTimeout);
     clearPiano();updateDisplay(null);updateStaff(null);
     currentMode=mode;
     document.querySelectorAll('.tab').forEach(t=>
       t.classList.toggle('active',t.dataset.mode===mode));
-    staffView.style.display =mode==='flow'?'none':'';
-    metroView.style.display =mode==='flow'?'':'none';
-    pianoArea.style.display =mode==='flow'?'none':'';
-    controls.style.display  =mode==='keys'?'none':'';
-    noteCard.style.display  =mode==='flow'?'none':'';
-    octaveBar.classList.toggle('show',mode!=='flow');
-    octDown.style.display=mode==='keys'?'':'none';
-    octUp  .style.display=mode==='keys'?'':'none';
+    const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys';
+    staffView.style.display =(isFlow||isPlay)?'none':'';
+    metroView.style.display =isFlow?'':'none';
+    playView.style.display  =isPlay?'flex':'none';
+    pianoArea.style.display =(isFlow||isPlay)?'none':'';
+    controls.style.display  =(isKeys||isPlay)?'none':'';
+    noteCard.style.display  =(isFlow||isPlay)?'none':'';
+    octaveBar.classList.toggle('show',!isFlow&&!isPlay);
+    octDown.style.display=isKeys?'':'none';
+    octUp  .style.display=isKeys?'':'none';
     const hints={
       listen:'Tap Start, then sing any note',
-      keys:'Tap the piano keys to hear each note',
+      keys:'Tap piano or use A-J keys (H=C)',
       flow:'Tap Start, then play music or clap 🎵',
+      play:'Type notes, set BPM, tap ▶ Play',
     };
-    hint.textContent=hints[mode];
-    if(mode==='flow'){
+    hint.textContent=hints[mode]||'';
+    if(isFlow){
       noteNameEl.textContent='—';
       noteSubEl.textContent='Play music or clap…';
       noteCard.classList.remove('lit');
       updateCents(null);
-      requestAnimationFrame(()=>{initMetroCanvas();startMetroLoop();});
+      setTimeout(()=>{initMetroCanvas();startMetroLoop();},80);
     }
   }
 
@@ -806,20 +884,158 @@
       playKeyNote(bare,freq);
     }));
 
-  // ── MacBook keyboard shortcuts (Keys tab only) ────────────────────────
-  const KEY_MAP={a:'C',s:'D',d:'E',f:'F',g:'G',h:'A',j:'B',
-                 w:'Cs',e:'Ds',t:'Fs',y:'Gs',u:'As'};
+  // ── MacBook keyboard shortcuts — H = C4 (middle), ASDFGHJKL;' white, QWERTY black ──
+  // White: A=E3 S=F3 D=G3 F=A3 G=B3 H=C4 J=D4 K=E4 L=F4 ;=G4 '=A4
+  // Black: W=F#3 E=G#3 R=A#3  Y=C#4 U=D#4  O=F#4 P=G#4
+  const KEY_MAP={
+    a:{bare:'E',oct:3}, s:{bare:'F',oct:3}, d:{bare:'G',oct:3},
+    f:{bare:'A',oct:3}, g:{bare:'B',oct:3}, h:{bare:'C',oct:4},
+    j:{bare:'D',oct:4}, k:{bare:'E',oct:4}, l:{bare:'F',oct:4},
+    ';':{bare:'G',oct:4},"'":{bare:'A',oct:4},
+    w:{bare:'Fs',oct:3},e:{bare:'Gs',oct:3},r:{bare:'As',oct:3},
+    y:{bare:'Cs',oct:4},u:{bare:'Ds',oct:4},
+    o:{bare:'Fs',oct:4},p:{bare:'Gs',oct:4},
+  };
   document.addEventListener('keydown',e=>{
     if(currentMode!=='keys') return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
-    const bare=KEY_MAP[e.key.toLowerCase()];
-    if(!bare) return;
+    const entry=KEY_MAP[e.key.toLowerCase()];
+    if(!entry) return;
     e.preventDefault();
     if(!kbCtx||kbCtx.state==='closed')
       kbCtx=new(window.AudioContext||window.webkitAudioContext)();
     kbCtx.resume();
-    playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),currentOctave));
+    const{bare,oct}=entry;
+    playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),oct),oct);
   });
+
+  // ── Play tab ──────────────────────────────────────────────────────────
+  let isPlaying=false, playCtx2=null, playTimers=[];
+
+  const NOTE_LETTER={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+  function parseNoteList(text){
+    return text.trim().split(/\s+/).flatMap(tok=>{
+      if(!tok) return [];
+      const m=tok.match(/^([A-Gr])([#b]?)([0-9]?)(?::([0-9.]+))?$/i);
+      if(!m) return [];
+      const[,letter,acc,octStr,beatStr]=m;
+      const beats=parseFloat(beatStr||'1');
+      if(letter.toLowerCase()==='r') return[{rest:true,beats,display:'—'}];
+      const oct=parseInt(octStr||'4');
+      let idx=NOTE_LETTER[letter.toUpperCase()];
+      if(idx===undefined) return[];
+      if(acc==='#') idx++;
+      else if(acc==='b') idx--;
+      idx=((idx%12)+12)%12;
+      const bare=NOTE_BARE[idx];
+      const freq=getFreq(idx,oct);
+      return[{bare,freq,oct,beats,display:letter.toUpperCase()+(acc||'')+(octStr||'4'),idx}];
+    });
+  }
+
+  function schedulePianoNote(ac,freq,when,dur){
+    const master=ac.createGain(), filt=ac.createBiquadFilter();
+    filt.type='lowpass'; filt.Q.value=0.6;
+    filt.frequency.setValueAtTime(Math.min(freq*20,20000),when);
+    filt.frequency.exponentialRampToValueAtTime(Math.min(freq*3,6000),when+0.5);
+    master.connect(filt); filt.connect(ac.destination);
+    const d=Math.min(dur*0.92,2.5);
+    [[1,0.52],[2,0.28],[3,0.14],[4.01,0.07],[5.09,0.03]].forEach(([m,v])=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine'; o.frequency.value=freq*m;
+      g.gain.setValueAtTime(v,when); g.gain.exponentialRampToValueAtTime(0.0001,when+d);
+      o.connect(g); g.connect(master); o.start(when); o.stop(when+d+0.05);
+    });
+    const nhz=Math.round(ac.sampleRate*0.014);
+    const nb=ac.createBuffer(1,nhz,ac.sampleRate);
+    const nd=nb.getChannelData(0); for(let i=0;i<nhz;i++) nd[i]=Math.random()*2-1;
+    const ns=ac.createBufferSource(),ng=ac.createGain();
+    ns.buffer=nb; ng.gain.setValueAtTime(0.1,when); ng.gain.exponentialRampToValueAtTime(0.0001,when+0.014);
+    ns.connect(ng); ng.connect(filt); ns.start(when);
+    master.gain.setValueAtTime(0.001,when);
+    master.gain.linearRampToValueAtTime(0.45,when+0.005);
+    master.gain.exponentialRampToValueAtTime(0.22,when+0.08);
+    master.gain.exponentialRampToValueAtTime(0.0001,when+d);
+  }
+
+  function scheduleMetroClick(ac,when,accent){
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type='sine'; o.frequency.value=accent?1200:900;
+    g.gain.setValueAtTime(accent?0.3:0.18,when);
+    g.gain.exponentialRampToValueAtTime(0.0001,when+0.06);
+    o.connect(g); g.connect(ac.destination);
+    o.start(when); o.stop(when+0.07);
+  }
+
+  function renderPlayCards(notes){
+    const scroll=document.getElementById('playScroll');
+    scroll.innerHTML='';
+    notes.forEach((n,i)=>{
+      const d=document.createElement('div');
+      d.className='pnc'; d.dataset.idx=i;
+      d.textContent=n.display;
+      if(n.beats!==1){
+        const s=document.createElement('div');
+        s.className='pnc-sub'; s.textContent=n.beats+'b'; d.appendChild(s);
+      }
+      scroll.appendChild(d);
+    });
+  }
+
+  function hlCard(idx){
+    document.querySelectorAll('.pnc').forEach((el,i)=>el.classList.toggle('on',i===idx));
+    const el=document.querySelector(`.pnc[data-idx="${idx}"]`);
+    if(el) el.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
+  }
+
+  function startPlay(){
+    const text=document.getElementById('playInput').value;
+    const notes=parseNoteList(text);
+    if(!notes.length){playStatus.textContent='No notes found. Try: C4 E4 G4 C5';return;}
+    if(isPlaying) stopPlay();
+    const bpm=parseInt(document.getElementById('playBpmSlider').value)||100;
+    const usePiano=document.getElementById('playSoundOn').checked;
+    const useMet=document.getElementById('playMetroOn').checked;
+    playCtx2=new(window.AudioContext||window.webkitAudioContext)();
+    playCtx2.resume();
+    isPlaying=true;
+    playBtn.textContent='⏹ Stop'; playBtn.className='btn btn-stop';
+    playStatus.textContent=`Playing ${notes.length} notes at ${bpm} BPM…`;
+    renderPlayCards(notes);
+    const spb=60/bpm;
+    const startWhen=playCtx2.currentTime+0.12;
+    let when=startWhen, beat=0;
+    notes.forEach((n,i)=>{
+      const dur=n.beats*spb;
+      if(usePiano&&!n.rest) schedulePianoNote(playCtx2,n.freq,when,dur);
+      // metronome clicks for each full beat this note spans
+      if(useMet){
+        for(let b=0;b<Math.ceil(n.beats);b++)
+          scheduleMetroClick(playCtx2,when+b*spb,beat%4===0);
+      }
+      beat+=Math.round(n.beats);
+      const delay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000));
+      playTimers.push(setTimeout(()=>hlCard(i),delay));
+      when+=dur;
+    });
+    const endDelay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000))+300;
+    playTimers.push(setTimeout(()=>stopPlay(),endDelay));
+  }
+
+  function stopPlay(){
+    isPlaying=false;
+    playTimers.forEach(clearTimeout); playTimers=[];
+    playCtx2?.close(); playCtx2=null;
+    playBtn.textContent='▶ Play'; playBtn.className='btn btn-start';
+    playStatus.textContent='';
+    document.querySelectorAll('.pnc').forEach(el=>el.classList.remove('on'));
+  }
+
+  // BPM slider live update
+  document.getElementById('playBpmSlider').addEventListener('input',e=>{
+    document.getElementById('playBpmVal').textContent=e.target.value;
+  });
+  playBtn.addEventListener('click',()=>isPlaying?stopPlay():startPlay());
 
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
