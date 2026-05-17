@@ -467,6 +467,37 @@
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
   }
 
+  // OLS regression over the last 9s of confirmed beat timestamps.
+  // Returns {slope (ms/beat), nextBeatTime (ms), r2 (0-1 fit quality)} or null.
+  function beatRegression(now){
+    if(beatHistory.length<4) return null;
+    const recent=beatHistory.filter(b=>b.time>now-9000);
+    if(recent.length<4) return null;
+    const n=recent.length;
+    let sx=0,sy=0,sxx=0,sxy=0;
+    for(let i=0;i<n;i++){
+      sx+=i; sy+=recent[i].time;
+      sxx+=i*i; sxy+=i*recent[i].time;
+    }
+    const denom=n*sxx-sx*sx;
+    if(Math.abs(denom)<1e-9) return null;
+    const slope=(n*sxy-sx*sy)/denom;   // ms per beat
+    const intercept=(sy-slope*sx)/n;
+    if(slope<200||slope>2000) return null;  // sanity: 30-300 BPM
+    // R² — quality of fit
+    const meanY=sy/n;
+    let ssTot=0,ssRes=0;
+    for(let i=0;i<n;i++){
+      const pred=intercept+slope*i;
+      ssTot+=(recent[i].time-meanY)**2;
+      ssRes+=(recent[i].time-pred)**2;
+    }
+    const r2=ssTot>0?1-ssRes/ssTot:0;
+    if(r2<0.98) return null;  // reject noisy fits
+    const nextBeatTime=intercept+slope*n;
+    return {slope, nextBeatTime, r2};
+  }
+
   // PLO step — called every 25 ms frame.
   // Advances the internal beat clock and fires on each predicted beat.
   // If a real onset is near the prediction, it nudges phase and period slightly.
@@ -510,7 +541,7 @@
     clockRefTime=now; beatFlashAt=now; bgFlashAt=now;
     // Store beat in history for waveform markers (keep last 4 seconds)
     beatHistory.push({time:now,num:clockRefBeat});
-    while(beatHistory.length&&beatHistory[0].time<now-4200) beatHistory.shift();
+    while(beatHistory.length&&beatHistory[0].time<now-9000) beatHistory.shift();
     pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
     pendOriginTime=now;
     noteNameEl.textContent=Math.round(smoothedBPM);
@@ -824,24 +855,29 @@
       ctx.fillText(String(i+1),bx2+boxW/2,BOXES_MID);
     }
 
-    // ── Beat waveform: spectral flux bars + PLO beat markers ──────────
-    const wH=H*0.28, wBottom=WAVE_TOP+wH;
-    const bwid=W/METRO_BUF;
-    // Normalize to visible height
+    // ── Beat waveform ─────────────────────────────────────────────────
+    // Layout: past zone (left 78%) | NOW line | future zone (right 22%)
+    const wH=H*0.27, wBottom=WAVE_TOP+wH;
+    const nowX=W*0.78;           // "NOW" line x position
+    const futureW=W-nowX;        // future zone width
+    const histMs=4000;           // history shown (ms)
+    const futureMs=1000;         // future zone spans 1 second ahead
+    const bwid=nowX/METRO_BUF;  // bar width scaled to past zone
+
+    // Normalize bars
     let wMax=0;
     for(let i=0;i<METRO_BUF;i++) if(eBuf[i]>wMax) wMax=eBuf[i];
     if(wMax<1e-14) wMax=1e-14;
 
-    // Draw bars — color by nearest beat in history
+    // ── Past zone: flux bars coloured by beat ──
     for(let i=0;i<METRO_BUF;i++){
       const barTime=now-(METRO_BUF-1-i)*25;
       const idx=(eHead-METRO_BUF+i+METRO_BUF*2)%METRO_BUF;
       const e=eBuf[idx]||0;
       const bh=Math.max(1.5,(e/wMax)*wH*0.92);
       const age=(METRO_BUF-1-i)/METRO_BUF;
-      const al=(0.10+(1-age)*0.60).toFixed(2);
+      const al=(0.10+(1-age)*0.62).toFixed(2);
       const x=i*bwid;
-      // Find nearest PLO beat for this bar
       let beatNum=-1;
       for(const {time,num} of beatHistory){
         if(Math.abs(time-barTime)<50){beatNum=num;break;}
@@ -850,7 +886,7 @@
         const[cr,cg,cb]=hexRgb(BEAT_COLS[beatNum]);
         ctx.fillStyle=`rgba(${cr},${cg},${cb},${al})`;
       } else {
-        ctx.fillStyle=`rgba(55,55,175,${al})`;
+        ctx.fillStyle=`rgba(50,50,170,${al})`;
       }
       ctx.fillRect(x,wBottom-bh,Math.max(1,bwid-1),bh);
     }
@@ -859,30 +895,89 @@
     ctx.strokeStyle='rgba(35,35,70,0.8)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(0,wBottom); ctx.lineTo(W,wBottom); ctx.stroke();
 
-    // Vertical beat markers with 1 2 3 4 labels
+    // ── PLO phase progress bar (thin strip above waveform) ──
+    // Shows how far through the current beat period the PLO is.
+    // Reaches nowX exactly as the next beat fires.
+    if(ploActive && ploPeriod>0){
+      const phaseX=ploPhase*nowX;
+      ctx.fillStyle='rgba(40,40,100,0.35)';
+      ctx.fillRect(0,WAVE_TOP-5,nowX,4);
+      ctx.fillStyle='rgba(100,100,255,0.55)';
+      ctx.fillRect(0,WAVE_TOP-5,phaseX,4);
+      // Cursor dot
+      ctx.beginPath(); ctx.arc(phaseX,WAVE_TOP-3,3.5,0,Math.PI*2);
+      ctx.fillStyle='rgba(160,160,255,0.85)'; ctx.fill();
+    }
+
+    // ── Past beat markers: solid coloured lines + labels ──
     ctx.setLineDash([3,3]);
     beatHistory.forEach(({time,num})=>{
       const age=now-time;
-      if(age>4000) return;
-      const xPos=(1-age/4000)*W;
-      const alpha=Math.max(0,(1-age/3500));
+      if(age>histMs) return;
+      const xPos=(1-age/histMs)*nowX;
+      const alpha=Math.max(0,1-age/3500);
       const col=BEAT_COLS[num%4];
       const[cr,cg,cb]=hexRgb(col);
-      // Marker line
-      ctx.strokeStyle=`rgba(${cr},${cg},${cb},${(alpha*0.65).toFixed(2)})`;
+      ctx.strokeStyle=`rgba(${cr},${cg},${cb},${(alpha*0.7).toFixed(2)})`;
       ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.moveTo(xPos,WAVE_TOP-2); ctx.lineTo(xPos,wBottom); ctx.stroke();
-      // Beat number above the bar
+      ctx.beginPath(); ctx.moveTo(xPos,WAVE_TOP-5); ctx.lineTo(xPos,wBottom); ctx.stroke();
       if(alpha>0.25){
         ctx.setLineDash([]);
-        ctx.font=`700 ${Math.round(H*0.044)}px sans-serif`;
+        ctx.font=`700 ${Math.round(H*0.042)}px sans-serif`;
         ctx.textAlign='center'; ctx.textBaseline='bottom';
         ctx.fillStyle=`rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
-        ctx.fillText(String(num+1),xPos,WAVE_TOP-4);
+        ctx.fillText(String(num+1),xPos,WAVE_TOP-7);
         ctx.setLineDash([3,3]);
       }
     });
     ctx.setLineDash([]);
+
+    // ── NOW line ──
+    ctx.strokeStyle='rgba(226,183,20,0.75)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(nowX,WAVE_TOP-9); ctx.lineTo(nowX,wBottom+2); ctx.stroke();
+    ctx.font=`700 ${Math.round(H*0.038)}px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle='rgba(226,183,20,0.75)';
+    ctx.fillText('NOW',nowX,WAVE_TOP-10);
+
+    // ── Future zone: regression-projected beats (ghost markers) ──
+    if(ploActive && ploPeriod>0){
+      // Light background tint for future zone
+      ctx.fillStyle='rgba(20,20,50,0.35)';
+      ctx.fillRect(nowX,WAVE_TOP-9,futureW,wH+11);
+
+      // Prefer regression over raw PLO phase for projection accuracy
+      const reg=beatRegression(now);
+      const refPeriod=reg?reg.slope:ploPeriod;
+      const msToNext=reg?(reg.nextBeatTime-now):(ploPeriod*(1-ploPhase));
+      // Trust indicator: thin coloured edge on the future zone
+      const confCol=reg
+        ?`rgba(80,220,120,${(0.2+0.3*reg.r2).toFixed(2)})`
+        :'rgba(100,100,255,0.15)';
+      ctx.fillStyle=confCol;
+      ctx.fillRect(nowX,WAVE_TOP-9,3,wH+11);
+
+      for(let i=0;i<3;i++){
+        const msAhead=msToNext+i*refPeriod;
+        if(msAhead<0||msAhead>futureMs*1.5) continue;
+        if(msAhead>futureMs) break;
+        const xFut=nowX+(msAhead/futureMs)*futureW;
+        const projNum=(clockRefBeat+1+i)%4;
+        const col=BEAT_COLS[projNum];
+        const[cr,cg,cb]=hexRgb(col);
+        const alpha=0.5*(1-msAhead/futureMs);
+        // Ghost dashed line
+        ctx.strokeStyle=`rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
+        ctx.lineWidth=1.5; ctx.setLineDash([2,5]);
+        ctx.beginPath(); ctx.moveTo(xFut,WAVE_TOP-5); ctx.lineTo(xFut,wBottom); ctx.stroke();
+        ctx.setLineDash([]);
+        // Ghost label
+        ctx.font=`600 ${Math.round(H*0.04)}px sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillStyle=`rgba(${cr},${cg},${cb},${Math.min(1,alpha*2).toFixed(2)})`;
+        ctx.fillText(String(projNum+1),xFut,WAVE_TOP-7);
+      }
+    }
 
     ctx.restore();
   }
