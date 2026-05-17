@@ -185,6 +185,14 @@
   </div>
 
   <div class="piano-area" id="pianoArea">
+    <div id="instBar">
+      <button class="inst-btn sel" data-inst="piano">🎹 Piano</button>
+      <button class="inst-btn" data-inst="epiano">🎵 E.Piano</button>
+      <button class="inst-btn" data-inst="guitar">🎸 Guitar</button>
+      <button class="inst-btn" data-inst="bass">🎸 Bass</button>
+      <button class="inst-btn" data-inst="strings">🎻 Strings</button>
+      <button class="inst-btn" data-inst="drum">🥁 Drum</button>
+    </div>
     <div class="piano">
       <div class="wk" data-note="C" ><span class="lbl">C4</span></div>
       <div class="wk" data-note="D" ><span class="lbl">D4</span></div>
@@ -247,6 +255,22 @@
 
   let currentMode   = 'listen';
   let currentOctave = 4;
+  let currentInstrument = 'piano';
+
+  const DRUM_LABELS={C:'Kick',D:'Snare',E:'Hi-hat',F:'Open HH',G:'Tom↑',A:'Tom',B:'Tom↓',
+                     Cs:'Clap',Ds:'Rim',Fs:'Crash',Gs:'Ride',As:'Cowbell'};
+
+  function updateKeyLabels(){
+    const isDrum=currentInstrument==='drum';
+    document.querySelectorAll('.wk').forEach(el=>{
+      const b=el.dataset.note;
+      el.querySelector('.lbl').textContent=isDrum?(DRUM_LABELS[b]||b):b+currentOctave;
+    });
+    document.querySelectorAll('.bk').forEach(el=>{
+      const b=el.dataset.note;
+      el.querySelector('.lbl').textContent=isDrum?(DRUM_LABELS[b]||''):b.replace('s','#');
+    });
+  }
 
   // ── Note helpers ──────────────────────────────────────────────────────
   function getFreq(idx, oct){ return 440*Math.pow(2,(idx-9+(oct-4)*12)/12); }
@@ -269,8 +293,9 @@
   function setOctave(o){
     currentOctave=Math.max(1,Math.min(7,o));
     octLabel.textContent=`Octave ${currentOctave}  (C${currentOctave} – B${currentOctave})`;
-    document.querySelectorAll('.wk').forEach(el=>
-      el.querySelector('.lbl').textContent=el.dataset.note+currentOctave);
+    if(currentInstrument!=='drum')
+      document.querySelectorAll('.wk').forEach(el=>
+        el.querySelector('.lbl').textContent=el.dataset.note+currentOctave);
     octDown.disabled=currentOctave<=1; octUp.disabled=currentOctave>=7;
   }
   octDown.addEventListener('click',()=>setOctave(currentOctave-1));
@@ -682,26 +707,14 @@
   // ── Piano sound ───────────────────────────────────────────────────────
   let kbCtx=null, kbTimeout=null;
 
-  function playKeyNote(bare,freq,dispOct){
-    const showOct = dispOct !== undefined ? dispOct : currentOctave;
-    clearTimeout(kbTimeout);
-    clearPiano(); glowKey(bare,1.0);
-    noteNameEl.textContent=bare.replace('s','#')+showOct;
-    noteSubEl.textContent=`${freq.toFixed(1)} Hz`;
-    noteCard.classList.add('lit'); updateCents(null);
-    // Update staff
-    const idx=NOTE_BARE.indexOf(bare);
-    if(idx>=0) updateStaff(buildInfo(idx,showOct,0));
-
-    const ac=kbCtx,t=ac.currentTime;
-    const master=ac.createGain();
-    const filt=ac.createBiquadFilter();
+  // ── Instrument synthesis ──────────────────────────────────────────────
+  function playPiano(ac,freq,t){
+    const master=ac.createGain(), filt=ac.createBiquadFilter();
     filt.type='lowpass'; filt.Q.value=0.6;
     filt.frequency.setValueAtTime(Math.min(freq*20,20000),t);
     filt.frequency.exponentialRampToValueAtTime(Math.min(freq*6,12000),t+0.05);
     filt.frequency.exponentialRampToValueAtTime(Math.min(freq*3,6000),t+0.5);
     master.connect(filt); filt.connect(ac.destination);
-
     [[1,0.52,2.5],[2,0.28,1.1],[3,0.14,0.55],[4.01,0.08,0.3],[5.09,0.04,0.18],[7.2,0.02,0.1]]
     .forEach(([m,v,d])=>{
       const o=ac.createOscillator(),g=ac.createGain();
@@ -709,20 +722,193 @@
       g.gain.setValueAtTime(v,t); g.gain.exponentialRampToValueAtTime(0.0001,t+d);
       o.connect(g); g.connect(master); o.start(t); o.stop(t+d+0.05);
     });
-
     const nhz=Math.round(ac.sampleRate*0.014);
     const nb=ac.createBuffer(1,nhz,ac.sampleRate);
-    const nd=nb.getChannelData(0);
-    for(let i=0;i<nhz;i++) nd[i]=Math.random()*2-1;
+    const nd=nb.getChannelData(0); for(let i=0;i<nhz;i++) nd[i]=Math.random()*2-1;
     const ns=ac.createBufferSource(),ng=ac.createGain();
-    ns.buffer=nb;
-    ng.gain.setValueAtTime(0.14,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.014);
+    ns.buffer=nb; ng.gain.setValueAtTime(0.14,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.014);
     ns.connect(ng); ng.connect(filt); ns.start(t);
-
     master.gain.setValueAtTime(0.001,t);
     master.gain.linearRampToValueAtTime(0.48,t+0.005);
     master.gain.exponentialRampToValueAtTime(0.22,t+0.08);
     master.gain.exponentialRampToValueAtTime(0.0001,t+2.5);
+  }
+
+  function playEPiano(ac,freq,t){
+    const master=ac.createGain(); master.gain.value=0.5; master.connect(ac.destination);
+    const mod=ac.createOscillator(), modG=ac.createGain(), car=ac.createOscillator();
+    mod.frequency.value=freq*14;
+    modG.gain.setValueAtTime(freq*4,t); modG.gain.exponentialRampToValueAtTime(freq*0.15,t+1.0);
+    mod.connect(modG); modG.connect(car.frequency);
+    car.frequency.value=freq; car.type='sine';
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.75,t); g.gain.exponentialRampToValueAtTime(0.35,t+0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+3.0);
+    car.connect(g); g.connect(master);
+    const lfo=ac.createOscillator(),lfoG=ac.createGain();
+    lfo.frequency.value=5.2; lfoG.gain.value=0.06;
+    lfo.connect(lfoG); lfoG.connect(master.gain);
+    mod.start(t); car.start(t); lfo.start(t);
+    mod.stop(t+3.1); car.stop(t+3.1); lfo.stop(t+3.1);
+  }
+
+  function playGuitar(ac,freq,t){
+    const sr=ac.sampleRate, dur=2.6;
+    const N=Math.round(sr*dur), period=Math.round(sr/freq);
+    const data=new Float32Array(N);
+    for(let i=0;i<period+1;i++) data[i]=Math.random()*2-1;
+    for(let i=period+1;i<N;i++) data[i]=(data[i-period]+data[i-period+1])*0.499;
+    const buf=ac.createBuffer(1,N,sr); buf.getChannelData(0).set(data);
+    const src=ac.createBufferSource(), master=ac.createGain();
+    src.buffer=buf;
+    master.gain.setValueAtTime(0.8,t); master.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(master); master.connect(ac.destination); src.start(t); src.stop(t+dur+0.05);
+  }
+
+  function playBass(ac,freq,t){
+    const sr=ac.sampleRate, dur=2.2;
+    const N=Math.round(sr*dur), period=Math.round(sr/freq);
+    const data=new Float32Array(N);
+    for(let i=0;i<period+1;i++) data[i]=Math.random()*2-1;
+    for(let i=period+1;i<N;i++) data[i]=(data[i-period]+data[i-period+1])*0.4995;
+    const buf=ac.createBuffer(1,N,sr); buf.getChannelData(0).set(data);
+    const src=ac.createBufferSource();
+    const filt=ac.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=freq*3; filt.Q.value=1.2;
+    const master=ac.createGain();
+    src.buffer=buf;
+    master.gain.setValueAtTime(1.0,t); master.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    src.connect(filt); filt.connect(master); master.connect(ac.destination); src.start(t); src.stop(t+dur+0.05);
+  }
+
+  function playStrings(ac,freq,t){
+    const master=ac.createGain(); master.gain.value=0.3;
+    const filt=ac.createBiquadFilter(); filt.type='lowpass'; filt.frequency.value=freq*6; filt.Q.value=0.9;
+    master.connect(filt); filt.connect(ac.destination);
+    [[1,0.5],[2,0.3],[3,0.15],[4,0.08],[5,0.04]].forEach(([mult,amp],i)=>{
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.type='sawtooth'; o.frequency.value=freq*mult;
+      o.detune.value=(i%2===0?1:-1)*(i*4+3);
+      g.gain.setValueAtTime(0.001,t); g.gain.linearRampToValueAtTime(amp,t+0.28);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+2.8);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+2.9);
+    });
+  }
+
+  // ── Drum kit ──────────────────────────────────────────────────────────
+  function _noise(ac,dur){
+    const b=ac.createBuffer(1,Math.round(ac.sampleRate*dur),ac.sampleRate);
+    const d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b;
+  }
+  function playKick(ac,t){
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(48,t+0.15);
+    g.gain.setValueAtTime(1.0,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.45);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.5);
+    const ns=ac.createBufferSource(),ng=ac.createGain();
+    ns.buffer=_noise(ac,0.008); ng.gain.setValueAtTime(0.5,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.008);
+    ns.connect(ng); ng.connect(ac.destination); ns.start(t);
+  }
+  function playSnare(ac,t){
+    const o=ac.createOscillator(),og=ac.createGain(); o.frequency.value=195;
+    og.gain.setValueAtTime(0.55,t); og.gain.exponentialRampToValueAtTime(0.0001,t+0.12);
+    o.connect(og); og.connect(ac.destination); o.start(t); o.stop(t+0.15);
+    const ns=ac.createBufferSource(),nf=ac.createBiquadFilter(),ng=ac.createGain();
+    nf.type='bandpass'; nf.frequency.value=3000; nf.Q.value=0.6;
+    ns.buffer=_noise(ac,0.18); ng.gain.setValueAtTime(0.9,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+    ns.connect(nf); nf.connect(ng); ng.connect(ac.destination); ns.start(t);
+  }
+  function playHiHat(ac,t,open){
+    const dur=open?0.5:0.07;
+    const ns=ac.createBufferSource(),nf=ac.createBiquadFilter(),ng=ac.createGain();
+    nf.type='highpass'; nf.frequency.value=8000;
+    ns.buffer=_noise(ac,dur); ng.gain.setValueAtTime(0.55,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    ns.connect(nf); nf.connect(ng); ng.connect(ac.destination); ns.start(t);
+  }
+  function playTom(ac,t,freq){
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.frequency.setValueAtTime(freq*1.6,t); o.frequency.exponentialRampToValueAtTime(freq,t+0.08);
+    g.gain.setValueAtTime(0.9,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.45);
+  }
+  function playClap(ac,t){
+    [0,0.012,0.024].forEach(d=>{
+      const ns=ac.createBufferSource(),nf=ac.createBiquadFilter(),ng=ac.createGain();
+      nf.type='bandpass'; nf.frequency.value=1400; nf.Q.value=0.9;
+      ns.buffer=_noise(ac,0.045); ng.gain.setValueAtTime(0.85,t+d); ng.gain.exponentialRampToValueAtTime(0.0001,t+d+0.045);
+      ns.connect(nf); nf.connect(ng); ng.connect(ac.destination); ns.start(t+d);
+    });
+  }
+  function playCrash(ac,t){
+    const ns=ac.createBufferSource(),nf=ac.createBiquadFilter(),ng=ac.createGain();
+    nf.type='highpass'; nf.frequency.value=5500;
+    ns.buffer=_noise(ac,1.8); ng.gain.setValueAtTime(0.65,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+1.8);
+    ns.connect(nf); nf.connect(ng); ng.connect(ac.destination); ns.start(t);
+  }
+  function playRide(ac,t){
+    [2000,3100].forEach(f=>{
+      const o=ac.createOscillator(),g=ac.createGain(); o.type='triangle'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.22,t); g.gain.exponentialRampToValueAtTime(0.0001,t+1.2);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+1.3);
+    });
+  }
+  function playCowbell(ac,t){
+    [800,540].forEach(f=>{
+      const o=ac.createOscillator(),g=ac.createGain(); o.type='square'; o.frequency.value=f;
+      g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.8);
+      o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.85);
+    });
+  }
+  function playRim(ac,t){
+    const o=ac.createOscillator(),g=ac.createGain(); o.frequency.value=1600;
+    g.gain.setValueAtTime(0.6,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);
+    o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t+0.06);
+    const ns=ac.createBufferSource(),nf=ac.createBiquadFilter(),ng=ac.createGain();
+    nf.type='highpass'; nf.frequency.value=5000;
+    ns.buffer=_noise(ac,0.04); ng.gain.setValueAtTime(0.45,t); ng.gain.exponentialRampToValueAtTime(0.0001,t+0.04);
+    ns.connect(nf); nf.connect(ng); ng.connect(ac.destination); ns.start(t);
+  }
+  function playDrum(ac,bare,t){
+    ({C:playKick,D:playSnare,Fs:playCrash,Gs:playRide,As:playCowbell,Cs:playClap,Ds:playRim}[bare]||
+     ((ac,t)=>{
+       if(bare==='E') playHiHat(ac,t,false);
+       else if(bare==='F') playHiHat(ac,t,true);
+       else if(bare==='G') playTom(ac,t,290);
+       else if(bare==='A') playTom(ac,t,200);
+       else if(bare==='B') playTom(ac,t,130);
+     }))(ac,t);
+  }
+
+  function playKeyNote(bare,freq,dispOct){
+    const showOct=dispOct!==undefined?dispOct:currentOctave;
+    clearTimeout(kbTimeout);
+    clearPiano(); glowKey(bare,1.0);
+    const ac=kbCtx, t=ac.currentTime;
+
+    if(currentInstrument==='drum'){
+      const dname=DRUM_LABELS[bare]||bare;
+      noteNameEl.textContent=dname; noteSubEl.textContent='🥁';
+      noteCard.classList.add('lit'); updateCents(null);
+      playDrum(ac,bare,t);
+      kbTimeout=setTimeout(()=>{
+        clearPiano(); noteNameEl.textContent='—'; noteSubEl.textContent='tap a drum key!';
+        noteCard.classList.remove('lit'); updateCents(null);
+      },600);
+      return;
+    }
+
+    noteNameEl.textContent=bare.replace('s','#')+showOct;
+    noteSubEl.textContent=`${freq.toFixed(1)} Hz`;
+    noteCard.classList.add('lit'); updateCents(null);
+    const idx=NOTE_BARE.indexOf(bare);
+    if(idx>=0) updateStaff(buildInfo(idx,showOct,0));
+
+    switch(currentInstrument){
+      case 'epiano':  playEPiano(ac,freq,t);  break;
+      case 'guitar':  playGuitar(ac,freq,t);  break;
+      case 'bass':    playBass(ac,freq,t);    break;
+      case 'strings': playStrings(ac,freq,t); break;
+      default:        playPiano(ac,freq,t);   break;
+    }
 
     kbTimeout=setTimeout(()=>{
       clearPiano(); updateStaff(null);
@@ -877,14 +1063,17 @@
     pianoArea.style.display =(isFlow||isPlay)?'none':'';
     controls.style.display  =(isKeys||isPlay)?'none':'';
     noteCard.style.display  =(isFlow||isPlay)?'none':'';
-    octaveBar.classList.toggle('show',!isFlow&&!isPlay);
-    octDown.style.display=isKeys?'':'none';
-    octUp  .style.display=isKeys?'':'none';
+    const isDrum=currentInstrument==='drum';
+    document.getElementById('instBar').classList.toggle('show',isKeys);
+    octaveBar.classList.toggle('show',isKeys&&!isDrum);
+    octDown.style.display=isKeys&&!isDrum?'':'none';
+    octUp  .style.display=isKeys&&!isDrum?'':'none';
+    if(isKeys){ updateKeyLabels(); if(isDrum) staffView.style.display='none'; }
     const hints={
       listen:'Tap Start, then sing any note',
-      keys:'Tap piano or use A-J keys (G=C4, Enter=C5)',
+      keys:'Tap piano keys or A-J keyboard (G=C4)',
       flow:'Tap Start, then play music or clap 🎵',
-      play:'Type notes, set BPM, tap ▶ Play',
+      play:'Paste notes below, tap ▶ Play',
     };
     hint.textContent=hints[mode]||'';
     if(isFlow){
@@ -897,6 +1086,23 @@
   }
 
   // ── Events ────────────────────────────────────────────────────────────
+  document.getElementById('instBar').addEventListener('click',e=>{
+    const btn=e.target.closest('.inst-btn');
+    if(!btn) return;
+    currentInstrument=btn.dataset.inst;
+    document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b===btn));
+    const isDrum=currentInstrument==='drum';
+    staffView.style.display=isDrum?'none':'';
+    octaveBar.classList.toggle('show',!isDrum);
+    octDown.style.display=isDrum?'none':'';
+    octUp.style.display=isDrum?'none':'';
+    clearTimeout(kbTimeout); clearPiano(); updateStaff(null); updateCents(null);
+    noteNameEl.textContent='—';
+    noteSubEl.textContent=isDrum?'tap a drum key!':'tap a key to hear it!';
+    noteCard.classList.remove('lit');
+    updateKeyLabels();
+  });
+
   startBtn.addEventListener('click',()=>isRunning?stop():start());
   document.querySelectorAll('.tab').forEach(t=>
     t.addEventListener('click',()=>setMode(t.dataset.mode)));
