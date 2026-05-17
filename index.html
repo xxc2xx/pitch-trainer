@@ -432,6 +432,7 @@
   const eBufMid =new Float32Array(METRO_BUF);
   let curBassFlux=0, curMidFlux=0;
   let bassRunAvg=1e-9, midRunAvg=1e-9;  // running avgs for band meters
+  let lastKickTime=0, lastSnareTime=0;  // separate per-band refractory timers
 
   // Pendulum state
   const MAX_PEND=0.85;  // wider swing (~49°)
@@ -452,10 +453,31 @@
     ploHits=0;ploMisses=0;
     eBufBass.fill(0);eBufMid.fill(0);
     curBassFlux=0;curMidFlux=0;
+    lastKickTime=0;lastSnareTime=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
+  }
+
+  // Phase optimization at PLO launch: test 20 equidistant phase offsets and pick
+  // the one that minimises sum-of-squares distance from recent onsets to predicted beats.
+  function findBestPhase(period, now){
+    const recent=onsetTimes.filter(t=>t>now-period*4);
+    if(recent.length===0) return lastBeatTime>0?((now-lastBeatTime)%period)/period:0;
+    let bestPhase=0, bestScore=Infinity;
+    for(let k=0;k<20;k++){
+      const phase=k/20;
+      let score=0;
+      for(const t of recent){
+        const elapsed=(now-t)%period;
+        const frac=((elapsed/period)+phase)%1;
+        const err=Math.min(frac,1-frac)*period;
+        score+=err*err;
+      }
+      if(score<bestScore){bestScore=score;bestPhase=phase;}
+    }
+    return bestPhase;
   }
 
   // OLS regression over the last 9s of confirmed beat timestamps.
@@ -530,7 +552,7 @@
       ploConf=Math.min(16,ploConf+1);
     } else {
       ploMisses++;
-      if(--ploConf<-3){
+      if(--ploConf<(hitRate>0.75?-5:-3)){
         ploActive=false; bpmLocked=false;
         bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
         return;
@@ -596,18 +618,23 @@
     while(onsetTimes.length&&onsetTimes[0]<cutoff){
       onsetTimes.shift(); onsetStrengths.shift();
     }
-    for(let i=1;i<onsetTimes.length;i++){
-      const iv=onsetTimes[i]-onsetTimes[i-1];
-      if(iv<HIST_MIN||iv>HIST_MAX) continue;
-      // Geometric mean of adjacent onset strengths — weak pairs cast low votes
-      const w=Math.max(0.3,Math.min(3.0,Math.sqrt(onsetStrengths[i]*onsetStrengths[i-1])));
-      const bin=Math.floor((iv-HIST_MIN)/HIST_BIN);
-      if(bin>=0&&bin<HIST_LEN) bpmHist[bin]+=w;
-      for(let m=2;m<=3;m++){
-        const miv=iv/m;
-        if(miv>=HIST_MIN&&miv<HIST_MAX){
-          const mb=Math.floor((miv-HIST_MIN)/HIST_BIN);
-          if(mb>=0&&mb<HIST_LEN) bpmHist[mb]+=w*0.6/m;
+    // All-pairs voting: every combination of two onsets casts a vote.
+    // Pairs further apart in the onset list get distance-weighted down (1/(j-i))
+    // so adjacent pairs still dominate, but harmonic overtones get reinforced.
+    for(let i=0;i<onsetTimes.length;i++){
+      for(let j=i+1;j<onsetTimes.length;j++){
+        const iv=onsetTimes[j]-onsetTimes[i];
+        if(iv<HIST_MIN||iv>HIST_MAX) continue;
+        const distW=1/(j-i);  // weight decays with distance between pair
+        const w=Math.max(0.3,Math.min(3.0,Math.sqrt(onsetStrengths[i]*onsetStrengths[j])))*distW;
+        const bin=Math.floor((iv-HIST_MIN)/HIST_BIN);
+        if(bin>=0&&bin<HIST_LEN) bpmHist[bin]+=w;
+        for(let m=2;m<=3;m++){
+          const miv=iv/m;
+          if(miv>=HIST_MIN&&miv<HIST_MAX){
+            const mb=Math.floor((miv-HIST_MIN)/HIST_BIN);
+            if(mb>=0&&mb<HIST_LEN) bpmHist[mb]+=w*0.6/m;
+          }
         }
       }
     }
@@ -652,16 +679,25 @@
 
     // ── Onset detection ─────────────────────────────────────────────────
     const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.60):230;
-    const since=now-lastBeatTime;
+    // 4-frame lookback (100 ms): current frame must exceed all previous 4 frames
     const p1b=eBufBass[(eHead-2+METRO_BUF)%METRO_BUF];
     const p2b=eBufBass[(eHead-3+METRO_BUF)%METRO_BUF];
+    const p3b=eBufBass[(eHead-4+METRO_BUF)%METRO_BUF];
+    const p4b=eBufBass[(eHead-5+METRO_BUF)%METRO_BUF];
     const p1m=eBufMid[(eHead-2+METRO_BUF)%METRO_BUF];
     const p2m=eBufMid[(eHead-3+METRO_BUF)%METRO_BUF];
-    // Kick: bass peak crosses stddev-adaptive threshold
-    const kickOnset=bass>bassThr&&bass>p1b&&bass>p2b&&bass>1e-9;
-    // Snare/clap: mid peak crosses stddev-adaptive threshold, minimal bass presence
-    const snareOnset=mid>midThr&&mid>p1m&&mid>p2m&&bass>bassAvg*0.35&&mid>1e-9;
-    if((kickOnset||snareOnset)&&since>minSince){
+    const p3m=eBufMid[(eHead-4+METRO_BUF)%METRO_BUF];
+    const p4m=eBufMid[(eHead-5+METRO_BUF)%METRO_BUF];
+    // Kick: bass peak beats last 100ms AND crosses adaptive threshold
+    const kickOnset=bass>bassThr&&bass>p1b&&bass>p2b&&bass>p3b&&bass>p4b&&bass>1e-9;
+    // Snare/clap: mid peak beats last 100ms, minimal bass presence
+    const snareOnset=mid>midThr&&mid>p1m&&mid>p2m&&mid>p3m&&mid>p4m&&bass>bassAvg*0.35&&mid>1e-9;
+    // Separate refractory timers per band — kick at 0ms doesn't block snare at 50ms
+    const kickFire=kickOnset&&(now-lastKickTime)>minSince;
+    const snareFire=snareOnset&&(now-lastSnareTime)>minSince;
+    if(kickFire||snareFire){
+      if(kickFire) lastKickTime=now;
+      if(snareFire) lastSnareTime=now;
       lastBeatTime=now;
       const strength=Math.min(3.0,flux/(avg+1e-12));
       onsetTimes.push(now);
@@ -730,8 +766,8 @@
             if(bpmStableCount>=10){
               // BPM stable → launch PLO
               ploPeriod=60000/smoothedBPM;
-              // Estimate current beat phase from time since last onset
-              ploPhase=lastBeatTime>0?((now-lastBeatTime)%ploPeriod)/ploPeriod:0;
+              // Find the phase offset that best aligns with recent onsets
+              ploPhase=findBestPhase(ploPeriod, now);
               ploConf=8; ploActive=true; bpmLocked=true; bpmDriftCount=0;
             }
           }
@@ -1685,44 +1721,46 @@
       body:JSON.stringify({
         model:'claude-opus-4-7',
         max_tokens:2048,
+        temperature:0,
         messages:[
           {role:'user',content:[
             {type:'image',source:{type:'base64',media_type:mime,data:base64}},
             {type:'text',text:
-`You are an expert music transcriptionist. Transcribe this sheet music to a note sequence.
+`You are an expert music transcriptionist. Read ONLY the melody noteheads from the treble clef staff.
 
-═══ TREBLE CLEF POSITIONS (commit to memory) ═══
-Lines bottom→top:   E4  G4  B4  D5  F5   ("Every Good Boy Does Fine")
-Spaces bottom→top:  F4  A4  C5  E5       ("FACE")
-Ledger below staff: D4  C4  B3  A3  G3   (count DOWN from E4)
-Ledger above staff: G5  A5  B5  C6       (count UP from F5)
-★ Middle C = C4 = ONE ledger line BELOW the bottom staff line (below E4)
+══ IGNORE COMPLETELY (these are NOT notes) ══
+• Chord symbols written above the staff — letters like F, G, C, Bb, Am, G/F, Bbm/Db etc.
+• Lyrics written below the staff
+• Any text, numbers, or symbols that are not noteheads sitting on staff lines or spaces
 
-═══ PROCEDURE ═══
-1. KEY SIGNATURE — count sharps/flats next to the clef.
-   Apply them to EVERY occurrence of that note letter at ALL octaves.
-   A natural sign (♮) in a bar cancels the key sig for that note in that bar only.
-2. TIME SIGNATURE — note top number (beats per bar).
-3. BAR BY BAR, LEFT TO RIGHT — for each note:
-   a. Count its exact line/space/ledger position
-   b. Apply key signature
-   c. Read stem/flag/beam for duration
-   d. Dotted note = duration × 1.5
+══ TREBLE CLEF POSITIONS ══
+Lines bottom→top:  E4  G4  B4  D5  F5   (Every Good Boy Does Fine)
+Spaces bottom→top: F4  A4  C5  E5       (FACE)
+One ledger below:  D4 then C4 (middle C = one ledger line below E4)
+One ledger above:  G5  A5  B5
 
-DURATIONS (quarter note = 1 beat):
-  sixteenth=0.25  eighth=0.5  dotted-eighth=0.75  quarter=1
-  dotted-quarter=1.5  half=2  dotted-half=3  whole=4
+══ STEP-BY-STEP ══
+1. KEY SIGNATURE — count flats/sharps immediately after the clef symbol at the start of the staff.
+   • 0 = C major (no accidentals)
+   • 1 flat (Bb) = F major — every B becomes Bb throughout, unless cancelled by a natural ♮
+   • 2 flats (Bb,Eb) = Bb major — every B and E become flat throughout
+   • 1 sharp (F#) = G major — every F becomes F# throughout
+   • A natural sign ♮ in a bar cancels the key signature for that note in that bar only.
+2. TIME SIGNATURE — top number = beats per bar.
+3. Read LEFT TO RIGHT, TOP SYSTEM TO BOTTOM SYSTEM, bar by bar.
+   For each notehead: find its line/space → apply key signature → read duration.
 
-═══ OUTPUT RULES ═══
-• Output a SINGLE LINE of space-separated tokens — NOTHING ELSE.
-• Note token: Letter + optional # or b + octave + : + beats  →  C4:1  F#4:0.5  Bb3:2
-• Rest token: R:beats  →  R:1
-• Ties: merge tied notes into one token (sum their beats)
-• Chords: output ONLY the top (melody) note
-• Do NOT write bar numbers, labels, or any explanatory text whatsoever`
+DURATIONS (quarter = 1 beat):
+  whole=4  half=2  dotted-half=3  quarter=1  dotted-quarter=1.5  eighth=0.5  dotted-eighth=0.75  sixteenth=0.25
+
+══ OUTPUT FORMAT ══
+Output ONE LINE of space-separated tokens — nothing else, no explanations, no bar numbers.
+• Note: Letter + accidental + octave + colon + beats  →  F4:1  Bb4:0.5  E4:2  C#5:1.5
+• Rest: R:beats  →  R:1
+• Tied notes: merge into one token (add beats)
+• Chord / multiple voices: output ONLY the highest (melody) notehead`
             }
           ]},
-          // Prefill forces Claude to output notes immediately, no preamble
         ]
       })
     });
