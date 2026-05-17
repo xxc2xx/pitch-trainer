@@ -111,11 +111,12 @@
     #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
     .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
     #playInput{
-      width:100%;height:56px;background:#0a0918;color:#ccc;
-      border:1px solid #222238;border-radius:8px;padding:8px;
-      font-size:.78rem;font-family:monospace;resize:none;outline:none;
+      flex:1;background:#0a0918;color:#ccc;
+      border:1px solid #222238;border-radius:8px;padding:8px 12px;
+      font-size:.82rem;outline:none;min-width:0;
     }
     #playInput::placeholder{color:#2a2a44;}
+    #playInputRow{display:flex;gap:8px;align-items:center;width:100%;}
     #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
 
     /* Song picker */
@@ -227,18 +228,20 @@
     </div>
     <!-- Score canvas -->
     <div id="scoreScroll"><canvas id="scoreCanvas"></canvas></div>
-    <!-- Note sequence (editable) -->
-    <textarea id="playInput" placeholder="Type a song name or describe a melody — Claude will compose it. Or drop a sheet photo above."></textarea>
-    <!-- Controls -->
+    <!-- Song name input + Play inline -->
+    <div id="playInputRow">
+      <input id="playInput" type="text" placeholder="Type a song name — Claude will compose it">
+      <button class="btn btn-start" id="playBtn" style="padding:7px 18px;font-size:.88rem;white-space:nowrap;">▶ Play</button>
+    </div>
+    <!-- BPM + options row -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
       <input type="range" id="playBpmSlider" min="40" max="200" value="100" style="width:80px;">
       <span id="playBpmVal" style="min-width:2em;">100</span>
       <label class="play-chk"><input type="checkbox" id="playSoundOn" checked> 🎹</label>
       <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁</label>
-      <button class="btn btn-start" id="playBtn" style="padding:7px 20px;font-size:.88rem;">▶ Play</button>
     </div>
-    <p id="playStatus">Type a song name and press ▶ Play — Claude will compose it</p>
+    <p id="playStatus">Drop a sheet photo above, pick a song, or type a name</p>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -1875,7 +1878,7 @@ DURATIONS (quarter note = 1 beat):
         const notes=await analyzeSheetImage(base64,mime);
         const parsed=parseNoteList(notes);
         const inp=document.getElementById('playInput');
-        inp.value=notes;
+        inp.value='';  // sheet comes from the photo, not the text field
         document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
         renderScore(parsed);
         // Auto-play using the eagerly created AudioContext — no extra tap needed
@@ -1991,7 +1994,7 @@ DURATIONS (quarter note = 1 beat):
       playStatus.innerHTML='<span class="spin">⟳</span> Asking Claude Opus…';
       try{
         text=await interpretTextAsNotes(text);
-        inp.value=text;  // show the generated notes in the textarea
+        // leave inp.value as the original song name — notes are played silently
       }catch(err){
         playStatus.textContent='⚠ '+err.message;
         playStatus.style.color='#ef4444';
