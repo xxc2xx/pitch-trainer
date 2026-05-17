@@ -435,8 +435,18 @@
   let bpmStableCount=0,bpmLocked=false,bpmDriftCount=0;
   let lastHistAt=0;
 
+  // ── Phase-Locked Oscillator (PLO) ────────────────────────────────────
+  // Once tempo is found, PLO predicts every beat at exact intervals.
+  // Mic onsets are used only for small corrections, not to drive the clock.
+  // Missed beats keep the clock running; false onsets outside the prediction
+  // window are ignored entirely. This is how Ableton's beat engine works.
+  let ploActive=false;  // PLO is running
+  let ploPhase=0;       // [0,1) — fractional position within current beat
+  let ploPeriod=0;      // ms per beat
+  let ploConf=0;        // confidence counter; drop below 0 → unlock
+
   // Pendulum state
-  const MAX_PEND=0.62;
+  const MAX_PEND=0.85;  // wider swing (~49°)
   let pendOriginTime=null, pendBeatPhase=0;
 
   // Countdown state
@@ -448,10 +458,60 @@
     lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
+    ploActive=false;ploPhase=0;ploPeriod=0;ploConf=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
+  }
+
+  // PLO step — called every 25 ms frame.
+  // Advances the internal beat clock and fires on each predicted beat.
+  // If a real onset is near the prediction, it nudges phase and period slightly.
+  function stepPLO(now){
+    if(!ploActive||!ploPeriod) return;
+    ploPhase+=25/ploPeriod;
+    if(ploPhase<1) return;
+    ploPhase-=Math.floor(ploPhase);  // keep in [0,1)
+
+    // ── Beat predicted here ───────────────────────────────────────────
+    // Look for confirming onset within ±28% of beat period
+    const win=ploPeriod*0.28;
+    let bestOnset=null,bestDist=win;
+    for(let i=onsetTimes.length-1;i>=0;i--){
+      const d=Math.abs(onsetTimes[i]-now);
+      if(d<bestDist){bestDist=d;bestOnset=onsetTimes[i];}
+      if(onsetTimes[i]<now-win) break;
+    }
+
+    if(bestOnset!==null){
+      // Correction: pull phase and period toward real onset (PLL feedback)
+      const err=(bestOnset-now)/ploPeriod;  // signed error, |err|<0.28
+      ploPhase+=err*0.18;                    // 18% phase correction
+      ploPeriod+=err*ploPeriod*0.012;        // 1.2% tempo correction per beat
+      ploPeriod=Math.max(273,Math.min(1500,ploPeriod));
+      ploConf=Math.min(16,ploConf+1);
+    } else {
+      // Missed beat — prediction continues unchanged, no correction
+      if(--ploConf<-3){
+        // Confidence exhausted after 3 consecutive misses → unlock
+        ploActive=false; bpmLocked=false;
+        bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
+        return;
+      }
+    }
+
+    // ── Update display clock & BPM from PLO ──────────────────────────
+    smoothedBPM=60000/ploPeriod;
+    bpmLocked=true;
+    clockRefBeat=clockRefTime!==null?(clockRefBeat+1)%4:0;
+    clockRefTime=now; beatFlashAt=now; bgFlashAt=now;
+    pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
+    pendOriginTime=now;
+    noteNameEl.textContent=Math.round(smoothedBPM);
+    noteSubEl.textContent='BPM  🔒';
+    noteCard.classList.add('lit'); updateCents(null);
+    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
   }
 
   // Clock-driven beat counter — 1-2-3-4 advances at exact clock intervals
@@ -529,95 +589,103 @@
     const now=performance.now();
 
     // ── Onset detection ─────────────────────────────────────────────────
-    // Threshold: local flux must exceed mean by >140% AND be a local peak.
-    // Purely relative → works at any mic distance.
+    // Local spectral-flux peak, purely relative threshold (distance-invariant).
     const minSince=smoothedBPM?Math.max(230,60000/smoothedBPM*0.60):230;
     const since=now-lastBeatTime;
     const prev1=eBuf[(eHead-2+METRO_BUF)%METRO_BUF];
     const prev2=eBuf[(eHead-3+METRO_BUF)%METRO_BUF];
-    const isPeak=flux>prev1&&flux>prev2;  // local maximum
+    const isPeak=flux>prev1&&flux>prev2;
     if(isPeak && flux>avg*1.4 && flux>1e-8 && since>minSince){
       lastBeatTime=now;
       onsetTimes.push(now);
 
-      // Sync pendulum/clock to onset only when it's on-beat
-      let doSync=true;
-      if(smoothedBPM && clockRefTime!==null){
-        const beatMs=60000/smoothedBPM;
-        const elapsed=now-clockRefTime;
-        const nearestBeat=Math.round(elapsed/beatMs)*beatMs;
-        doSync=Math.abs(elapsed-nearestBeat)<beatMs*0.30;
-      }
-      if(doSync){
-        pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
-        pendOriginTime=now;
+      // Pre-PLO: sync pendulum/clock directly from detected onsets
+      if(!ploActive){
+        let doSync=true;
         if(smoothedBPM && clockRefTime!==null){
           const beatMs=60000/smoothedBPM;
-          clockRefBeat=(clockRefBeat+Math.round((now-clockRefTime)/beatMs))%4;
-        } else {
-          clockRefBeat=0;
+          const elapsed=now-clockRefTime;
+          const nearestBeat=Math.round(elapsed/beatMs)*beatMs;
+          doSync=Math.abs(elapsed-nearestBeat)<beatMs*0.30;
         }
-        clockRefTime=now;
-        bgFlashAt=now; beatFlashAt=now;
+        if(doSync){
+          pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
+          pendOriginTime=now;
+          if(smoothedBPM && clockRefTime!==null){
+            const beatMs=60000/smoothedBPM;
+            clockRefBeat=(clockRefBeat+Math.round((now-clockRefTime)/beatMs))%4;
+          } else { clockRefBeat=0; }
+          clockRefTime=now; bgFlashAt=now; beatFlashAt=now;
+        }
       }
+      // When PLO is active, onset is available to stepPLO via onsetTimes[] —
+      // PLO decides whether to use it (within prediction window) or discard it.
     }
 
-    // ── BPM histogram update (every 500 ms) ─────────────────────────────
+    // ── BPM histogram — acquisition phase only ──────────────────────────
+    // Runs to find initial BPM; once PLO launches, histogram only watches
+    // for large sustained tempo changes (real song tempo change, not noise).
     if(onsetTimes.length>=3 && now-lastHistAt>500){
       lastHistAt=now;
       const rawBpm=updateBpmHist(now);
       if(rawBpm && rawBpm>=40 && rawBpm<=220){
-        // ── Tempo-octave resolution ────────────────────────────────────
-        // The histogram frequently peaks at 2× or 0.5× the true beat
-        // (e.g. 190 instead of 95). When we have a reference, always
-        // pick whichever of {rawBpm, rawBpm/2, rawBpm*2} is closest
-        // to the reference on a logarithmic scale (= closest in musical ratio).
+        // Tempo-octave resolution: prefer candidate closest to reference on log scale
         let abpm=rawBpm;
         if(smoothedBPM){
           const ref=smoothedBPM;
           const cands=[rawBpm,rawBpm/2,rawBpm*2].filter(b=>b>=40&&b<=220);
-          abpm=cands.reduce((best,c)=>{
-            // log2 ratio: 1 octave = 1.0; prefer smaller ratio to reference
-            const bd=Math.abs(Math.log2(best)-Math.log2(ref));
-            const cd=Math.abs(Math.log2(c)   -Math.log2(ref));
-            return cd<bd?c:best;
-          },rawBpm);
+          abpm=cands.reduce((best,c)=>
+            Math.abs(Math.log2(c)-Math.log2(ref))<Math.abs(Math.log2(best)-Math.log2(ref))?c:best
+          ,rawBpm);
         }
-        if(!smoothedBPM){
-          smoothedBPM=abpm; bpmStableCount=0; bpmLocked=false; bpmDriftCount=0;
-        } else {
+
+        if(ploActive){
+          // PLO running: only watch for sustained large drift (real tempo change)
           const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
-          if(bpmLocked){
-            // Locked: BPM frozen. Require 6 consecutive >12% divergences
-            // (~3 seconds) before accepting a genuine tempo change.
-            if(pct>0.12) bpmDriftCount++;
-            else bpmDriftCount=Math.max(0,bpmDriftCount-1);
-            if(bpmDriftCount>=6){
-              bpmLocked=false; bpmStableCount=0; bpmDriftCount=0;
-              bpmHist.fill(0); // clear old votes for fast re-lock
-              smoothedBPM=abpm;
-            }
+          if(pct>0.12) bpmDriftCount++; else bpmDriftCount=Math.max(0,bpmDriftCount-1);
+          if(bpmDriftCount>=6){
+            // Confirmed tempo change — tear down PLO, let histogram re-acquire
+            ploActive=false; bpmLocked=false;
+            bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
+            smoothedBPM=abpm;
+            noteNameEl.textContent=Math.round(smoothedBPM);
+            noteSubEl.textContent='BPM  ♩';
+          }
+        } else {
+          // Acquisition: build smoothedBPM from histogram
+          if(!smoothedBPM){
+            smoothedBPM=abpm; bpmStableCount=0; bpmDriftCount=0;
           } else {
+            const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
             smoothedBPM=smoothedBPM*0.60+abpm*0.40;
             if(pct<0.03) bpmStableCount++; else bpmStableCount=Math.max(0,bpmStableCount-2);
-            if(bpmStableCount>=10){bpmLocked=true;bpmDriftCount=0;}
+            if(bpmStableCount>=10){
+              // BPM stable → launch PLO
+              ploPeriod=60000/smoothedBPM;
+              // Estimate current beat phase from time since last onset
+              ploPhase=lastBeatTime>0?((now-lastBeatTime)%ploPeriod)/ploPeriod:0;
+              ploConf=8; ploActive=true; bpmLocked=true; bpmDriftCount=0;
+            }
           }
+          noteNameEl.textContent=Math.round(smoothedBPM);
+          noteSubEl.textContent='BPM  ♩';
+          noteCard.classList.add('lit'); updateCents(null);
+          if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
         }
-        noteNameEl.textContent=Math.round(smoothedBPM);
-        noteSubEl.textContent=bpmLocked?'BPM  🔒':'BPM  ♩';
-        noteCard.classList.add('lit');
-        updateCents(null);
-        if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
       }
     }
+
+    // ── Advance PLO every frame ──────────────────────────────────────────
+    stepPLO(now);
   }
 
   // ── Pendulum angle (synced to beats) ─────────────────────────────────
   function getPendAngle(t){
     if(pendOriginTime===null) return 0;
-    const bpm=smoothedBPM||70; // default swing while counting down
-    const beatMs=60000/bpm;
+    // Use PLO period when active for tightest sync; fall back to smoothedBPM
+    const beatMs=ploActive?ploPeriod:(smoothedBPM?60000/smoothedBPM:800);
     const elapsed=t-pendOriginTime;
+    // cos(0)=1 → MAX_PEND at pendOriginTime (= beat moment), swings to −MAX_PEND at next beat
     return MAX_PEND*Math.cos(Math.PI*elapsed/beatMs+pendBeatPhase);
   }
 
@@ -686,7 +754,7 @@
 
     // ── Pendulum sweep arc (faint runway) ──
     ctx.beginPath();
-    ctx.arc(pivX,pivY,armLen,Math.PI/2-MAX_PEND,Math.PI/2+MAX_PEND);
+    ctx.arc(pivX,pivY,armLen,Math.PI/2-MAX_PEND-0.05,Math.PI/2+MAX_PEND+0.05);
     ctx.strokeStyle='rgba(60,60,120,0.25)';
     ctx.lineWidth=ballR*2.2;
     ctx.lineCap='round';
