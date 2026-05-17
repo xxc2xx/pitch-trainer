@@ -444,6 +444,7 @@
   let ploPhase=0;       // [0,1) — fractional position within current beat
   let ploPeriod=0;      // ms per beat
   let ploConf=0;        // confidence counter; drop below 0 → unlock
+  const beatHistory=[];  // {time, num} — last 4s of PLO-confirmed beats
 
   // Pendulum state
   const MAX_PEND=0.85;  // wider swing (~49°)
@@ -459,6 +460,7 @@
     smoothedBPM=null;currentBeat=-1;
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
     ploActive=false;ploPhase=0;ploPeriod=0;ploConf=0;
+    beatHistory.length=0;
     pendOriginTime=null;pendBeatPhase=0;
     clockRefTime=null;clockRefBeat=0;
     countdownVal=0;
@@ -506,6 +508,9 @@
     bpmLocked=true;
     clockRefBeat=clockRefTime!==null?(clockRefBeat+1)%4:0;
     clockRefTime=now; beatFlashAt=now; bgFlashAt=now;
+    // Store beat in history for waveform markers (keep last 4 seconds)
+    beatHistory.push({time:now,num:clockRefBeat});
+    while(beatHistory.length&&beatHistory[0].time<now-4200) beatHistory.shift();
     pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
     pendOriginTime=now;
     noteNameEl.textContent=Math.round(smoothedBPM);
@@ -716,10 +721,10 @@
     const ctx=metroCanvas.getContext('2d');
     const now=performance.now();
 
-    // Layout — BPM top 30%, boxes 40-70%, wave 80-97%
-    const BPM_Y    = H*0.22;
-    const BOXES_MID= H*0.54;
-    const WAVE_TOP = H*0.80;
+    // Layout
+    const BPM_Y    = H*0.17;
+    const BOXES_MID= H*0.46;
+    const WAVE_TOP = H*0.65;
 
     // ── Clock-driven beat counter (stable 1-2-3-4) ──
     if(smoothedBPM && clockRefTime!==null){
@@ -819,22 +824,65 @@
       ctx.fillText(String(i+1),bx2+boxW/2,BOXES_MID);
     }
 
-    // ── Energy onset waveform ──
-    const wH=H*.1, bwid=W/METRO_BUF;
+    // ── Beat waveform: spectral flux bars + PLO beat markers ──────────
+    const wH=H*0.28, wBottom=WAVE_TOP+wH;
+    const bwid=W/METRO_BUF;
+    // Normalize to visible height
+    let wMax=0;
+    for(let i=0;i<METRO_BUF;i++) if(eBuf[i]>wMax) wMax=eBuf[i];
+    if(wMax<1e-14) wMax=1e-14;
+
+    // Draw bars — color by nearest beat in history
     for(let i=0;i<METRO_BUF;i++){
+      const barTime=now-(METRO_BUF-1-i)*25;
       const idx=(eHead-METRO_BUF+i+METRO_BUF*2)%METRO_BUF;
       const e=eBuf[idx]||0;
-      const bh=Math.min(wH,Math.sqrt(e)*wH*32);
+      const bh=Math.max(1.5,(e/wMax)*wH*0.92);
       const age=(METRO_BUF-1-i)/METRO_BUF;
-      const al=(0.18+(1-age)*.5).toFixed(2);
-      ctx.fillStyle=i===METRO_BUF-1?`rgba(226,183,20,${al})`:`rgba(80,80,200,${al})`;
-      if(bh>0.5) ctx.fillRect(i*bwid,WAVE_TOP+wH-bh,bwid-1,bh);
+      const al=(0.10+(1-age)*0.60).toFixed(2);
+      const x=i*bwid;
+      // Find nearest PLO beat for this bar
+      let beatNum=-1;
+      for(const {time,num} of beatHistory){
+        if(Math.abs(time-barTime)<50){beatNum=num;break;}
+      }
+      if(beatNum>=0){
+        const[cr,cg,cb]=hexRgb(BEAT_COLS[beatNum]);
+        ctx.fillStyle=`rgba(${cr},${cg},${cb},${al})`;
+      } else {
+        ctx.fillStyle=`rgba(55,55,175,${al})`;
+      }
+      ctx.fillRect(x,wBottom-bh,Math.max(1,bwid-1),bh);
     }
 
-    // ── Debug status ──
-    ctx.textAlign='left'; ctx.textBaseline='bottom';
-    ctx.fillStyle='rgba(80,80,130,0.55)'; ctx.font='10px monospace';
-    ctx.fillText(`${Math.round(W)}×${Math.round(H)} | ${isRunning?'RUN':'IDLE'} | bpm:${smoothedBPM?Math.round(smoothedBPM):'—'}`,4,H-2);
+    // Baseline
+    ctx.strokeStyle='rgba(35,35,70,0.8)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,wBottom); ctx.lineTo(W,wBottom); ctx.stroke();
+
+    // Vertical beat markers with 1 2 3 4 labels
+    ctx.setLineDash([3,3]);
+    beatHistory.forEach(({time,num})=>{
+      const age=now-time;
+      if(age>4000) return;
+      const xPos=(1-age/4000)*W;
+      const alpha=Math.max(0,(1-age/3500));
+      const col=BEAT_COLS[num%4];
+      const[cr,cg,cb]=hexRgb(col);
+      // Marker line
+      ctx.strokeStyle=`rgba(${cr},${cg},${cb},${(alpha*0.65).toFixed(2)})`;
+      ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(xPos,WAVE_TOP-2); ctx.lineTo(xPos,wBottom); ctx.stroke();
+      // Beat number above the bar
+      if(alpha>0.25){
+        ctx.setLineDash([]);
+        ctx.font=`700 ${Math.round(H*0.044)}px sans-serif`;
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillStyle=`rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
+        ctx.fillText(String(num+1),xPos,WAVE_TOP-4);
+        ctx.setLineDash([3,3]);
+      }
+    });
+    ctx.setLineDash([]);
 
     ctx.restore();
   }
