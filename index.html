@@ -954,9 +954,14 @@
       ctx.fillStyle='rgba(20,20,50,0.35)';
       ctx.fillRect(nowX,WAVE_TOP-9,futureW,wH+11);
 
-      const refPeriod=useReg?useReg.slope:(ploPeriod||800);
-      // msToNext from regression; if stale, advance by periods to stay in the future
-      let msToNext=useReg?(useReg.nextBeatTime-now):(ploPeriod*(1-ploPhase));
+      // PLO phase is always the source-of-truth when active — it directly drives
+      // what lights the beat boxes, so markers arrive at NOW in perfect sync.
+      // Regression only takes over while PLO is temporarily unlocked.
+      const ploLive=ploActive&&ploPeriod>0;
+      const refPeriod=ploLive?ploPeriod:(useReg?useReg.slope:800);
+      let msToNext=ploLive
+        ?(ploPeriod*(1-ploPhase))
+        :(useReg?(useReg.nextBeatTime-now):800);
       while(msToNext<-refPeriod*0.05) msToNext+=refPeriod;
 
       // Trust indicator: green = live regression, blue = PLO or cached
