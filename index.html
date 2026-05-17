@@ -154,6 +154,11 @@
     #playNoteDetails{margin-top:2px;}
     #playNoteDetails summary{font-size:.7rem;color:#2e2e90;cursor:pointer;padding:2px 0;user-select:none;}
     #playNoteDetails[open] summary{color:#5050c8;}
+    #sheetCursor{
+      display:none;position:absolute;left:0;right:0;height:3px;
+      background:rgba(226,183,20,0.9);pointer-events:none;
+      box-shadow:0 0 10px rgba(226,183,20,0.7),0 0 3px rgba(226,183,20,1);
+    }
   </style>
 </head>
 <body>
@@ -201,7 +206,7 @@
       <input type="file" id="sheetFile" accept="image/*" style="display:none">
       <div id="sheetDropLabel">📄 Tap to upload sheet music photo<br><small style="font-size:.68rem;color:#2a2a60;">PNG · JPG · GIF</small></div>
     </div>
-    <div id="sheetScrollBox"><canvas id="sheetCanvas"></canvas></div>
+    <div id="sheetScrollBox"><div id="sheetWrapper" style="position:relative;"><canvas id="sheetCanvas"></canvas><div id="sheetCursor"></div></div></div>
     <!-- Controls -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
@@ -415,7 +420,7 @@
     const now=performance.now();
     const since=now-lastBeatTime;
 
-    if(onset>avg*1.3 && onset>0.00005 && since>230){
+    if(onset>avg*1.12 && onset>0.000008 && since>230){
       lastBeatTime=now; bgFlashAt=now; beatFlashAt=now;
       currentBeat=(currentBeat+1)%4;
 
@@ -599,8 +604,8 @@
         ctx.fillText('Listening for beat…', W/2, cy+ringR+H*.04);
       } else {
         ctx.font=`${Math.round(H*.046)}px sans-serif`;
-        ctx.fillStyle='rgba(200,80,80,0.9)';
-        ctx.fillText('Try louder! Play music near the mic', W/2, BPM_Y);
+        ctx.fillStyle='rgba(160,100,60,0.85)';
+        ctx.fillText('Move closer to the mic & keep the beat 🎵', W/2, BPM_Y);
       }
     } else {
       ctx.font=`${Math.round(H*.046)}px sans-serif`;
@@ -828,7 +833,7 @@
         startMetroLoop();    // restart if loop died
         pendOriginTime=performance.now(); // pendulum starts swinging immediately
         // 10-second countdown
-        countdownVal=10;
+        countdownVal=15;
         countdownTimer=setInterval(()=>{
           if(!isRunning||currentMode!=='flow'||smoothedBPM){
             clearInterval(countdownTimer);countdownTimer=null;return;
@@ -881,7 +886,7 @@
     octUp  .style.display=isKeys?'':'none';
     const hints={
       listen:'Tap Start, then sing any note',
-      keys:'Tap piano or use A-J keys (G=C, Enter=C)',
+      keys:'Tap piano or use A-J keys (G=C4, Enter=C5)',
       flow:'Tap Start, then play music or clap 🎵',
       play:'Type notes, set BPM, tap ▶ Play',
     };
@@ -915,7 +920,7 @@
     }));
 
   // ── MacBook keyboard shortcuts — G = C4 (middle), ASDFGHJKL;' white, QWERTY black ──
-  // White: A=F3 S=G3 D=A3 F=B3 G=C4 H=D4 J=E4 K=F4 L=G4 ;=A4 '=B4  Enter=C4
+  // White: A=F3 S=G3 D=A3 F=B3 G=C4 H=D4 J=E4 K=F4 L=G4 ;=A4 '=B4  Enter=C5
   // Black: W=F#3 E=G#3 R=A#3  Y=C#4 U=D#4  O=F#4 P=G#4
   const KEY_MAP={
     a:{bare:'F',oct:3}, s:{bare:'G',oct:3}, d:{bare:'A',oct:3},
@@ -925,7 +930,7 @@
     w:{bare:'Fs',oct:3},e:{bare:'Gs',oct:3},r:{bare:'As',oct:3},
     y:{bare:'Cs',oct:4},u:{bare:'Ds',oct:4},
     o:{bare:'Fs',oct:4},p:{bare:'Gs',oct:4},
-    enter:{bare:'C',oct:4},
+    enter:{bare:'C',oct:5},
   };
   document.addEventListener('keydown',e=>{
     if(currentMode!=='keys') return;
@@ -943,7 +948,76 @@
 
   // ── Play tab ──────────────────────────────────────────────────────────
   let isPlaying=false, playCtx2=null, playTimers=[];
+  let sheetImg=null, sheetRafId=null, sheetPlayStartWall=0, sheetTotalMs=0;
 
+  const sheetDrop    = document.getElementById('sheetDrop');
+  const sheetFile    = document.getElementById('sheetFile');
+  const sheetScrollBox = document.getElementById('sheetScrollBox');
+  const sheetCanvas  = document.getElementById('sheetCanvas');
+  const sheetCursor  = document.getElementById('sheetCursor');
+
+  // ── Sheet upload ──────────────────────────────────────────────────────
+  sheetDrop.addEventListener('click', () => sheetFile.click());
+  sheetDrop.addEventListener('dragover', e=>{ e.preventDefault(); sheetDrop.classList.add('over'); });
+  sheetDrop.addEventListener('dragleave', ()=>sheetDrop.classList.remove('over'));
+  sheetDrop.addEventListener('drop', e=>{
+    e.preventDefault(); sheetDrop.classList.remove('over');
+    const f=e.dataTransfer.files[0];
+    if(f&&f.type.startsWith('image/')) loadSheet(f);
+  });
+  sheetFile.addEventListener('change', e=>{ if(e.target.files[0]) loadSheet(e.target.files[0]); });
+
+  function loadSheet(file){
+    playStatus.textContent='Loading…';
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        sheetImg=img;
+        const maxW=sheetScrollBox.clientWidth||360;
+        const scale=maxW/img.width;
+        sheetCanvas.width=Math.round(img.width*scale);
+        sheetCanvas.height=Math.round(img.height*scale);
+        sheetCanvas.getContext('2d').drawImage(img,0,0,sheetCanvas.width,sheetCanvas.height);
+        sheetScrollBox.style.display='block';
+        document.getElementById('sheetDropLabel').innerHTML=
+          '📄 '+file.name+'<br><small style="font-size:.65rem;color:#2a2a60;">Tap to change</small>';
+        playStatus.textContent='Sheet loaded — set BPM and tap ▶ Play';
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Sheet cursor animation ────────────────────────────────────────────
+  function startSheetCursor(audioStartWhen, totalBeats, bpm, ac){
+    stopSheetCursor();
+    if(!sheetImg) return;
+    sheetTotalMs=(totalBeats/bpm)*60000;
+    sheetPlayStartWall=performance.now()+(audioStartWhen-ac.currentTime)*1000;
+    sheetCursor.style.display='block';
+    sheetScrollBox.scrollTop=0;
+    (function tick(){
+      const elapsed=performance.now()-sheetPlayStartWall;
+      const frac=Math.max(0,Math.min(1,elapsed/sheetTotalMs));
+      const curY=Math.round(frac*sheetCanvas.height);
+      sheetCursor.style.top=curY+'px';
+      // Auto-scroll so cursor stays ~30% from top of visible area
+      const visH=sheetScrollBox.clientHeight;
+      const target=curY-visH*0.3;
+      sheetScrollBox.scrollTop=Math.max(0,target);
+      if(frac<1&&isPlaying) sheetRafId=requestAnimationFrame(tick);
+      else sheetCursor.style.display='none';
+    })();
+  }
+
+  function stopSheetCursor(){
+    if(sheetRafId){cancelAnimationFrame(sheetRafId);sheetRafId=null;}
+    sheetCursor.style.display='none';
+    sheetScrollBox.scrollTop=0;
+  }
+
+  // ── Note synthesis ────────────────────────────────────────────────────
   const NOTE_LETTER={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
   function parseNoteList(text){
     return text.trim().split(/\s+/).flatMap(tok=>{
@@ -999,21 +1073,6 @@
     o.start(when); o.stop(when+0.07);
   }
 
-  function renderPlayCards(notes){
-    const scroll=document.getElementById('playScroll');
-    scroll.innerHTML='';
-    notes.forEach((n,i)=>{
-      const d=document.createElement('div');
-      d.className='pnc'; d.dataset.idx=i;
-      d.textContent=n.display;
-      if(n.beats!==1){
-        const s=document.createElement('div');
-        s.className='pnc-sub'; s.textContent=n.beats+'b'; d.appendChild(s);
-      }
-      scroll.appendChild(d);
-    });
-  }
-
   function hlCard(idx){
     document.querySelectorAll('.pnc').forEach((el,i)=>el.classList.toggle('on',i===idx));
     const el=document.querySelector(`.pnc[data-idx="${idx}"]`);
@@ -1021,45 +1080,68 @@
   }
 
   function startPlay(){
-    const text=document.getElementById('playInput').value;
+    const text=document.getElementById('playInput').value.trim();
     const notes=parseNoteList(text);
-    if(!notes.length){playStatus.textContent='No notes found. Try: C4 E4 G4 C5';return;}
-    if(isPlaying) stopPlay();
     const bpm=parseInt(document.getElementById('playBpmSlider').value)||100;
     const usePiano=document.getElementById('playSoundOn').checked;
     const useMet=document.getElementById('playMetroOn').checked;
+
+    if(!notes.length&&!sheetImg){
+      playStatus.textContent='Upload a sheet music photo, or paste notes below ↓';
+      return;
+    }
+    if(isPlaying) stopPlay();
+
     playCtx2=new(window.AudioContext||window.webkitAudioContext)();
     playCtx2.resume();
     isPlaying=true;
     playBtn.textContent='⏹ Stop'; playBtn.className='btn btn-stop';
-    playStatus.textContent=`Playing ${notes.length} notes at ${bpm} BPM…`;
-    renderPlayCards(notes);
     const spb=60/bpm;
     const startWhen=playCtx2.currentTime+0.12;
-    let when=startWhen, beat=0;
-    notes.forEach((n,i)=>{
-      const dur=n.beats*spb;
-      if(usePiano&&!n.rest) schedulePianoNote(playCtx2,n.freq,when,dur);
-      // metronome clicks for each full beat this note spans
-      if(useMet){
-        for(let b=0;b<Math.ceil(n.beats);b++)
-          scheduleMetroClick(playCtx2,when+b*spb,beat%4===0);
+
+    if(notes.length){
+      const totalBeats=notes.reduce((s,n)=>s+n.beats,0);
+      playStatus.textContent=`Playing ${notes.length} notes at ${bpm} BPM…`;
+      // Render note cards
+      const scroll=document.getElementById('playScroll');
+      if(scroll){ scroll.innerHTML='';
+        notes.forEach((n,i)=>{
+          const d=document.createElement('div'); d.className='pnc'; d.dataset.idx=i;
+          d.textContent=n.display;
+          if(n.beats!==1){const s=document.createElement('div');s.className='pnc-sub';s.textContent=n.beats+'b';d.appendChild(s);}
+          scroll.appendChild(d);
+        });
       }
-      beat+=Math.round(n.beats);
-      const delay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000));
-      playTimers.push(setTimeout(()=>hlCard(i),delay));
-      when+=dur;
-    });
-    const endDelay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000))+300;
-    playTimers.push(setTimeout(()=>stopPlay(),endDelay));
+      let when=startWhen, beat=0;
+      notes.forEach((n,i)=>{
+        const dur=n.beats*spb;
+        if(usePiano&&!n.rest) schedulePianoNote(playCtx2,n.freq,when,dur);
+        if(useMet) for(let b=0;b<Math.ceil(n.beats);b++) scheduleMetroClick(playCtx2,when+b*spb,beat%4===0);
+        beat+=Math.round(n.beats);
+        const delay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000));
+        playTimers.push(setTimeout(()=>hlCard(i),delay));
+        when+=dur;
+      });
+      const endDelay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000))+300;
+      playTimers.push(setTimeout(()=>stopPlay(),endDelay));
+      startSheetCursor(startWhen,totalBeats,bpm,playCtx2);
+    } else {
+      // Sheet only — play metro for 128 beats
+      const totalBeats=128;
+      playStatus.textContent=`Playing at ${bpm} BPM — following the sheet…`;
+      if(useMet) for(let b=0;b<totalBeats;b++) scheduleMetroClick(playCtx2,startWhen+b*spb,b%4===0);
+      playTimers.push(setTimeout(()=>stopPlay(),Math.round(totalBeats*spb*1000)+300));
+      startSheetCursor(startWhen,totalBeats,bpm,playCtx2);
+    }
   }
 
   function stopPlay(){
     isPlaying=false;
     playTimers.forEach(clearTimeout); playTimers=[];
     playCtx2?.close(); playCtx2=null;
+    stopSheetCursor();
     playBtn.textContent='▶ Play'; playBtn.className='btn btn-start';
-    playStatus.textContent='';
+    playStatus.textContent=sheetImg?'Tap ▶ Play to replay':'';
     document.querySelectorAll('.pnc').forEach(el=>el.classList.remove('on'));
   }
 
