@@ -110,23 +110,7 @@
     #playBpmSlider{width:90px;accent-color:#e2b714;}
     #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
     .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
-    #playInput{
-      flex:1;background:#0a0918;color:#ccc;
-      border:1px solid #222238;border-radius:8px;padding:8px 12px;
-      font-size:.82rem;outline:none;min-width:0;
-    }
-    #playInput::placeholder{color:#2a2a44;}
-    #playInputRow{display:flex;gap:8px;align-items:center;width:100%;}
     #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
-
-    /* Song picker */
-    #songPicker{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
-    .song-btn{
-      background:#0e0e1c;border:1.5px solid #1e1e38;color:#5858a8;
-      border-radius:18px;padding:4px 13px;font-size:.72rem;cursor:pointer;
-      transition:all .12s;white-space:nowrap;
-    }
-    .song-btn:active,.song-btn.picked{background:#1a1a40;border-color:#5555cc;color:#aaaaee;}
 
     /* Sheet upload drop zone */
     #sheetZone{
@@ -218,30 +202,18 @@
       <input type="file" id="sheetFile" accept="image/*,audio/midi,.mid,.midi">
     </div>
     <img id="sheetPreview" alt="uploaded sheet">
-    <!-- Song picker (quick demos) -->
-    <div id="songPicker">
-      <button class="song-btn" data-song="twinkle">⭐ Twinkle</button>
-      <button class="song-btn" data-song="mary">🐑 Mary</button>
-      <button class="song-btn" data-song="buns">🥐 Hot Cross Buns</button>
-      <button class="song-btn" data-song="ode">🎵 Ode to Joy</button>
-      <button class="song-btn" data-song="birthday">🎂 Birthday</button>
-    </div>
     <!-- Score canvas -->
     <div id="scoreScroll"><canvas id="scoreCanvas"></canvas></div>
-    <!-- Song name input + Play inline -->
-    <div id="playInputRow">
-      <input id="playInput" type="text" placeholder="Type a song name — Claude will compose it">
-      <button class="btn btn-start" id="playBtn" style="padding:7px 18px;font-size:.88rem;white-space:nowrap;">▶ Play</button>
-    </div>
-    <!-- BPM + options row -->
+    <!-- Controls: BPM + ▶ Play -->
     <div class="play-row" style="gap:8px;">
       <label class="play-chk" style="color:#5a5a9a;">BPM</label>
       <input type="range" id="playBpmSlider" min="40" max="200" value="100" style="width:80px;">
       <span id="playBpmVal" style="min-width:2em;">100</span>
       <label class="play-chk"><input type="checkbox" id="playSoundOn" checked> 🎹</label>
       <label class="play-chk"><input type="checkbox" id="playMetroOn" checked> 🥁</label>
+      <button class="btn btn-start" id="playBtn" style="padding:7px 18px;font-size:.88rem;">▶ Play</button>
     </div>
-    <p id="playStatus">Drop a sheet photo above, pick a song, or type a name</p>
+    <p id="playStatus">Drop a sheet music photo above to play it</p>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -1669,71 +1641,8 @@
     scoreScroll.scrollLeft=Math.max(0,x-scoreScroll.clientWidth*0.3);
   }
 
-  // Returns true if most tokens look like note notation (vs. free-text description)
-  function looksLikeNoteSeq(text){
-    const tokens=text.trim().split(/\s+/).filter(Boolean);
-    if(!tokens.length) return false;
-    const re=/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i;
-    return tokens.filter(t=>re.test(t)).length/tokens.length>0.6;
-  }
-
-  // Auto-render score when pasted/typed content looks like actual note notation
-  let scoreRenderTimer=null;
-  document.getElementById('playInput').addEventListener('input',()=>{
-    document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
-    clearTimeout(scoreRenderTimer);
-    scoreRenderTimer=setTimeout(()=>{
-      const v=document.getElementById('playInput').value;
-      if(!isPlaying&&looksLikeNoteSeq(v)) renderScore(parseNoteList(v));
-    },400);
-  });
-
-  // ── Preset songs ─────────────────────────────────────────────────────
-  const SONGS={
-    twinkle:{name:'Twinkle Twinkle',bpm:90,notes:
-      'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 '+
-      'F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2 '+
-      'G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 '+
-      'G4:1 G4:1 F4:1 F4:1 E4:1 E4:1 D4:2 '+
-      'C4:1 C4:1 G4:1 G4:1 A4:1 A4:1 G4:2 '+
-      'F4:1 F4:1 E4:1 E4:1 D4:1 D4:1 C4:2'},
-    mary:{name:'Mary Had a Little Lamb',bpm:100,notes:
-      'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:2 '+
-      'D4:1 D4:1 D4:2 E4:1 G4:1 G4:2 '+
-      'E4:1 D4:1 C4:1 D4:1 E4:1 E4:1 E4:1 E4:1 '+
-      'D4:1 D4:1 E4:1 D4:1 C4:2'},
-    buns:{name:'Hot Cross Buns',bpm:100,notes:
-      'E4:1 D4:1 C4:2 E4:1 D4:1 C4:2 '+
-      'C4:0.5 C4:0.5 C4:0.5 C4:0.5 D4:0.5 D4:0.5 D4:0.5 D4:0.5 '+
-      'E4:1 D4:1 C4:2'},
-    ode:{name:'Ode to Joy',bpm:100,notes:
-      'E4:1 E4:1 F4:1 G4:1 G4:1 F4:1 E4:1 D4:1 '+
-      'C4:1 C4:1 D4:1 E4:1 E4:1.5 D4:0.5 D4:2 '+
-      'E4:1 E4:1 F4:1 G4:1 G4:1 F4:1 E4:1 D4:1 '+
-      'C4:1 C4:1 D4:1 E4:1 D4:1.5 C4:0.5 C4:2 '+
-      'D4:1 D4:1 E4:1 C4:1 D4:1 E4:0.5 F4:0.5 E4:1 C4:1 '+
-      'D4:1 E4:0.5 F4:0.5 E4:1 D4:1 C4:1 D4:1 G3:2'},
-    birthday:{name:'Happy Birthday',bpm:120,notes:
-      'C4:0.5 C4:0.5 D4:1 C4:1 F4:1 E4:2 '+
-      'C4:0.5 C4:0.5 D4:1 C4:1 G4:1 F4:2 '+
-      'C4:0.5 C4:0.5 C5:1 A4:1 F4:1 E4:1 D4:2 '+
-      'Bb4:0.5 Bb4:0.5 A4:1 F4:1 G4:1 F4:2'},
-  };
-
-  document.querySelectorAll('.song-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const s=SONGS[btn.dataset.song]; if(!s) return;
-      const inp=document.getElementById('playInput');
-      inp.value=s.notes;
-      document.getElementById('playBpmSlider').value=s.bpm;
-      document.getElementById('playBpmVal').textContent=s.bpm;
-      document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
-      btn.classList.add('picked');
-      document.getElementById('sheetPreview').style.display='none';
-      renderScore(parseNoteList(s.notes));
-      playStatus.textContent=`${s.name} · ${s.bpm} BPM — press ▶ Play`;
-    });
-  });
+  // Last set of parsed notes loaded from a sheet photo — used by ▶ Play to replay.
+  let lastParsedNotes=null;
 
   // ── API key management ───────────────────────────────────────────────
   let claudeApiKey=localStorage.getItem('pitchy_api_key')||'';
@@ -1747,51 +1656,6 @@
     localStorage.setItem('pitchy_api_key',k);
     apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e';
   });
-
-  // ── Sheet music image → Claude Vision ───────────────────────────────
-  async function interpretTextAsNotes(description){
-    if(!claudeApiKey) throw new Error('No API key — save your Anthropic key above first');
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'content-type':'application/json',
-        'x-api-key':claudeApiKey,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true',
-      },
-      body:JSON.stringify({
-        model:'claude-opus-4-7',
-        max_tokens:1024,
-        messages:[
-          {role:'user',content:
-`You are an expert musician with perfect pitch recall. Output the EXACT note sequence for the request below.
-
-Request: "${description}"
-
-CRITICAL INSTRUCTIONS:
-• If this is a well-known song, recall the ACTUAL notes from memory — not an approximation.
-  Write the real pitches and rhythms of the recognisable melody exactly as they are.
-• If it is a style/scale/description, generate an appropriate sequence.
-
-OUTPUT FORMAT — one single line, space-separated tokens ONLY:
-• Note: Letter(A-G) + optional #/b + octave + colon + beats  → C4:1  F#4:0.5  Bb3:2
-• Rest: R:beats  →  R:0.5
-• Quarter note = 1 beat. Values: 0.25 0.5 0.75 1 1.5 2 3 4
-• Middle C = C4. Stay in octaves 3–6.
-• Melody line only — no chords, no accompaniment.
-• Cover the most recognisable 16–48 note phrase.
-• Output ONLY note tokens — zero explanatory text.`},
-          {role:'assistant',content:'['}
-        ]
-      })
-    });
-    if(!resp.ok){const t=await resp.text();throw new Error(`API ${resp.status}: ${t.slice(0,200)}`);}
-    const json=await resp.json();
-    const raw=json.content[0].text.trim();
-    const clean=raw.split(/\s+/).filter(t=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(t)).join(' ');
-    if(!clean) throw new Error("Claude couldn't generate notes — try a different description.");
-    return clean;
-  }
 
   async function analyzeSheetImage(base64,mime){
     if(!claudeApiKey) throw new Error('No API key — enter it above first');
@@ -1877,9 +1741,7 @@ DURATIONS (quarter note = 1 beat):
       try{
         const notes=await analyzeSheetImage(base64,mime);
         const parsed=parseNoteList(notes);
-        const inp=document.getElementById('playInput');
-        inp.value='';  // sheet comes from the photo, not the text field
-        document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
+        lastParsedNotes=parsed;
         renderScore(parsed);
         // Auto-play using the eagerly created AudioContext — no extra tap needed
         if(earlyCtx && earlyCtx.state!=='closed' && parsed.length){
@@ -1973,44 +1835,7 @@ DURATIONS (quarter note = 1 beat):
     o.start(when); o.stop(when+0.07);
   }
 
-  async function startPlay(){
-    if(isPlaying){stopPlay();return;}
-    const inp=document.getElementById('playInput');
-    let text=inp.value.trim();
-    if(!text){playStatus.textContent='Type a song name or description above ↑';return;}
-
-    // Create AudioContext immediately inside the click handler so the user-gesture
-    // window stays open even though we may await an API call below.
-    playCtx2=new(window.AudioContext||window.webkitAudioContext)();
-    playCtx2.resume();
-
-    // If the text is a description (not already note tokens), ask Claude Opus to compose it.
-    if(!looksLikeNoteSeq(text)){
-      if(!claudeApiKey){
-        playStatus.textContent='⚠ Save your Anthropic API key above to interpret song names';
-        playCtx2.close();playCtx2=null;return;
-      }
-      playBtn.disabled=true;
-      playStatus.innerHTML='<span class="spin">⟳</span> Asking Claude Opus…';
-      try{
-        text=await interpretTextAsNotes(text);
-        // leave inp.value as the original song name — notes are played silently
-      }catch(err){
-        playStatus.textContent='⚠ '+err.message;
-        playStatus.style.color='#ef4444';
-        setTimeout(()=>{playStatus.style.color='';},4000);
-        playBtn.disabled=false;
-        playCtx2.close();playCtx2=null;return;
-      }
-      playBtn.disabled=false;
-    }
-
-    const notes=parseNoteList(text);
-    if(!notes.length){playStatus.textContent='No valid notes — try a different description';playCtx2.close();playCtx2=null;return;}
-    _doPlay(playCtx2,notes);
-  }
-
-  // Shared audio scheduling — called from startPlay() and from auto-play after sheet upload.
+  // Shared audio scheduling — called from auto-play after sheet upload and from ▶ replay.
   function _doPlay(ctx,notes){
     if(isPlaying) stopPlay();
     renderScore(notes);
@@ -2050,7 +1875,14 @@ DURATIONS (quarter note = 1 beat):
   document.getElementById('playBpmSlider').addEventListener('input',e=>{
     document.getElementById('playBpmVal').textContent=e.target.value;
   });
-  playBtn.addEventListener('click',()=>startPlay());
+  playBtn.addEventListener('click',()=>{
+    if(isPlaying){stopPlay();return;}
+    if(!lastParsedNotes||!lastParsedNotes.length){
+      playStatus.textContent='Drop a sheet music photo above first';return;
+    }
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    ctx.resume(); _doPlay(ctx,lastParsedNotes);
+  });
 
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
