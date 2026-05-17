@@ -565,26 +565,38 @@
     // ── BPM histogram update (every 500 ms) ─────────────────────────────
     if(onsetTimes.length>=3 && now-lastHistAt>500){
       lastHistAt=now;
-      const abpm=updateBpmHist(now);
-      if(abpm && abpm>=40 && abpm<=220){
+      const rawBpm=updateBpmHist(now);
+      if(rawBpm && rawBpm>=40 && rawBpm<=220){
+        // ── Tempo-octave resolution ────────────────────────────────────
+        // The histogram frequently peaks at 2× or 0.5× the true beat
+        // (e.g. 190 instead of 95). When we have a reference, always
+        // pick whichever of {rawBpm, rawBpm/2, rawBpm*2} is closest
+        // to the reference on a logarithmic scale (= closest in musical ratio).
+        let abpm=rawBpm;
+        if(smoothedBPM){
+          const ref=smoothedBPM;
+          const cands=[rawBpm,rawBpm/2,rawBpm*2].filter(b=>b>=40&&b<=220);
+          abpm=cands.reduce((best,c)=>{
+            // log2 ratio: 1 octave = 1.0; prefer smaller ratio to reference
+            const bd=Math.abs(Math.log2(best)-Math.log2(ref));
+            const cd=Math.abs(Math.log2(c)   -Math.log2(ref));
+            return cd<bd?c:best;
+          },rawBpm);
+        }
         if(!smoothedBPM){
           smoothedBPM=abpm; bpmStableCount=0; bpmLocked=false; bpmDriftCount=0;
         } else {
           const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
           if(bpmLocked){
-            // Locked: BPM is frozen. Count sustained divergence before unlocking.
-            // Normal histogram noise stays within ~10%; a real tempo change
-            // will push it above 12% for several consecutive readings.
+            // Locked: BPM frozen. Require 6 consecutive >12% divergences
+            // (~3 seconds) before accepting a genuine tempo change.
             if(pct>0.12) bpmDriftCount++;
             else bpmDriftCount=Math.max(0,bpmDriftCount-1);
             if(bpmDriftCount>=6){
-              // Genuine tempo change confirmed (~3 seconds of divergence).
-              // Unlock and clear histogram so re-lock is fast.
               bpmLocked=false; bpmStableCount=0; bpmDriftCount=0;
-              bpmHist.fill(0);
+              bpmHist.fill(0); // clear old votes for fast re-lock
               smoothedBPM=abpm;
             }
-            // Else: BPM stays exactly as locked — do not drift.
           } else {
             smoothedBPM=smoothedBPM*0.60+abpm*0.40;
             if(pct<0.03) bpmStableCount++; else bpmStableCount=Math.max(0,bpmStableCount-2);
@@ -1498,50 +1510,63 @@
         'anthropic-dangerous-direct-browser-access':'true',
       },
       body:JSON.stringify({
-        model:'claude-sonnet-4-6',
+        model:'claude-opus-4-7',
         max_tokens:2048,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:mime,data:base64}},
-          {type:'text',text:
-`You are an expert music transcriptionist. Read this sheet music image precisely.
+        messages:[
+          {role:'user',content:[
+            {type:'image',source:{type:'base64',media_type:mime,data:base64}},
+            {type:'text',text:
+`You are an expert music transcriptionist. Transcribe this sheet music to a note sequence.
 
-TREBLE CLEF reference (memorise before reading):
-  Staff lines bottom→top:  E4  G4  B4  D5  F5
-  Staff spaces bottom→top: F4  A4  C5  E5
-  Below staff (ledger):    D4  C4  B3  A3  G3
-  Above staff (ledger):    G5  A5  B5  C6
+═══ TREBLE CLEF POSITIONS (commit to memory) ═══
+Lines bottom→top:   E4  G4  B4  D5  F5   ("Every Good Boy Does Fine")
+Spaces bottom→top:  F4  A4  C5  E5       ("FACE")
+Ledger below staff: D4  C4  B3  A3  G3   (count DOWN from E4)
+Ledger above staff: G5  A5  B5  C6       (count UP from F5)
+★ Middle C = C4 = ONE ledger line BELOW the bottom staff line (below E4)
 
-PROCEDURE — do this in order:
-1. Key signature: count sharps (#) or flats (b) at the clef. Every note of that letter is sharpened/flattened throughout UNLESS a natural sign (♮) appears in that bar.
-2. Time signature: note the top number — tells you beats per bar.
-3. Read bar by bar, left to right. For each note: identify its staff position carefully, count ledger lines, apply key signature, read duration.
+═══ PROCEDURE ═══
+1. KEY SIGNATURE — count sharps/flats next to the clef.
+   Apply them to EVERY occurrence of that note letter at ALL octaves.
+   A natural sign (♮) in a bar cancels the key sig for that note in that bar only.
+2. TIME SIGNATURE — note top number (beats per bar).
+3. BAR BY BAR, LEFT TO RIGHT — for each note:
+   a. Count its exact line/space/ledger position
+   b. Apply key signature
+   c. Read stem/flag/beam for duration
+   d. Dotted note = duration × 1.5
 
-DURATION in quarter-note beats:
-  whole=4  dotted-half=3  half=2  dotted-quarter=1.5  quarter=1  eighth=0.5  sixteenth=0.25
+DURATIONS (quarter note = 1 beat):
+  sixteenth=0.25  eighth=0.5  dotted-eighth=0.75  quarter=1
+  dotted-quarter=1.5  half=2  dotted-half=3  whole=4
 
-OUTPUT FORMAT — space-separated tokens, NOTHING else:
-  Note: Letter + optional # or b + octave + : + beats   →  C4:1  F#4:0.5  Bb3:2
-  Rest: R + : + beats                                   →  R:1  R:2
-
-Rules:
-- Middle C = C4 (sits on its own ledger line below treble staff)
-- Sharps and flats in the key signature apply to ALL octaves of that letter
-- A note written with an accidental (#/b) in the score overrides key signature for that bar only
-- If two staves shown (grand staff), read treble clef only
-- Ties connect notes of same pitch into one longer note (add their durations)
-- Chords: output only the highest (melody) note
-
-Output the note/rest sequence only. No bar lines, no labels, no explanation.`
-          }
-        ]}]
+═══ OUTPUT RULES ═══
+• Output a SINGLE LINE of space-separated tokens — NOTHING ELSE.
+• Note token: Letter + optional # or b + octave + : + beats  →  C4:1  F#4:0.5  Bb3:2
+• Rest token: R:beats  →  R:1
+• Ties: merge tied notes into one token (sum their beats)
+• Chords: output ONLY the top (melody) note
+• Do NOT write bar numbers, labels, or any explanatory text whatsoever`
+            }
+          ]},
+          // Prefill forces Claude to output notes immediately, no preamble
+          {role:'assistant',content:'Note sequence: '}
+        ]
       })
     });
     if(!resp.ok){
       const txt=await resp.text();
-      throw new Error(`API error ${resp.status}: ${txt.slice(0,120)}`);
+      throw new Error(`API error ${resp.status}: ${txt.slice(0,200)}`);
     }
     const json=await resp.json();
-    return json.content[0].text.trim();
+    // Strip any label text the model prepended; keep only valid note/rest tokens.
+    // Token regex: letter A-G or R, optional #/b, optional octave digit, optional :beats
+    const raw=json.content[0].text.trim();
+    const clean=raw.split(/\s+/)
+      .filter(tok=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(tok))
+      .join(' ');
+    if(!clean) throw new Error('No valid notes found in response. Try a clearer image.');
+    return clean;
   }
 
   function loadImageFile(file){
@@ -1556,11 +1581,12 @@ Output the note/rest sequence only. No bar lines, no labels, no explanation.`
       playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude…';
       try{
         const notes=await analyzeSheetImage(base64,mime);
+        const parsed=parseNoteList(notes);
         const inp=document.getElementById('playInput');
         inp.value=notes;
         document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
-        renderScore(parseNoteList(notes));
-        playStatus.textContent=`✓ ${notes.split(/\s+/).length} notes loaded — press ▶ Play`;
+        renderScore(parsed);
+        playStatus.textContent=`✓ ${parsed.length} notes loaded — press ▶ Play`;
       }catch(err){
         playStatus.textContent='⚠ '+err.message;
         playStatus.style.color='#ef4444';
