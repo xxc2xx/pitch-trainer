@@ -394,7 +394,7 @@
   function initMetroCanvas(){
     const dpr=window.devicePixelRatio||1;
     metroCanvas.width =(metroView.clientWidth ||340)*dpr;
-    metroCanvas.height=(metroCanvas.clientHeight||390)*dpr;
+    metroCanvas.height=(metroCanvas.clientHeight||340)*dpr;
   }
 
   function drawMetronome(){
@@ -573,7 +573,7 @@
     if(metroRafId) return;
     (function tick(){
       if(currentMode!=='flow'){metroRafId=null;return;}
-      drawMetronome();
+      try{ drawMetronome(); }catch(e){ console.error('drawMetronome',e); }
       metroRafId=requestAnimationFrame(tick);
     })();
   }
@@ -581,7 +581,7 @@
   // ── Piano sound ───────────────────────────────────────────────────────
   let kbCtx=null, kbTimeout=null;
 
-  async function playKeyNote(bare,freq){
+  function playKeyNote(bare,freq){
     // kbCtx already created + resumed by the pointerdown handler
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
@@ -721,6 +721,8 @@
 
       if(currentMode==='flow'){
         resetMetro();
+        initMetroCanvas();   // ensure canvas sized correctly
+        startMetroLoop();    // restart if loop died
         pendOriginTime=performance.now(); // pendulum starts swinging immediately
         // 10-second countdown
         countdownVal=10;
@@ -796,11 +798,28 @@
       // Create / unlock AudioContext synchronously inside the gesture (iOS Safari requirement)
       if(!kbCtx||kbCtx.state==='closed')
         kbCtx=new(window.AudioContext||window.webkitAudioContext)();
-      // Resume is async but fire-and-forget is fine here; actual sound nodes start after it resolves
+      // Call resume() fire-and-forget then play synchronously — iOS Safari requires nodes
+      // created in the same synchronous call stack as the user gesture, not in .then()
+      kbCtx.resume();
       const bare=el.dataset.note;
       const freq=getFreq(NOTE_BARE.indexOf(bare),currentOctave);
-      kbCtx.resume().then(()=>playKeyNote(bare,freq));
+      playKeyNote(bare,freq);
     }));
+
+  // ── MacBook keyboard shortcuts (Keys tab only) ────────────────────────
+  const KEY_MAP={a:'C',s:'D',d:'E',f:'F',g:'G',h:'A',j:'B',
+                 w:'Cs',e:'Ds',t:'Fs',y:'Gs',u:'As'};
+  document.addEventListener('keydown',e=>{
+    if(currentMode!=='keys') return;
+    if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
+    const bare=KEY_MAP[e.key.toLowerCase()];
+    if(!bare) return;
+    e.preventDefault();
+    if(!kbCtx||kbCtx.state==='closed')
+      kbCtx=new(window.AudioContext||window.webkitAudioContext)();
+    kbCtx.resume();
+    playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),currentOctave));
+  });
 
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
