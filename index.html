@@ -1761,20 +1761,23 @@
         max_tokens:1024,
         messages:[
           {role:'user',content:
-`Convert this song or melody request into a note sequence for a simple melody player.
+`You are an expert musician with perfect pitch recall. Output the EXACT note sequence for the request below.
 
 Request: "${description}"
 
-OUTPUT RULES — critically important:
-• Output ONE LINE of space-separated tokens only — no other text whatsoever.
-• Note format: Letter(A-G) + optional #/b + octave digit + colon + beat value
-  Examples: C4:1  F#4:0.5  Bb3:2  G5:0.25
-• Rest format: R:beats  →  R:1
-• Quarter note = 1 beat. Use: 0.25 0.5 0.75 1 1.5 2 3 4
-• Middle C = C4. Use octaves 3–5 for the main melody.
-• Output melody only — no chords.
-• Aim for 16–40 notes covering the most recognisable phrase of the song.
-• No explanations, no labels, ONLY note tokens.`},
+CRITICAL INSTRUCTIONS:
+• If this is a well-known song, recall the ACTUAL notes from memory — not an approximation.
+  Write the real pitches and rhythms of the recognisable melody exactly as they are.
+• If it is a style/scale/description, generate an appropriate sequence.
+
+OUTPUT FORMAT — one single line, space-separated tokens ONLY:
+• Note: Letter(A-G) + optional #/b + octave + colon + beats  → C4:1  F#4:0.5  Bb3:2
+• Rest: R:beats  →  R:0.5
+• Quarter note = 1 beat. Values: 0.25 0.5 0.75 1 1.5 2 3 4
+• Middle C = C4. Stay in octaves 3–6.
+• Melody line only — no chords, no accompaniment.
+• Cover the most recognisable 16–48 note phrase.
+• Output ONLY note tokens — zero explanatory text.`},
           {role:'assistant',content:''}
         ]
       })
@@ -1857,7 +1860,9 @@ DURATIONS (quarter note = 1 beat):
     return clean;
   }
 
-  function loadImageFile(file){
+  // earlyCtx: AudioContext created synchronously during the user-gesture (file pick / drop)
+  // so it is still usable after the async API call completes.
+  function loadImageFile(file, earlyCtx){
     const preview=document.getElementById('sheetPreview');
     const reader=new FileReader();
     reader.onload=async e=>{
@@ -1865,8 +1870,7 @@ DURATIONS (quarter note = 1 beat):
       preview.src=dataUrl; preview.style.display='block';
       const base64=dataUrl.split(',')[1];
       const mime=file.type||'image/jpeg';
-      playStatus.textContent='🔍 Reading sheet music… ';
-      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude…';
+      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude Opus…';
       try{
         const notes=await analyzeSheetImage(base64,mime);
         const parsed=parseNoteList(notes);
@@ -1874,8 +1878,14 @@ DURATIONS (quarter note = 1 beat):
         inp.value=notes;
         document.querySelectorAll('.song-btn').forEach(b=>b.classList.remove('picked'));
         renderScore(parsed);
-        playStatus.textContent=`✓ ${parsed.length} notes loaded — press ▶ Play`;
+        // Auto-play using the eagerly created AudioContext — no extra tap needed
+        if(earlyCtx && earlyCtx.state!=='closed' && parsed.length){
+          _doPlay(earlyCtx, parsed);
+        } else {
+          playStatus.textContent=`✓ ${parsed.length} notes read — press ▶ Play`;
+        }
       }catch(err){
+        if(earlyCtx) earlyCtx.close();
         playStatus.textContent='⚠ '+err.message;
         playStatus.style.color='#ef4444';
         setTimeout(()=>{ playStatus.style.color=''; },4000);
@@ -1884,16 +1894,24 @@ DURATIONS (quarter note = 1 beat):
     reader.readAsDataURL(file);
   }
 
-  // File input + drag-and-drop
+  function makeEarlyCtx(){
+    try{ const c=new(window.AudioContext||window.webkitAudioContext)(); c.resume(); return c; }
+    catch(e){ return null; }
+  }
+
+  // File input + drag-and-drop — AudioContext created during the user gesture
   const sheetZone=document.getElementById('sheetZone');
   const sheetFile=document.getElementById('sheetFile');
-  sheetFile.addEventListener('change',e=>{ if(e.target.files[0]) loadImageFile(e.target.files[0]); });
+  sheetFile.addEventListener('change',e=>{
+    if(!e.target.files[0]) return;
+    loadImageFile(e.target.files[0], makeEarlyCtx());
+  });
   sheetZone.addEventListener('dragover',e=>{e.preventDefault();sheetZone.classList.add('drag');});
   sheetZone.addEventListener('dragleave',()=>sheetZone.classList.remove('drag'));
   sheetZone.addEventListener('drop',e=>{
     e.preventDefault(); sheetZone.classList.remove('drag');
     const f=e.dataTransfer.files[0];
-    if(f&&f.type.startsWith('image/')) loadImageFile(f);
+    if(f&&f.type.startsWith('image/')) loadImageFile(f, makeEarlyCtx());
   });
 
   // ── Note synthesis ────────────────────────────────────────────────────
@@ -1986,26 +2004,33 @@ DURATIONS (quarter note = 1 beat):
 
     const notes=parseNoteList(text);
     if(!notes.length){playStatus.textContent='No valid notes — try a different description';playCtx2.close();playCtx2=null;return;}
+    _doPlay(playCtx2,notes);
+  }
+
+  // Shared audio scheduling — called from startPlay() and from auto-play after sheet upload.
+  function _doPlay(ctx,notes){
+    if(isPlaying) stopPlay();
     renderScore(notes);
     const bpm=parseInt(document.getElementById('playBpmSlider').value)||100;
     const usePiano=document.getElementById('playSoundOn').checked;
     const useMet=document.getElementById('playMetroOn').checked;
+    playCtx2=ctx;
     isPlaying=true;
     playBtn.textContent='⏹ Stop'; playBtn.className='btn btn-stop';
     playStatus.textContent=`Playing ${notes.length} notes at ${bpm} BPM…`;
     const spb=60/bpm;
-    const startWhen=playCtx2.currentTime+0.12;
+    const startWhen=ctx.currentTime+0.22;
     let when=startWhen, beat=0;
     notes.forEach((n,i)=>{
       const dur=n.beats*spb;
-      if(usePiano&&!n.rest) schedulePianoNote(playCtx2,n.freq,when,dur);
-      if(useMet) for(let b=0;b<Math.ceil(n.beats);b++) scheduleMetroClick(playCtx2,when+b*spb,beat%4===0);
+      if(usePiano&&!n.rest) schedulePianoNote(ctx,n.freq,when,dur);
+      if(useMet) for(let b=0;b<Math.ceil(n.beats);b++) scheduleMetroClick(ctx,when+b*spb,beat%4===0);
       beat+=Math.round(n.beats);
-      const delay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000));
+      const delay=Math.max(0,Math.round((when-ctx.currentTime)*1000));
       playTimers.push(setTimeout(()=>hlScore(i),delay));
       when+=dur;
     });
-    const endDelay=Math.max(0,Math.round((when-playCtx2.currentTime)*1000))+300;
+    const endDelay=Math.max(0,Math.round((when-ctx.currentTime)*1000))+300;
     playTimers.push(setTimeout(()=>stopPlay(),endDelay));
   }
 
