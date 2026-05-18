@@ -412,14 +412,16 @@
   let lastHistAt=0;
 
   // ── Phase-Locked Oscillator (PLO) ────────────────────────────────────
-  // Once tempo is found, PLO predicts every beat at exact intervals.
-  // Mic onsets are used only for small corrections, not to drive the clock.
-  // Missed beats keep the clock running; false onsets outside the prediction
-  // window are ignored entirely. This is how Ableton's beat engine works.
-  let ploActive=false;  // PLO is running
-  let ploPhase=0;       // [0,1) — fractional position within current beat
-  let ploPeriod=0;      // ms per beat
-  let ploConf=0;        // confidence counter; drop below 0 → unlock
+  // Three-phase state machine:
+  //   ACQUIRE  — histogram builds up tempo estimate (ploActive=false)
+  //   TRACK    — PLO active with small phase/tempo corrections (~2s, ~6 beats)
+  //   FREERUN  — clock frozen, runs to end of song, zero corrections
+  // Human analogy: listen → think → adjust → stick.
+  let ploActive=false;   // PLO is running (TRACK or FREERUN)
+  let ploFreerun=false;  // FREERUN: clock is frozen, no more corrections
+  let ploPhase=0;        // [0,1) — fractional position within current beat
+  let ploPeriod=0;       // ms per beat
+  let ploConf=0;         // confidence counter; drop below 0 → unlock (TRACK only)
   const beatHistory=[];  // {time, num} — last 9s of PLO-confirmed beats
   let lastRegCache=null, lastRegCacheAt=0;  // last successful regression result
 
@@ -447,7 +449,7 @@
     lastBeatTime=0;bgFlashAt=0;beatFlashAt=0;
     smoothedBPM=null;currentBeat=-1;
     bpmStableCount=0;bpmLocked=false;bpmDriftCount=0;lastHistAt=0;
-    ploActive=false;ploPhase=0;ploPeriod=0;ploConf=0;
+    ploActive=false;ploFreerun=false;ploPhase=0;ploPeriod=0;ploConf=0;
     beatHistory.length=0;lastRegCache=null;lastRegCacheAt=0;
     phaseErrors.length=0;hitWindow.length=0;
     ploHits=0;ploMisses=0;
@@ -512,17 +514,51 @@
   }
 
   // PLO step — called every 25 ms frame.
-  // Advances the internal beat clock and fires on each predicted beat.
-  // If a real onset is near the prediction, it nudges phase and period slightly.
+  // State machine: TRACK (active corrections) → FREERUN (frozen clock, never changes).
   function stepPLO(now){
     if(!ploActive||!ploPeriod) return;
     ploPhase+=25/ploPeriod;
     if(ploPhase<1) return;
-    ploPhase-=Math.floor(ploPhase);  // keep in [0,1)
+    ploPhase-=Math.floor(ploPhase);
 
-    // ── Beat predicted here ───────────────────────────────────────────
-    // Look for confirming onset within ±28% of beat period
-    // Window tightens as confidence grows: 28% at lock-on → 13% at full confidence
+    // ── Shared beat-fire block ────────────────────────────────────────
+    function fireBeat(){
+      smoothedBPM=60000/ploPeriod;
+      bpmLocked=true;
+      clockRefBeat=clockRefTime!==null?(clockRefBeat+1)%4:0;
+      clockRefTime=now; beatFlashAt=now; bgFlashAt=now;
+      beatHistory.push({time:now,num:clockRefBeat});
+      while(beatHistory.length&&beatHistory[0].time<now-9000) beatHistory.shift();
+      pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
+      pendOriginTime=now;
+      noteNameEl.textContent=Math.round(smoothedBPM);
+      noteCard.classList.add('lit'); updateCents(null);
+      if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
+    }
+
+    // ── FREERUN: clock is anchored — zero corrections, runs to end ───
+    // Listen → Think → Adjust → STICK. No more chasing onsets.
+    if(ploFreerun){
+      // Still measure accuracy against real onsets for the HUD (display only).
+      const win=ploPeriod*0.13;
+      let bestOnset=null,bestDist=win;
+      for(let i=onsetTimes.length-1;i>=0;i--){
+        const d=Math.abs(onsetTimes[i]-now);
+        if(d<bestDist){bestDist=d;bestOnset=onsetTimes[i];}
+        if(onsetTimes[i]<now-win) break;
+      }
+      hitWindow.push(bestOnset!==null);
+      if(hitWindow.length>16) hitWindow.shift();
+      if(bestOnset!==null){
+        phaseErrors.push(bestDist); if(phaseErrors.length>16) phaseErrors.shift();
+        ploHits++;
+      } else { ploMisses++; }
+      fireBeat();
+      noteSubEl.textContent='BPM ⚓';  // anchor = frozen
+      return;
+    }
+
+    // ── TRACK: active correction phase (~6 beats, ~2–3 seconds) ──────
     const win=ploPeriod*Math.max(0.13,0.28-(ploConf/16)*0.15);
     let bestOnset=null,bestDist=win;
     for(let i=onsetTimes.length-1;i>=0;i--){
@@ -531,13 +567,11 @@
       if(onsetTimes[i]<now-win) break;
     }
 
-    // Track hit/miss window for adaptive correction strength
     hitWindow.push(bestOnset!==null);
     if(hitWindow.length>16) hitWindow.shift();
     const hitRate=hitWindow.length>0?hitWindow.filter(Boolean).length/hitWindow.length:0.5;
     const meanErr=phaseErrors.length>0?phaseErrors.reduce((a,b)=>a+b)/phaseErrors.length:30;
 
-    // Adaptive gains: tight when well-locked, aggressive when re-acquiring
     const phaseGain=hitRate>0.82&&meanErr<18?0.10:hitRate<0.50?0.26:0.18;
     const tempoGain=hitRate>0.82&&meanErr<18?0.005:hitRate<0.50?0.020:0.012;
 
@@ -559,20 +593,15 @@
       }
     }
 
-    // ── Update display clock & BPM from PLO ──────────────────────────
-    smoothedBPM=60000/ploPeriod;
-    bpmLocked=true;
-    clockRefBeat=clockRefTime!==null?(clockRefBeat+1)%4:0;
-    clockRefTime=now; beatFlashAt=now; bgFlashAt=now;
-    // Store beat in history for waveform markers (keep last 4 seconds)
-    beatHistory.push({time:now,num:clockRefBeat});
-    while(beatHistory.length&&beatHistory[0].time<now-9000) beatHistory.shift();
-    pendBeatPhase=(pendBeatPhase+Math.PI)%(Math.PI*2);
-    pendOriginTime=now;
-    noteNameEl.textContent=Math.round(smoothedBPM);
+    fireBeat();
     noteSubEl.textContent='BPM  🔒';
-    noteCard.classList.add('lit'); updateCents(null);
-    if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;countdownVal=0;}
+
+    // ── Transition TRACK → FREERUN ────────────────────────────────────
+    // After ~6 confirmed beats with ≥75% hit rate, freeze the grid.
+    // First iteration is wrong? It gets fixed here. After this — stick.
+    if(beatHistory.length>=6&&hitRate>=0.75){
+      ploFreerun=true;
+    }
   }
 
   // Clock-driven beat counter — 1-2-3-4 advances at exact clock intervals
@@ -747,7 +776,7 @@
           // PLO running: only watch for sustained large drift (real tempo change)
           const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
           if(pct>0.12) bpmDriftCount++; else bpmDriftCount=Math.max(0,bpmDriftCount-1);
-          if(bpmDriftCount>=6){
+          if(bpmDriftCount>=6&&!ploFreerun){
             // Confirmed tempo change — tear down PLO, let histogram re-acquire
             ploActive=false; bpmLocked=false;
             bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
@@ -1770,10 +1799,22 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
     }
     const json=await resp.json();
     const raw=json.content[0].text.trim();
-    const clean=raw.split(/\s+/)
+    console.log('[Pitch Trainer] Claude raw response:', raw);
+
+    // Primary: strict "C4:1" / "Bb4:0.5" / "R:1" tokens
+    let clean=raw.split(/\s+/)
       .filter(tok=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(tok))
       .join(' ');
-    if(!clean) throw new Error('No valid notes found in response. Try a clearer image.');
+
+    // Fallback: Claude sometimes outputs "C4" without duration — extract note names,
+    // assign quarter-note duration so at least the pitches are correct.
+    if(!clean){
+      const found=raw.match(/\b([A-Ga-g][#b]?[2-8])\b/g)||[];
+      clean=found.map(n=>n+':1').join(' ');
+      if(clean) console.log('[Pitch Trainer] Used fallback note extraction (no durations)');
+    }
+
+    if(!clean) throw new Error(`No notes in response (${raw.length} chars). Open DevTools → Console to see Claude's output.`);
     return clean;
   }
 
@@ -1787,6 +1828,7 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
       preview.src=dataUrl; preview.style.display='block';
       const base64=dataUrl.split(',')[1];
       const mime=file.type||'image/jpeg';
+      playStatus.style.color='';
       playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude Opus…';
       try{
         const notes=await analyzeSheetImage(base64,mime);
@@ -1803,7 +1845,7 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
         if(earlyCtx) earlyCtx.close();
         playStatus.textContent='⚠ '+err.message;
         playStatus.style.color='#ef4444';
-        setTimeout(()=>{ playStatus.style.color=''; },4000);
+        console.error('[Pitch Trainer] analyzeSheetImage error:', err);
       }
     };
     reader.readAsDataURL(file);
