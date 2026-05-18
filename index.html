@@ -429,6 +429,8 @@
   const phaseErrors=[];  // last 16 confirmed beat phase errors (ms)
   const hitWindow=[];    // last 16 beat outcomes: true=hit, false=miss
   let ploHits=0, ploMisses=0;  // session totals
+  let ploBeatCount=0;          // beats fired in the current PLO session (resets on relock)
+  let lastMetroFrameAt=0;      // performance.now() of last processMetroFrame call
   // Multi-band flux ring buffers
   const eBufBass=new Float32Array(METRO_BUF);
   const eBufMid =new Float32Array(METRO_BUF);
@@ -452,7 +454,7 @@
     ploActive=false;ploFreerun=false;ploPhase=0;ploPeriod=0;ploConf=0;
     beatHistory.length=0;lastRegCache=null;lastRegCacheAt=0;
     phaseErrors.length=0;hitWindow.length=0;
-    ploHits=0;ploMisses=0;
+    ploHits=0;ploMisses=0;ploBeatCount=0;lastMetroFrameAt=0;
     eBufBass.fill(0);eBufMid.fill(0);
     curBassFlux=0;curMidFlux=0;
     lastKickTime=0;lastSnareTime=0;
@@ -523,6 +525,7 @@
 
     // ── Shared beat-fire block ────────────────────────────────────────
     function fireBeat(){
+      ploBeatCount++;
       smoothedBPM=60000/ploPeriod;
       bpmLocked=true;
       clockRefBeat=clockRefTime!==null?(clockRefBeat+1)%4:0;
@@ -587,8 +590,10 @@
     } else {
       ploMisses++;
       if(--ploConf<(hitRate>0.75?-5:-3)){
-        ploActive=false; bpmLocked=false;
-        bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
+        ploActive=false;ploFreerun=false;bpmLocked=false;
+        bpmStableCount=0;bpmDriftCount=0;bpmHist.fill(0);
+        ploBeatCount=0;beatHistory.length=0;
+        phaseErrors.length=0;hitWindow.length=0;
         return;
       }
     }
@@ -597,9 +602,9 @@
     noteSubEl.textContent='BPM  🔒';
 
     // ── Transition TRACK → FREERUN ────────────────────────────────────
-    // After ~6 confirmed beats with ≥75% hit rate, freeze the grid.
-    // First iteration is wrong? It gets fixed here. After this — stick.
-    if(beatHistory.length>=6&&hitRate>=0.75){
+    // 10 beats in this session + ≥80% hit rate → freeze. Gives ~5s at 120BPM
+    // for phase/tempo corrections before the grid is locked forever.
+    if(ploBeatCount>=10&&hitRate>=0.80){
       ploFreerun=true;
     }
   }
@@ -679,6 +684,7 @@
   }
 
   function processMetroFrame(freqBuf){
+    lastMetroFrameAt=performance.now();
     const {bass,mid,combined}=computeMultiBandFlux(freqBuf);
     const flux=combined;
     curBassFlux=bass; curMidFlux=mid;
@@ -797,6 +803,10 @@
               ploPeriod=60000/smoothedBPM;
               // Find the phase offset that best aligns with recent onsets
               ploPhase=findBestPhase(ploPeriod, now);
+              // Fresh session: clear all per-session state so stale data from a
+              // previous failed lock doesn't corrupt the new TRACK phase.
+              ploBeatCount=0;beatHistory.length=0;
+              phaseErrors.length=0;hitWindow.length=0;ploFreerun=false;
               ploConf=8; ploActive=true; bpmLocked=true; bpmDriftCount=0;
             }
           }
@@ -855,8 +865,9 @@
     const WAVE_TOP = H*0.65;
 
     // ── Clock-driven beat counter (stable 1-2-3-4) ──
-    if(smoothedBPM && clockRefTime!==null){
-      const beatMs=60000/smoothedBPM;
+    // Use ploPeriod directly when PLO is active for exact clock alignment.
+    if(clockRefTime!==null && (ploActive ? ploPeriod>0 : smoothedBPM)){
+      const beatMs=ploActive&&ploPeriod>0 ? ploPeriod : 60000/smoothedBPM;
       const elapsed=now-clockRefTime;
       const adv=Math.floor(elapsed/beatMs);
       const newBeat=(clockRefBeat+adv)%4;
@@ -1083,14 +1094,19 @@
       ctx.fillStyle='rgba(20,20,50,0.35)';
       ctx.fillRect(nowX,WAVE_TOP-9,futureW,wH+11);
 
-      // PLO phase is always the source-of-truth when active — it directly drives
-      // what lights the beat boxes, so markers arrive at NOW in perfect sync.
-      // Regression only takes over while PLO is temporarily unlocked.
+      // PLO phase is source-of-truth when active. Interpolate it forward by
+      // (now - lastMetroFrameAt) to remove the 0-25ms staleness from the 25ms
+      // processing cadence. This keeps projected markers smooth at 60fps.
       const ploLive=ploActive&&ploPeriod>0;
       const refPeriod=ploLive?ploPeriod:(useReg?useReg.slope:800);
-      let msToNext=ploLive
-        ?(ploPeriod*(1-ploPhase))
-        :(useReg?(useReg.nextBeatTime-now):800);
+      let msToNext;
+      if(ploLive){
+        const drift=lastMetroFrameAt>0?Math.min(now-lastMetroFrameAt,40):0;
+        const interp=ploPhase+drift/ploPeriod;
+        msToNext=ploPeriod*(1-(interp%1));
+      } else {
+        msToNext=useReg?(useReg.nextBeatTime-now):800;
+      }
       while(msToNext<-refPeriod*0.05) msToNext+=refPeriod;
 
       // Trust indicator: green = live regression, blue = PLO or cached
@@ -1105,7 +1121,7 @@
         if(msAhead<0) continue;
         if(msAhead>futureMs) break;
         const xFut=nowX+(msAhead/futureMs)*futureW;
-        const projNum=(clockRefBeat+1+i)%4;
+        const projNum=(currentBeat+1+i)%4;
         const col=BEAT_COLS[projNum];
         const[cr,cg,cb]=hexRgb(col);
         const alpha=0.55*(1-msAhead/futureMs);
