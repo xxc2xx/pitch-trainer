@@ -1761,49 +1761,33 @@
       body:JSON.stringify({
         model:'claude-opus-4-7',
         max_tokens:2048,
+        system:'You are a music transcription engine. You output ONLY space-separated note tokens in the format Letter+Accidental+Octave:Beats (e.g. F4:1 Bb4:0.5 R:1). Never output chord symbols, lyrics, dynamics, or any explanatory text.',
         messages:[
           {role:'user',content:[
             {type:'image',source:{type:'base64',media_type:mime,data:base64}},
             {type:'text',text:
-`You are an expert music transcriptionist. Read ONLY the melody noteheads from the treble clef staff.
+`Transcribe the melody from this sheet music. Output ONLY a single line of space-separated tokens.
 
-══ STEP 0 — WHAT TO IGNORE (critical) ══
-The score contains TEXT that looks like note names but is NOT melody:
-• CHORD SYMBOLS above the staff: single letters or letter+number combos like
-  F  G  C  Bb  Am  G/F  Dm7  Gm7/Bb  C7  F/C  Bbm/Db  G7  etc.
-  These name the HARMONY, not the melody. NEVER output them as notes.
-• LYRICS below the staff: syllables, words, hyphens.
-• TEMPO / DYNAMIC markings: mf, f, p, cresc, rit, etc.
-• BAR NUMBERS, repeat signs, rehearsal letters.
-The ONLY thing you transcribe is filled noteheads (●) sitting on specific
-lines or spaces of the treble clef staff.
+IGNORE completely (do NOT output):
+- Chord symbols above the staff: F  G  C  Bb  Am  Dm7  G/F  C7  etc. — these are harmony labels, NOT notes
+- Lyrics, dynamics (mf/f/p), tempo markings, bar numbers
 
-══ TREBLE CLEF POSITIONS ══
-Lines bottom→top:  E4  G4  B4  D5  F5   (Every Good Boy Does Fine)
-Spaces bottom→top: F4  A4  C5  E5       (FACE)
-One ledger below:  D4 then C4 (middle C = one ledger line below E4)
-One ledger above:  G5  A5  B5
+READ ONLY: filled noteheads (●) on staff lines/spaces of the treble clef.
 
-══ STEP-BY-STEP ══
-1. KEY SIGNATURE — count flats/sharps immediately after the clef symbol at the start of the staff.
-   • 0 = C major (no accidentals)
-   • 1 flat (Bb) = F major — every B becomes Bb throughout, unless cancelled by a natural ♮
-   • 2 flats (Bb,Eb) = Bb major — every B and E become flat throughout
-   • 1 sharp (F#) = G major — every F becomes F# throughout
-   • A natural sign ♮ in a bar cancels the key signature for that note in that bar only.
-2. TIME SIGNATURE — top number = beats per bar.
-3. Read LEFT TO RIGHT, TOP SYSTEM TO BOTTOM SYSTEM, bar by bar.
-   For each notehead: find its line/space → apply key signature → read duration.
+TREBLE CLEF (bottom→top):
+  Lines: E4 G4 B4 D5 F5   |   Spaces: F4 A4 C5 E5
+  Ledger below staff: D4, C4   |   Ledger above: G5 A5 B5
 
-DURATIONS (quarter = 1 beat):
-  whole=4  half=2  dotted-half=3  quarter=1  dotted-quarter=1.5  eighth=0.5  dotted-eighth=0.75  sixteenth=0.25
+KEY SIGNATURE: count flats/sharps after the clef. 1 flat=F major (all B→Bb). 1 sharp=G major (all F→F#). Apply throughout unless cancelled by ♮.
 
-══ OUTPUT FORMAT ══
-Output ONE LINE of space-separated tokens — nothing else, no explanations, no bar numbers.
-• Note: Letter + accidental + octave + colon + beats  →  F4:1  Bb4:0.5  E4:2  C#5:1.5
-• Rest: R:beats  →  R:1
-• Tied notes: merge into one token (add beats)
-• Chord / multiple voices: output ONLY the highest (melody) notehead`
+DURATIONS (quarter=1): whole=4  half=2  dotted-half=3  quarter=1  eighth=0.5  sixteenth=0.25
+
+OUTPUT FORMAT — every token must be one of:
+  Note:  Letter + accidental + octave + colon + beats  →  F4:1  Bb4:0.5  C#5:1.5  G4:2
+  Rest:  R:beats  →  R:1  R:0.5
+  Rules: octave number (3-6) and beats are REQUIRED. Tied notes: merge beats. Multiple voices: top note only.
+
+Output the token list now, nothing else:`
             }
           ]},
         ]
@@ -1817,12 +1801,13 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
     const raw=json.content[0].text.trim();
     console.log('[Pitch Trainer] Claude raw response:', raw);
 
-    // Primary: strict "C4:1" / "Bb4:0.5" / "R:1" tokens
+    // Strict filter: require octave digit AND duration — rejects bare chord symbols
+    // like "F" "Bb" "G" which have no octave, and "Am" "Dm7" which aren't notes at all.
     let clean=raw.split(/\s+/)
-      .filter(tok=>/^[A-Gr][#b]?[0-9]?(?::[0-9.]+)?$/i.test(tok))
+      .filter(tok=>/^(?:[A-G][#b]?[1-9]:[0-9.]+|R:[0-9.]+)$/i.test(tok))
       .join(' ');
 
-    // Fallback: Claude sometimes outputs "C4" without duration — extract note names,
+    // Fallback: Claude sometimes outputs "C4" without duration — extract note+octave pairs,
     // assign quarter-note duration so at least the pitches are correct.
     if(!clean){
       const found=raw.match(/\b([A-Ga-g][#b]?[2-8])\b/g)||[];
