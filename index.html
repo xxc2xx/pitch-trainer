@@ -1862,11 +1862,35 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
         const parsed=parseNoteList(notes);
         lastParsedNotes=parsed;
         renderScore(parsed);
-        // Auto-play using the eagerly created AudioContext — no extra tap needed
-        if(earlyCtx && earlyCtx.state!=='closed' && parsed.length){
-          _doPlay(earlyCtx, parsed);
-        } else {
-          playStatus.textContent=`✓ ${parsed.length} notes read — press ▶ Play`;
+
+        if(!parsed.length){
+          playStatus.style.color='#ef4444';
+          playStatus.textContent='⚠ 0 notes extracted — image may be too small or unclear';
+          if(earlyCtx) earlyCtx.close();
+          return;
+        }
+
+        // Show extraction success first so user knows notes are ready
+        const preview3=parsed.slice(0,3).map(n=>n.display).join(' ');
+        playStatus.style.color='#22c55e';
+        playStatus.textContent=`✓ ${parsed.length} notes ready (${preview3}…) — starting…`;
+
+        // Resume AudioContext — must be awaited; browser may have suspended it
+        // during the API wait even though it was created in a user-gesture context.
+        let played=false;
+        if(earlyCtx){
+          try{
+            await earlyCtx.resume();
+            if(earlyCtx.state==='running'){
+              _doPlay(earlyCtx, parsed);
+              played=true;
+            }
+          }catch(e){ console.warn('earlyCtx resume failed:', e); }
+          if(!played) earlyCtx.close();
+        }
+        if(!played){
+          playStatus.style.color='#22c55e';
+          playStatus.textContent=`✓ ${parsed.length} notes (${preview3}…) — tap ▶ Play`;
         }
       }catch(err){
         if(earlyCtx) earlyCtx.close();
@@ -1994,14 +2018,17 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
   document.getElementById('playBpmSlider').addEventListener('input',e=>{
     document.getElementById('playBpmVal').textContent=e.target.value;
   });
-  playBtn.addEventListener('click',()=>{
+  playBtn.addEventListener('click', async ()=>{
     if(isPlaying){stopPlay();return;}
     if(!lastParsedNotes||!lastParsedNotes.length){
       playStatus.style.color='';
       playStatus.textContent='Drop a sheet music photo above first';return;
     }
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
-    ctx.resume(); _doPlay(ctx,lastParsedNotes);
+    // Must await resume() — without it, ctx.currentTime may be 0 and notes
+    // get scheduled in the past, causing total silence.
+    try{ await ctx.resume(); }catch(e){}
+    _doPlay(ctx,lastParsedNotes);
   });
 
   if('serviceWorker' in navigator)
