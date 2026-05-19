@@ -1819,30 +1819,43 @@ Output the token list now, nothing else:`
     return clean;
   }
 
-  // Crop a full-page score to its first ~35% (top systems) and upscale to
-  // ≥1400px wide so noteheads are large enough for Claude Vision to read.
-  function cropAndScale(dataUrl){
-    return new Promise((resolve,reject)=>{
-      const img=new Image();
-      img.onload=()=>{
-        try{
-          const c=document.createElement('canvas');
-          const ctx2=c.getContext('2d');
-          const isTall=img.height/img.width>1.1;          // portrait = page layout
-          const srcH=isTall?Math.ceil(img.height*0.35):img.height;  // top 35%
-          const minW=1400;
-          const scale=Math.max(1,minW/img.width);
-          c.width =Math.round(img.width*scale);
-          c.height=Math.round(srcH*scale);
-          ctx2.fillStyle='#ffffff';
-          ctx2.fillRect(0,0,c.width,c.height);
-          ctx2.drawImage(img,0,0,img.width,srcH,0,0,c.width,c.height);
-          resolve(c.toDataURL('image/jpeg',0.94));
-        }catch(e){ reject(e); }
-      };
-      img.onerror=reject;
-      img.src=dataUrl;
-    });
+  function loadImg(src){
+    return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});
+  }
+
+  // Render one horizontal strip of img to a JPEG dataURL upscaled to ≥1400px wide
+  function makeStrip(img,y0frac,y1frac){
+    const c=document.createElement('canvas');
+    const ctx2=c.getContext('2d');
+    const srcY=Math.floor(img.height*y0frac);
+    const srcH=Math.ceil(img.height*(y1frac-y0frac));
+    const scale=Math.max(1,1400/img.width);
+    c.width=Math.round(img.width*scale);
+    c.height=Math.round(srcH*scale);
+    ctx2.fillStyle='#ffffff';
+    ctx2.fillRect(0,0,c.width,c.height);
+    ctx2.drawImage(img,0,srcY,img.width,srcH,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',0.88);
+  }
+
+  // Analyze full score — splits tall portrait pages into strips so ALL systems are read
+  async function analyzeFullScore(dataUrl,mime){
+    const img=await loadImg(dataUrl);
+    const ratio=img.height/img.width;
+    if(ratio<=1.5){
+      // Landscape / short image: single call
+      const strip=makeStrip(img,0,1);
+      return analyzeSheetImage(strip.split(',')[1],'image/jpeg');
+    }
+    // Tall portrait (full page): 2 overlapping strips, top and bottom halves
+    const strips=[[0,0.55],[0.45,1]];
+    const results=[];
+    for(let s=0;s<strips.length;s++){
+      playStatus.innerHTML=`<span class="spin">⟳</span> Reading sheet music (${s+1}/${strips.length})…`;
+      const strip=makeStrip(img,strips[s][0],strips[s][1]);
+      results.push(await analyzeSheetImage(strip.split(',')[1],'image/jpeg'));
+    }
+    return results.join(' ');
   }
 
   // earlyCtx: AudioContext created synchronously during the user-gesture (file pick / drop)
@@ -1871,24 +1884,10 @@ Output the token list now, nothing else:`
       const originalUrl=e.target.result;
       preview.src=originalUrl; preview.style.display='block';
 
-      // Preprocess: if the image is a tall page (many systems), crop to the
-      // first ~35% (2-3 systems) and upscale to ≥1400px wide so noteheads
-      // are large enough for Claude Vision to read their staff position.
-      playStatus.style.color='rgba(100,100,160,0.8)';
-      playStatus.textContent='Preparing image…';
-      let base64, apiMime='image/jpeg';
-      try{
-        const processed=await cropAndScale(originalUrl);
-        base64=processed.split(',')[1];
-      }catch(_){
-        base64=originalUrl.split(',')[1];
-        apiMime=mime;
-      }
-
       playStatus.style.color='';
-      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude Opus…';
+      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music…';
       try{
-        const notes=await analyzeSheetImage(base64,apiMime);
+        const notes=await analyzeFullScore(originalUrl,mime);
         const parsed=parseNoteList(notes);
         lastParsedNotes=parsed;
         renderScore(parsed);
