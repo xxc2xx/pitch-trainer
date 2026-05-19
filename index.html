@@ -779,17 +779,12 @@
         }
 
         if(ploActive){
-          // PLO running: only watch for sustained large drift (real tempo change)
-          const pct=Math.abs(abpm-smoothedBPM)/smoothedBPM;
-          if(pct>0.12) bpmDriftCount++; else bpmDriftCount=Math.max(0,bpmDriftCount-1);
-          if(bpmDriftCount>=6&&!ploFreerun){
-            // Confirmed tempo change — tear down PLO, let histogram re-acquire
-            ploActive=false; bpmLocked=false;
-            bpmStableCount=0; bpmDriftCount=0; bpmHist.fill(0);
-            smoothedBPM=abpm;
-            noteNameEl.textContent=Math.round(smoothedBPM);
-            noteSubEl.textContent='BPM  ♩';
-          }
+          // PLO is self-governing via ploConf — do NOT let the histogram force a
+          // teardown. Complex songs (syncopations, layered rhythms) produce histogram
+          // peaks at multiple tempos simultaneously. The histogram would flip-flop
+          // (e.g. 140↔180 BPM) and constantly interrupt a correct lock.
+          // ploConf drops naturally when onset timing genuinely mismatches, which
+          // triggers self-unlock — that is the only valid teardown path.
         } else {
           // Acquisition: build smoothedBPM from histogram
           if(!smoothedBPM){
@@ -1836,14 +1831,30 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
 
   // earlyCtx: AudioContext created synchronously during the user-gesture (file pick / drop)
   // so it is still usable after the async API call completes.
+  const SUPPORTED_MIME=['image/jpeg','image/jpg','image/png','image/gif','image/webp'];
+
   function loadImageFile(file, earlyCtx){
     const preview=document.getElementById('sheetPreview');
+
+    // Validate type before bothering with FileReader
+    const mime=(file.type||'image/jpeg').toLowerCase();
+    if(!SUPPORTED_MIME.includes(mime)){
+      if(earlyCtx) earlyCtx.close();
+      playStatus.style.color='#ef4444';
+      playStatus.textContent=`⚠ Unsupported format "${file.type}". Please use JPG, PNG, GIF, or WEBP.`;
+      return;
+    }
+    // Warn if file is large (>4MB) — API limit is ~20MB but large files are slow
+    if(file.size>4*1024*1024){
+      playStatus.style.color='#f59e0b';
+      playStatus.textContent=`⚠ Image is ${(file.size/1024/1024).toFixed(1)} MB — may be slow. Resize to under 4 MB for best results.`;
+    }
+
     const reader=new FileReader();
     reader.onload=async e=>{
       const dataUrl=e.target.result;
       preview.src=dataUrl; preview.style.display='block';
       const base64=dataUrl.split(',')[1];
-      const mime=file.type||'image/jpeg';
       playStatus.style.color='';
       playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music with Claude Opus…';
       try{
@@ -1986,6 +1997,7 @@ Output ONE LINE of space-separated tokens — nothing else, no explanations, no 
   playBtn.addEventListener('click',()=>{
     if(isPlaying){stopPlay();return;}
     if(!lastParsedNotes||!lastParsedNotes.length){
+      playStatus.style.color='';
       playStatus.textContent='Drop a sheet music photo above first';return;
     }
     const ctx=new(window.AudioContext||window.webkitAudioContext)();
