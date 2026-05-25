@@ -602,9 +602,11 @@
     noteSubEl.textContent='BPM  🔒';
 
     // ── Transition TRACK → FREERUN ────────────────────────────────────
-    // 10 beats in this session + ≥80% hit rate → freeze. Gives ~5s at 120BPM
-    // for phase/tempo corrections before the grid is locked forever.
-    if(ploBeatCount>=10&&hitRate>=0.80){
+    // Two paths to freeze the clock:
+    //   - 6 beats + ≥60% hit rate (clean songs lock in ~3s)
+    //   - 12 beats regardless of hit rate (messy songs still freeze after ~6s
+    //     instead of wobbling the BPM display forever)
+    if((ploBeatCount>=6&&hitRate>=0.60)||ploBeatCount>=12){
       ploFreerun=true;
     }
   }
@@ -1801,19 +1803,13 @@ Output the token list now, nothing else:`
     const raw=json.content[0].text.trim();
     console.log('[Pitch Trainer] Claude raw response:', raw);
 
-    // Strict filter: require octave digit AND duration — rejects bare chord symbols
-    // like "F" "Bb" "G" which have no octave, and "Am" "Dm7" which aren't notes at all.
+    // Filter: REQUIRE octave digit (rejects bare chord symbols "F" "Bb" "G" "Am").
+    // Duration is optional — parseNoteList defaults to 1 beat. Previously requiring
+    // duration also dropped valid "F4" tokens, with the fallback only firing when
+    // NO tokens matched (so any single valid "F4:1" suppressed the fallback).
     let clean=raw.split(/\s+/)
-      .filter(tok=>/^(?:[A-G][#b]?[1-9]:[0-9.]+|R:[0-9.]+)$/i.test(tok))
+      .filter(tok=>/^(?:[A-G][#b]?[1-9](?::[0-9.]+)?|R(?::[0-9.]+)?)$/i.test(tok))
       .join(' ');
-
-    // Fallback: Claude sometimes outputs "C4" without duration — extract note+octave pairs,
-    // assign quarter-note duration so at least the pitches are correct.
-    if(!clean){
-      const found=raw.match(/\b([A-Ga-g][#b]?[2-8])\b/g)||[];
-      clean=found.map(n=>n+':1').join(' ');
-      if(clean) console.log('[Pitch Trainer] Used fallback note extraction (no durations)');
-    }
 
     if(!clean) throw new Error(`No notes in response (${raw.length} chars). Open DevTools → Console to see Claude's output.`);
     return clean;
@@ -1847,8 +1843,9 @@ Output the token list now, nothing else:`
       const strip=makeStrip(img,0,1);
       return analyzeSheetImage(strip.split(',')[1],'image/jpeg');
     }
-    // Tall portrait (full page): 2 overlapping strips, top and bottom halves
-    const strips=[[0,0.55],[0.45,1]];
+    // Tall portrait (full page): non-overlapping strips. Overlap caused notes
+    // in the boundary system to be transcribed by BOTH calls (duplicated).
+    const strips=ratio>2.4?[[0,0.34],[0.34,0.67],[0.67,1]]:[[0,0.5],[0.5,1]];
     const results=[];
     for(let s=0;s<strips.length;s++){
       playStatus.innerHTML=`<span class="spin">⟳</span> Reading sheet music (${s+1}/${strips.length})…`;
