@@ -1790,52 +1790,96 @@
     apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e';
   });
 
-  // Send the image to a Gradio /api/predict endpoint (base64 data URL in JSON).
-  // The server (oemer running under ZeroGPU) returns space-separated tokens.
+  // Gradio 6 API (3 steps): upload multipart → call by fn name → SSE-stream result.
   async function transcribeViaOmrServer(file){
-    // 1. Read file as base64 data URL (Gradio expects this form for Image inputs).
-    const b64DataUrl=await new Promise((resolve,reject)=>{
-      const r=new FileReader();
-      r.onload=()=>resolve(r.result);
-      r.onerror=()=>reject(new Error('FileReader failed'));
-      r.readAsDataURL(file);
-    });
-
-    logPlay(`→ Gradio /api/predict (${(file.size/1024).toFixed(0)} KB → ${(b64DataUrl.length/1024).toFixed(0)} KB base64)`);
     const t0=performance.now();
     const ctrl=new AbortController();
     const timer=setTimeout(()=>{ logPlay('⏱ 300s OMR timeout','err'); ctrl.abort(); },300000);
-    let resp;
+    const uploadId=Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+    // Step 1: upload the file to the Gradio server.
+    logPlay(`→ upload (${(file.size/1024).toFixed(0)} KB)`);
+    const fd=new FormData();
+    fd.append('files',file,file.name||'sheet.jpg');
+    let upPath;
     try{
-      resp=await fetch(omrUrl+'/api/predict',{
+      const upResp=await fetch(`${omrUrl}/gradio_api/upload?upload_id=${uploadId}`,{method:'POST',body:fd,signal:ctrl.signal});
+      if(!upResp.ok){
+        const t=await upResp.text();
+        throw new Error(`upload ${upResp.status}: ${t.slice(0,160)}`);
+      }
+      const arr=await upResp.json();
+      upPath=Array.isArray(arr)?arr[0]:null;
+      if(!upPath) throw new Error('upload returned no path');
+      logPlay(`uploaded → ${upPath.split('/').pop()}`);
+    }catch(e){
+      clearTimeout(timer);
+      if(e.name==='AbortError') throw new Error('upload aborted (timeout)');
+      throw new Error(`upload failed: ${e.message}`);
+    }
+
+    // Step 2: kick off the transcribe call referencing the uploaded path.
+    let eventId;
+    try{
+      const callResp=await fetch(`${omrUrl}/gradio_api/call/transcribe`,{
         method:'POST',
         signal:ctrl.signal,
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({data:[b64DataUrl]}),
+        body:JSON.stringify({data:[{path:upPath,meta:{_type:'gradio.FileData'}}]}),
       });
+      if(!callResp.ok){
+        const t=await callResp.text();
+        throw new Error(`call ${callResp.status}: ${t.slice(0,160)}`);
+      }
+      const j=await callResp.json();
+      eventId=j.event_id;
+      if(!eventId) throw new Error('call returned no event_id');
+      logPlay(`call started, event_id ${eventId.slice(0,8)}…`);
     }catch(e){
       clearTimeout(timer);
-      if(e.name==='AbortError') throw new Error('OMR server timeout after 300s (cold-start can take up to ~5 min on first use — try again)');
-      throw new Error(`OMR server unreachable: ${e.message}`);
+      if(e.name==='AbortError') throw new Error('call aborted (timeout)');
+      throw new Error(`call failed: ${e.message}`);
+    }
+
+    // Step 3: read the SSE stream until 'complete' or 'error'.
+    let streamResp;
+    try{
+      streamResp=await fetch(`${omrUrl}/gradio_api/call/transcribe/${eventId}`,{signal:ctrl.signal});
+    }catch(e){
+      clearTimeout(timer);
+      if(e.name==='AbortError') throw new Error('stream aborted (timeout)');
+      throw new Error(`stream failed: ${e.message}`);
+    }
+    const reader=streamResp.body.getReader();
+    const dec=new TextDecoder();
+    let buf='', curEvent='', result=null, serverErr=null;
+    while(true){
+      const{done,value}=await reader.read();
+      if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let nl;
+      while((nl=buf.indexOf('\n'))!==-1){
+        const line=buf.slice(0,nl);
+        buf=buf.slice(nl+1);
+        if(line.startsWith('event:')) curEvent=line.slice(6).trim();
+        else if(line.startsWith('data:')){
+          const data=line.slice(5).trim();
+          if(curEvent==='complete'){ try{ result=JSON.parse(data); }catch(_){} }
+          else if(curEvent==='error'){ serverErr=data; }
+        }
+      }
     }
     clearTimeout(timer);
     const dt=((performance.now()-t0)/1000).toFixed(1);
-    logPlay(`← HTTP ${resp.status} in ${dt}s`);
-    if(!resp.ok){
-      const txt=await resp.text();
-      logPlay(`OMR body: ${txt.slice(0,200)}`,'err');
-      throw new Error(`OMR server ${resp.status}: ${txt.slice(0,200)}`);
-    }
-    const json=await resp.json();
-    const raw=(json.data && json.data[0] || '').toString().trim();
-    if(!raw) throw new Error('OMR server returned empty response');
-    if(raw.startsWith('ERROR:')){
-      logPlay(raw,'err');
-      throw new Error(raw);
-    }
-    const nTokens=raw.split(/\s+/).length;
-    logPlay(`✓ ${nTokens} tokens from oemer`,'ok');
-    return raw;
+    logPlay(`← stream closed in ${dt}s`);
+
+    if(serverErr){ logPlay(`server error: ${serverErr}`,'err'); throw new Error(`OMR error: ${serverErr}`); }
+    if(!Array.isArray(result)||result.length===0) throw new Error('OMR returned no result');
+    const tokens=String(result[0]||'').trim();
+    if(!tokens) throw new Error('OMR returned empty tokens');
+    if(tokens.startsWith('ERROR:')){ logPlay(tokens,'err'); throw new Error(tokens); }
+    logPlay(`✓ ${tokens.split(/\s+/).length} tokens from oemer`,'ok');
+    return tokens;
   }
 
   async function analyzeSheetImage(base64,mime){
