@@ -191,10 +191,17 @@
   <div id="metroView"><canvas id="metroCanvas"></canvas></div>
 
   <div id="playView">
-    <!-- API key row -->
+    <!-- OMR server (preferred — purpose-built sheet music model) -->
+    <div id="apiKeyWrap">
+      <span>🎼 OMR server:</span>
+      <input type="text" id="omrUrlInput" placeholder="https://<you>-pitch-trainer-omr.hf.space  (leave empty to use Claude Vision)">
+      <button id="omrUrlSave">Save</button>
+      <span id="omrUrlStatus"></span>
+    </div>
+    <!-- API key row (fallback — used when OMR server is empty) -->
     <div id="apiKeyWrap">
       <span>🔑 Anthropic API key:</span>
-      <input type="password" id="apiKeyInput" placeholder="sk-ant-…  (saved locally, never sent except to Anthropic)">
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-…  (fallback, used only if OMR server is empty)">
       <button id="apiKeySave">Save</button>
       <span id="apiKeyStatus"></span>
     </div>
@@ -1752,7 +1759,25 @@
   // Last set of parsed notes loaded from a sheet photo — used by ▶ Play to replay.
   let lastParsedNotes=null;
 
-  // ── API key management ───────────────────────────────────────────────
+  // ── OMR server (oemer on a Hugging Face Space) ───────────────────────
+  let omrUrl=(localStorage.getItem('pitchy_omr_url')||'').replace(/\/$/,'');
+  const omrUrlInput=document.getElementById('omrUrlInput');
+  const omrUrlStatus=document.getElementById('omrUrlStatus');
+  if(omrUrl){ omrUrlInput.value=omrUrl; omrUrlStatus.textContent='✓ saved'; omrUrlStatus.style.color='#22c55e'; }
+  document.getElementById('omrUrlSave').addEventListener('click',()=>{
+    const u=omrUrlInput.value.trim().replace(/\/$/,'');
+    if(!u){
+      localStorage.removeItem('pitchy_omr_url'); omrUrl='';
+      omrUrlStatus.textContent='(cleared — Claude fallback)'; omrUrlStatus.style.color='#f59e0b';
+      return;
+    }
+    if(!/^https?:\/\//.test(u)){ omrUrlStatus.textContent='must start with https://'; omrUrlStatus.style.color='#ef4444'; return; }
+    omrUrl=u;
+    localStorage.setItem('pitchy_omr_url',u);
+    omrUrlStatus.textContent='✓ saved'; omrUrlStatus.style.color='#22c55e';
+  });
+
+  // ── API key management (Claude Vision fallback) ──────────────────────
   let claudeApiKey=localStorage.getItem('pitchy_api_key')||'';
   const apiKeyInput=document.getElementById('apiKeyInput');
   const apiKeyStatus=document.getElementById('apiKeyStatus');
@@ -1764,6 +1789,37 @@
     localStorage.setItem('pitchy_api_key',k);
     apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e';
   });
+
+  // Send the raw image to the OMR server. Server returns pre-parsed token list.
+  async function transcribeViaOmrServer(file){
+    logPlay(`→ POST ${omrUrl}/transcribe (${(file.size/1024).toFixed(0)} KB)`);
+    const t0=performance.now();
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>{ logPlay('⏱ 180s OMR timeout','err'); ctrl.abort(); },180000);
+    const fd=new FormData();
+    fd.append('image', file, file.name||'sheet.jpg');
+    let resp;
+    try{
+      resp=await fetch(omrUrl+'/transcribe',{method:'POST',body:fd,signal:ctrl.signal});
+    }catch(e){
+      clearTimeout(timer);
+      if(e.name==='AbortError') throw new Error('OMR server timeout after 180s (cold-start can take up to ~2 min on first use — try again)');
+      throw new Error(`OMR server unreachable: ${e.message}`);
+    }
+    clearTimeout(timer);
+    const dt=((performance.now()-t0)/1000).toFixed(1);
+    logPlay(`← HTTP ${resp.status} in ${dt}s`);
+    if(!resp.ok){
+      const txt=await resp.text();
+      logPlay(`OMR body: ${txt.slice(0,200)}`,'err');
+      throw new Error(`OMR server ${resp.status}: ${txt.slice(0,200)}`);
+    }
+    const json=await resp.json();
+    const tokens=(json.tokens||'').trim();
+    if(!tokens) throw new Error('OMR server returned no tokens (image may not be recognizable sheet music)');
+    logPlay(`✓ ${json.notes} notes from oemer`,'ok');
+    return tokens;
+  }
 
   async function analyzeSheetImage(base64,mime){
     if(!claudeApiKey) throw new Error('No API key — enter it above first');
@@ -1973,15 +2029,18 @@ Output the token list now, nothing else:`
     clearPlayLog();
     logPlay(`📁 file: ${file.name||'(no name)'} | ${(file.size/1024).toFixed(0)} KB | type="${file.type||'(none)'}"`);
 
-    // API key check FIRST — fail fast and visibly
-    if(!claudeApiKey){
+    // Branch: prefer OMR server (real OMR) when configured; fall back to Claude Vision.
+    if(omrUrl){
+      logPlay(`engine: OMR server (${omrUrl})`);
+    } else if(claudeApiKey){
+      logPlay(`engine: Claude Vision (no OMR server URL set — paste one above for better accuracy)`);
+    } else {
       if(earlyCtx) earlyCtx.close();
       playStatus.style.color='#ef4444';
-      playStatus.textContent='⚠ No API key — enter your Anthropic key above first';
-      logPlay('No API key in localStorage. Enter sk-ant-… above and tap Save.','err');
+      playStatus.textContent='⚠ Set either an OMR server URL or an Anthropic API key above';
+      logPlay('Neither OMR server URL nor Claude API key is configured.','err');
       return;
     }
-    logPlay(`API key present: ${claudeApiKey.slice(0,10)}…${claudeApiKey.slice(-4)}`);
 
     // Validate type before bothering with FileReader
     const mime=(file.type||'image/jpeg').toLowerCase();
@@ -2011,9 +2070,13 @@ Output the token list now, nothing else:`
       preview.src=originalUrl; preview.style.display='block';
 
       playStatus.style.color='';
-      playStatus.innerHTML='<span class="spin">⟳</span> Reading sheet music…';
+      playStatus.innerHTML= omrUrl
+        ? '<span class="spin">⟳</span> Transcribing via OMR (cold-start can take ~1 min)…'
+        : '<span class="spin">⟳</span> Reading sheet music…';
       try{
-        const notes=await analyzeFullScore(originalUrl,mime);
+        const notes = omrUrl
+          ? await transcribeViaOmrServer(file)
+          : await analyzeFullScore(originalUrl,mime);
         const parsed=parseNoteList(notes);
         lastParsedNotes=parsed;
         renderScore(parsed);
