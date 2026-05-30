@@ -1790,17 +1790,29 @@
     apiKeyStatus.textContent='✓ saved'; apiKeyStatus.style.color='#22c55e';
   });
 
-  // Send the raw image to the OMR server. Server returns pre-parsed token list.
+  // Send the image to a Gradio /api/predict endpoint (base64 data URL in JSON).
+  // The server (oemer running under ZeroGPU) returns space-separated tokens.
   async function transcribeViaOmrServer(file){
-    logPlay(`→ POST ${omrUrl}/transcribe (${(file.size/1024).toFixed(0)} KB)`);
+    // 1. Read file as base64 data URL (Gradio expects this form for Image inputs).
+    const b64DataUrl=await new Promise((resolve,reject)=>{
+      const r=new FileReader();
+      r.onload=()=>resolve(r.result);
+      r.onerror=()=>reject(new Error('FileReader failed'));
+      r.readAsDataURL(file);
+    });
+
+    logPlay(`→ Gradio /api/predict (${(file.size/1024).toFixed(0)} KB → ${(b64DataUrl.length/1024).toFixed(0)} KB base64)`);
     const t0=performance.now();
     const ctrl=new AbortController();
     const timer=setTimeout(()=>{ logPlay('⏱ 300s OMR timeout','err'); ctrl.abort(); },300000);
-    const fd=new FormData();
-    fd.append('image', file, file.name||'sheet.jpg');
     let resp;
     try{
-      resp=await fetch(omrUrl+'/transcribe',{method:'POST',body:fd,signal:ctrl.signal});
+      resp=await fetch(omrUrl+'/api/predict',{
+        method:'POST',
+        signal:ctrl.signal,
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({data:[b64DataUrl]}),
+      });
     }catch(e){
       clearTimeout(timer);
       if(e.name==='AbortError') throw new Error('OMR server timeout after 300s (cold-start can take up to ~5 min on first use — try again)');
@@ -1815,10 +1827,15 @@
       throw new Error(`OMR server ${resp.status}: ${txt.slice(0,200)}`);
     }
     const json=await resp.json();
-    const tokens=(json.tokens||'').trim();
-    if(!tokens) throw new Error('OMR server returned no tokens (image may not be recognizable sheet music)');
-    logPlay(`✓ ${json.notes} notes from oemer`,'ok');
-    return tokens;
+    const raw=(json.data && json.data[0] || '').toString().trim();
+    if(!raw) throw new Error('OMR server returned empty response');
+    if(raw.startsWith('ERROR:')){
+      logPlay(raw,'err');
+      throw new Error(raw);
+    }
+    const nTokens=raw.split(/\s+/).length;
+    logPlay(`✓ ${nTokens} tokens from oemer`,'ok');
+    return raw;
   }
 
   async function analyzeSheetImage(base64,mime){
