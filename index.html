@@ -1795,7 +1795,7 @@
     logPlay(`→ POST ${omrUrl}/transcribe (${(file.size/1024).toFixed(0)} KB)`);
     const t0=performance.now();
     const ctrl=new AbortController();
-    const timer=setTimeout(()=>{ logPlay('⏱ 180s OMR timeout','err'); ctrl.abort(); },180000);
+    const timer=setTimeout(()=>{ logPlay('⏱ 300s OMR timeout','err'); ctrl.abort(); },300000);
     const fd=new FormData();
     fd.append('image', file, file.name||'sheet.jpg');
     let resp;
@@ -1803,7 +1803,7 @@
       resp=await fetch(omrUrl+'/transcribe',{method:'POST',body:fd,signal:ctrl.signal});
     }catch(e){
       clearTimeout(timer);
-      if(e.name==='AbortError') throw new Error('OMR server timeout after 180s (cold-start can take up to ~2 min on first use — try again)');
+      if(e.name==='AbortError') throw new Error('OMR server timeout after 300s (cold-start can take up to ~5 min on first use — try again)');
       throw new Error(`OMR server unreachable: ${e.message}`);
     }
     clearTimeout(timer);
