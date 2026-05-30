@@ -111,6 +111,10 @@
     #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
     .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
     #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
+    #playLog{font-size:.66rem;color:#5a5a8a;background:#0a0a18;border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;margin-top:6px;max-height:140px;overflow-y:auto;font-family:ui-monospace,Menlo,monospace;line-height:1.35;display:none;white-space:pre-wrap;word-break:break-word;}
+    #playLog.show{display:block;}
+    #playLog .err{color:#ef4444;}
+    #playLog .ok{color:#22c55e;}
 
     /* Sheet upload drop zone */
     #sheetZone{
@@ -214,6 +218,7 @@
       <button class="btn btn-start" id="playBtn" style="padding:7px 18px;font-size:.88rem;">▶ Play</button>
     </div>
     <p id="playStatus">Drop a sheet music photo above to play it</p>
+    <div id="playLog"></div>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -272,6 +277,16 @@
   const playView     = document.getElementById('playView');
   const playBtn      = document.getElementById('playBtn');
   const playStatus   = document.getElementById('playStatus');
+  const playLog      = document.getElementById('playLog');
+  function logPlay(msg, kind){
+    if(!playLog) return;
+    const t=new Date(); const hh=String(t.getHours()).padStart(2,'0'), mm=String(t.getMinutes()).padStart(2,'0'), ss=String(t.getSeconds()).padStart(2,'0');
+    const cls=kind==='err'?' class="err"':kind==='ok'?' class="ok"':'';
+    playLog.insertAdjacentHTML('beforeend',`<div${cls}>[${hh}:${mm}:${ss}] ${msg}</div>`);
+    playLog.classList.add('show');
+    playLog.scrollTop=playLog.scrollHeight;
+  }
+  function clearPlayLog(){ if(playLog){playLog.innerHTML=''; playLog.classList.remove('show');} }
   const pianoArea    = document.getElementById('pianoArea');
   const noteGroup    = document.getElementById('noteGroup');
   const stemEl       = document.getElementById('stemEl');
@@ -1752,8 +1767,15 @@
 
   async function analyzeSheetImage(base64,mime){
     if(!claudeApiKey) throw new Error('No API key — enter it above first');
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    logPlay(`→ Claude API call (${(base64.length/1024).toFixed(0)} KB base64, ${mime})`);
+    const t0=performance.now();
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>{ logPlay('⏱ 90s timeout — aborting fetch','err'); ctrl.abort(); },90000);
+    let resp;
+    try{
+      resp=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
+      signal:ctrl.signal,
       headers:{
         'content-type':'application/json',
         'x-api-key':claudeApiKey,
@@ -1795,28 +1817,43 @@ Output the token list now, nothing else:`
         ]
       })
     });
+    }catch(e){
+      clearTimeout(timer);
+      if(e.name==='AbortError') throw new Error('API timeout after 90s — network is slow or stalled');
+      throw new Error(`Network error: ${e.message}`);
+    }
+    clearTimeout(timer);
+    const dt=((performance.now()-t0)/1000).toFixed(1);
+    logPlay(`← HTTP ${resp.status} in ${dt}s`);
     if(!resp.ok){
       const txt=await resp.text();
+      logPlay(`API body: ${txt.slice(0,160)}`,'err');
       throw new Error(`API error ${resp.status}: ${txt.slice(0,200)}`);
     }
     const json=await resp.json();
-    const raw=json.content[0].text.trim();
+    const raw=(json.content?.[0]?.text||'').trim();
     console.log('[Pitch Trainer] Claude raw response:', raw);
+    logPlay(`raw: ${raw.length} chars → ${raw.slice(0,140)}${raw.length>140?'…':''}`);
 
-    // Filter: REQUIRE octave digit (rejects bare chord symbols "F" "Bb" "G" "Am").
-    // Duration is optional — parseNoteList defaults to 1 beat. Previously requiring
-    // duration also dropped valid "F4" tokens, with the fallback only firing when
-    // NO tokens matched (so any single valid "F4:1" suppressed the fallback).
     let clean=raw.split(/\s+/)
       .filter(tok=>/^(?:[A-G][#b]?[1-9](?::[0-9.]+)?|R(?::[0-9.]+)?)$/i.test(tok))
       .join(' ');
 
-    if(!clean) throw new Error(`No notes in response (${raw.length} chars). Open DevTools → Console to see Claude's output.`);
+    if(!clean){
+      logPlay(`filter dropped all tokens (response had no note-shaped strings)`,'err');
+      throw new Error(`No notes in response. Raw: "${raw.slice(0,120)}"`);
+    }
+    logPlay(`✓ kept ${clean.split(/\s+/).length} tokens`,'ok');
     return clean;
   }
 
   function loadImg(src){
-    return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=src;});
+    return new Promise((res,rej)=>{
+      const i=new Image();
+      i.onload=()=>res(i);
+      i.onerror=()=>rej(new Error('Image decode failed (corrupt or unsupported)'));
+      i.src=src;
+    });
   }
 
   // Render one horizontal strip of img to a JPEG dataURL upscaled to ≥1400px wide
@@ -1838,17 +1875,18 @@ Output the token list now, nothing else:`
   async function analyzeFullScore(dataUrl,mime){
     const img=await loadImg(dataUrl);
     const ratio=img.height/img.width;
+    logPlay(`🖼 image loaded ${img.width}×${img.height} (ratio ${ratio.toFixed(2)})`);
     if(ratio<=1.5){
-      // Landscape / short image: single call
+      logPlay('single-pass (landscape/short)');
       const strip=makeStrip(img,0,1);
       return analyzeSheetImage(strip.split(',')[1],'image/jpeg');
     }
-    // Tall portrait (full page): non-overlapping strips. Overlap caused notes
-    // in the boundary system to be transcribed by BOTH calls (duplicated).
     const strips=ratio>2.4?[[0,0.34],[0.34,0.67],[0.67,1]]:[[0,0.5],[0.5,1]];
+    logPlay(`splitting into ${strips.length} strips`);
     const results=[];
     for(let s=0;s<strips.length;s++){
       playStatus.innerHTML=`<span class="spin">⟳</span> Reading sheet music (${s+1}/${strips.length})…`;
+      logPlay(`— strip ${s+1}/${strips.length} —`);
       const strip=makeStrip(img,strips[s][0],strips[s][1]);
       results.push(await analyzeSheetImage(strip.split(',')[1],'image/jpeg'));
     }
@@ -1861,6 +1899,18 @@ Output the token list now, nothing else:`
 
   function loadImageFile(file, earlyCtx){
     const preview=document.getElementById('sheetPreview');
+    clearPlayLog();
+    logPlay(`📁 file: ${file.name||'(no name)'} | ${(file.size/1024).toFixed(0)} KB | type="${file.type||'(none)'}"`);
+
+    // API key check FIRST — fail fast and visibly
+    if(!claudeApiKey){
+      if(earlyCtx) earlyCtx.close();
+      playStatus.style.color='#ef4444';
+      playStatus.textContent='⚠ No API key — enter your Anthropic key above first';
+      logPlay('No API key in localStorage. Enter sk-ant-… above and tap Save.','err');
+      return;
+    }
+    logPlay(`API key present: ${claudeApiKey.slice(0,10)}…${claudeApiKey.slice(-4)}`);
 
     // Validate type before bothering with FileReader
     const mime=(file.type||'image/jpeg').toLowerCase();
@@ -1868,15 +1918,23 @@ Output the token list now, nothing else:`
       if(earlyCtx) earlyCtx.close();
       playStatus.style.color='#ef4444';
       playStatus.textContent=`⚠ Unsupported format "${file.type}". Please use JPG, PNG, GIF, or WEBP.`;
+      logPlay(`Unsupported MIME "${file.type}". Supported: ${SUPPORTED_MIME.join(', ')}`,'err');
       return;
     }
     // Warn if file is large (>4MB) — API limit is ~20MB but large files are slow
     if(file.size>4*1024*1024){
       playStatus.style.color='#f59e0b';
       playStatus.textContent=`⚠ Image is ${(file.size/1024/1024).toFixed(1)} MB — may be slow. Resize to under 4 MB for best results.`;
+      logPlay(`Large image: ${(file.size/1024/1024).toFixed(1)} MB — expect slow API response`);
     }
 
     const reader=new FileReader();
+    reader.onerror=()=>{
+      if(earlyCtx) earlyCtx.close();
+      playStatus.style.color='#ef4444';
+      playStatus.textContent='⚠ Could not read file';
+      logPlay(`FileReader error: ${reader.error?.message||'unknown'}`,'err');
+    };
     reader.onload=async e=>{
       const originalUrl=e.target.result;
       preview.src=originalUrl; preview.style.display='block';
@@ -1888,6 +1946,7 @@ Output the token list now, nothing else:`
         const parsed=parseNoteList(notes);
         lastParsedNotes=parsed;
         renderScore(parsed);
+        logPlay(`📋 parsed ${parsed.length} notes from ${notes.split(/\s+/).length} tokens`,parsed.length?'ok':'err');
 
         if(!parsed.length){
           playStatus.style.color='#ef4444';
@@ -1900,6 +1959,7 @@ Output the token list now, nothing else:`
         const preview3=parsed.slice(0,3).map(n=>n.display).join(' ');
         playStatus.style.color='#22c55e';
         playStatus.textContent=`✓ ${parsed.length} notes ready (${preview3}…) — starting…`;
+        logPlay(`AudioContext state: ${earlyCtx?earlyCtx.state:'(none)'}`);
 
         // Resume AudioContext — must be awaited; browser may have suspended it
         // during the API wait even though it was created in a user-gesture context.
@@ -1907,21 +1967,25 @@ Output the token list now, nothing else:`
         if(earlyCtx){
           try{
             await earlyCtx.resume();
+            logPlay(`AudioContext after resume: ${earlyCtx.state}`);
             if(earlyCtx.state==='running'){
               _doPlay(earlyCtx, parsed);
               played=true;
+              logPlay('▶ auto-play started','ok');
             }
-          }catch(e){ console.warn('earlyCtx resume failed:', e); }
+          }catch(e){ console.warn('earlyCtx resume failed:', e); logPlay(`AudioContext resume failed: ${e.message}`,'err'); }
           if(!played) earlyCtx.close();
         }
         if(!played){
           playStatus.style.color='#22c55e';
           playStatus.textContent=`✓ ${parsed.length} notes (${preview3}…) — tap ▶ Play`;
+          logPlay('iOS often blocks auto-play after async fetch — tap ▶ Play manually');
         }
       }catch(err){
         if(earlyCtx) earlyCtx.close();
         playStatus.textContent='⚠ '+err.message;
         playStatus.style.color='#ef4444';
+        logPlay(`✗ ${err.message}`,'err');
         console.error('[Pitch Trainer] analyzeSheetImage error:', err);
       }
     };
@@ -1937,8 +2001,11 @@ Output the token list now, nothing else:`
   const sheetZone=document.getElementById('sheetZone');
   const sheetFile=document.getElementById('sheetFile');
   sheetFile.addEventListener('change',e=>{
-    if(!e.target.files[0]) return;
-    loadImageFile(e.target.files[0], makeEarlyCtx());
+    const f=e.target.files[0];
+    if(!f){ logPlay('change fired but no file'); return; }
+    loadImageFile(f, makeEarlyCtx());
+    // Reset so picking the SAME file again still fires change (iOS quirk)
+    e.target.value='';
   });
   sheetZone.addEventListener('dragover',e=>{e.preventDefault();sheetZone.classList.add('drag');});
   sheetZone.addEventListener('dragleave',()=>sheetZone.classList.remove('drag'));
