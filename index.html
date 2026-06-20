@@ -186,7 +186,7 @@
     .dj-pad{
       background:rgba(0,0,0,.35);border:2px solid var(--pc,#ef4444);
       color:var(--pc,#ef4444);border-radius:9px;padding:10px 2px 7px;
-      font-size:.72rem;font-weight:700;cursor:pointer;line-height:1.15;
+      font-size:1.08rem;font-weight:700;cursor:pointer;line-height:1.15;
       transition:background .07s,box-shadow .07s;touch-action:manipulation;
       -webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;
     }
@@ -195,7 +195,7 @@
       box-shadow:0 0 14px var(--pc,#ef4444);
     }
     .dj-pad-name{pointer-events:none;}
-    .dj-pad-row{font-size:.48rem;color:rgba(255,255,255,.25);margin-top:2px;pointer-events:none;letter-spacing:.04em;}
+    .dj-pad-row{font-size:.72rem;color:rgba(255,255,255,.25);margin-top:2px;pointer-events:none;letter-spacing:.04em;}
 
     /* NOTE REPEAT row */
     .dj-repeat-row{display:flex;align-items:center;gap:6px;justify-content:center;}
@@ -364,29 +364,6 @@
       <button id="djTapBtn">TAP</button>
       <button class="btn btn-start" id="djPlayBtn" style="padding:6px 14px;font-size:.84rem;">▶ Play</button>
     </div>
-    <!-- 4×4 Pad grid (MPC layout) -->
-    <div id="djPads">
-      <!-- Row 1: Core drums -->
-      <button class="dj-pad" data-drum="kick"    style="--pc:#ef4444;"><span class="dj-pad-name">Kick</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="snare"   style="--pc:#f97316;"><span class="dj-pad-name">Snare</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="hihat"   style="--pc:#eab308;"><span class="dj-pad-name">Hi-Hat</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="clap"    style="--pc:#22c55e;"><span class="dj-pad-name">Clap</span><span class="dj-pad-row">DRUM</span></button>
-      <!-- Row 2: Texture -->
-      <button class="dj-pad" data-drum="openhat" style="--pc:#06b6d4;"><span class="dj-pad-name">Open HH</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="rim"     style="--pc:#3b82f6;"><span class="dj-pad-name">Rim</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="crash"   style="--pc:#6366f1;"><span class="dj-pad-name">Crash</span><span class="dj-pad-row">DRUM</span></button>
-      <button class="dj-pad" data-drum="cowbell" style="--pc:#8b5cf6;"><span class="dj-pad-name">Cowbell</span><span class="dj-pad-row">DRUM</span></button>
-      <!-- Row 3: Toms + perc -->
-      <button class="dj-pad" data-drum="tomh"    style="--pc:#a855f7;"><span class="dj-pad-name">Tom H</span><span class="dj-pad-row">PERC</span></button>
-      <button class="dj-pad" data-drum="toml"    style="--pc:#ec4899;"><span class="dj-pad-name">Tom L</span><span class="dj-pad-row">PERC</span></button>
-      <button class="dj-pad" data-drum="shaker"  style="--pc:#f43f5e;"><span class="dj-pad-name">Shaker</span><span class="dj-pad-row">PERC</span></button>
-      <button class="dj-pad" data-drum="subkick" style="--pc:#78716c;"><span class="dj-pad-name">Sub</span><span class="dj-pad-row">BASS</span></button>
-      <!-- Row 4: Melodic pads -->
-      <button class="dj-pad" data-drum="noteC5"  style="--pc:#2563eb;"><span class="dj-pad-name">C</span><span class="dj-pad-row">NOTE</span></button>
-      <button class="dj-pad" data-drum="noteE5"  style="--pc:#0891b2;"><span class="dj-pad-name">E</span><span class="dj-pad-row">NOTE</span></button>
-      <button class="dj-pad" data-drum="noteG5"  style="--pc:#059669;"><span class="dj-pad-name">G</span><span class="dj-pad-row">NOTE</span></button>
-      <button class="dj-pad" data-drum="noteBb5" style="--pc:#ca8a04;"><span class="dj-pad-name">B♭</span><span class="dj-pad-row">NOTE</span></button>
-    </div>
     <!-- NOTE REPEAT -->
     <div class="dj-repeat-row">
       <span class="dj-rep-lbl">NOTE REPEAT:</span>
@@ -421,6 +398,29 @@
         <div id="djScratchWave">··· ◉ ···</div>
         <div id="djVinyl"></div>
       </div>
+    </div>
+    <!-- 4×4 Pad grid (MPC layout) — bottom for thumb reach -->
+    <div id="djPads">
+      <!-- Row 1: Core drums -->
+      <button class="dj-pad" data-drum="kick"    style="--pc:#ef4444;"><span class="dj-pad-name">Kick</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="snare"   style="--pc:#f97316;"><span class="dj-pad-name">Snare</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="hihat"   style="--pc:#eab308;"><span class="dj-pad-name">Hi-Hat</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="clap"    style="--pc:#22c55e;"><span class="dj-pad-name">Clap</span><span class="dj-pad-row">DRUM</span></button>
+      <!-- Row 2: Texture -->
+      <button class="dj-pad" data-drum="openhat" style="--pc:#06b6d4;"><span class="dj-pad-name">Open HH</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="rim"     style="--pc:#3b82f6;"><span class="dj-pad-name">Rim</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="crash"   style="--pc:#6366f1;"><span class="dj-pad-name">Crash</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="cowbell" style="--pc:#8b5cf6;"><span class="dj-pad-name">Cowbell</span><span class="dj-pad-row">DRUM</span></button>
+      <!-- Row 3: Toms + perc -->
+      <button class="dj-pad" data-drum="tomh"    style="--pc:#a855f7;"><span class="dj-pad-name">Tom H</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="toml"    style="--pc:#ec4899;"><span class="dj-pad-name">Tom L</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="shaker"  style="--pc:#f43f5e;"><span class="dj-pad-name">Shaker</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="subkick" style="--pc:#78716c;"><span class="dj-pad-name">Sub</span><span class="dj-pad-row">BASS</span></button>
+      <!-- Row 4: Melodic pads -->
+      <button class="dj-pad" data-drum="noteC5"  style="--pc:#2563eb;"><span class="dj-pad-name">C</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteE5"  style="--pc:#0891b2;"><span class="dj-pad-name">E</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteG5"  style="--pc:#059669;"><span class="dj-pad-name">G</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteBb5" style="--pc:#ca8a04;"><span class="dj-pad-name">B♭</span><span class="dj-pad-row">NOTE</span></button>
     </div>
   </div>
 
@@ -470,11 +470,15 @@
       document.removeEventListener('touchstart',unlock,true);
       document.removeEventListener('touchend',  unlock,true);
       var C=window.AudioContext||window.webkitAudioContext; if(!C) return;
-      var ctx=new C();
-      var buf=ctx.createBuffer(1,1,ctx.sampleRate);
-      var src=ctx.createBufferSource(); src.buffer=buf;
-      src.connect(ctx.destination); src.start(0);
-      ctx.resume().then(function(){ctx.close();});
+      // Reuse djCtx so the unlocked context IS the one pads use later.
+      // djCtx is declared with `let` below — safe to reference at call time.
+      if(!djCtx||djCtx.state==='closed') djCtx=new C();
+      var buf=djCtx.createBuffer(1,1,djCtx.sampleRate);
+      var src=djCtx.createBufferSource(); src.buffer=buf;
+      src.connect(djCtx.destination); src.start(0);
+      djCtx.resume();
+      // Also unlock kbCtx if it already exists (Keys tab)
+      if(kbCtx&&kbCtx.state==='suspended') kbCtx.resume();
     }
     document.addEventListener('touchstart',unlock,true);
     document.addEventListener('touchend',  unlock,true);
@@ -1575,7 +1579,7 @@
     const showOct=dispOct!==undefined?dispOct:currentOctave;
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
-    const ac=kbCtx, t=ac.currentTime+0.05;
+    const ac=kbCtx, t=ac.currentTime;
 
     if(currentInstrument==='drum'){
       const dname=DRUM_LABELS[bare]||bare;
@@ -2992,8 +2996,8 @@ Output the token list now, nothing else:`
         e.preventDefault();
         const name=pad.dataset.drum;
         const ctx=djAudioCtx();
-        ctx.resume();                        // fire-and-forget unlock
-        djDrum(name, ctx.currentTime+0.05);  // synchronous, same call stack
+        ctx.resume();
+        djDrum(name);  // when=undefined → ctx.currentTime (0=immediate, or real time if running)
         startRepeat(name);
         pad.classList.add('flash');
         setTimeout(()=>pad.classList.remove('flash'),120);
