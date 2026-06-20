@@ -470,19 +470,30 @@
   // a user gesture AND a context has been resumed inside it. One silent
   // buffer played on the very first touch grants that permission globally —
   // all subsequent AudioContexts on this page start in 'running' state.
+  // Silent WAV played via <audio> element to force iOS audio session into
+  // "playback" mode — this is the only way to make Web Audio bypass the
+  // iPhone mute/silent switch (Apple Music uses this same channel).
+  var _iosAudioEl=(function(){
+    var el=document.createElement('audio');
+    // Minimal valid WAV: RIFF header + 0 data bytes = 44 bytes total
+    el.src='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    el.loop=true; el.volume=0.001;
+    return el;
+  })();
+
   (function(){
     function unlock(){
       document.removeEventListener('touchstart',unlock,true);
       document.removeEventListener('touchend',  unlock,true);
+      // Play silent <audio> first — switches iOS session to AVAudioSessionCategoryPlayback
+      // so subsequent Web Audio goes through media channel (not ringer, which mute silences).
+      _iosAudioEl.play().catch(function(){});
       var C=window.AudioContext||window.webkitAudioContext; if(!C) return;
-      // Reuse djCtx so the unlocked context IS the one pads use later.
-      // djCtx is declared with `let` below — safe to reference at call time.
       if(!djCtx||djCtx.state==='closed') djCtx=new C();
       var buf=djCtx.createBuffer(1,1,djCtx.sampleRate);
       var src=djCtx.createBufferSource(); src.buffer=buf;
       src.connect(djCtx.destination); src.start(0);
       djCtx.resume();
-      // Also unlock kbCtx if it already exists (Keys tab)
       if(kbCtx&&kbCtx.state==='suspended') kbCtx.resume();
     }
     document.addEventListener('touchstart',unlock,true);
@@ -3064,6 +3075,7 @@ Output the token list now, nothing else:`
       e.preventDefault();
       const status=document.getElementById('djTestStatus');
       status.textContent='…';
+      _iosAudioEl.play().catch(function(){});
       try{
         const ctx=new(window.AudioContext||window.webkitAudioContext)();
         status.textContent='ctx:'+ctx.state;
