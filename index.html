@@ -149,6 +149,80 @@
       border-radius:18px;padding:3px 11px;font-size:.71rem;cursor:pointer;transition:all .12s;white-space:nowrap;
     }
     .inst-btn.sel{background:#1a1a40;border-color:#4848cc;color:#8888ee;}
+
+    /* ── DJ Tab ──────────────────────────────────────────────────── */
+    #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:10px;}
+    .dj-top{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
+    #djBpmSlider{width:100px;accent-color:#a855f7;}
+    #djBpmVal{color:#a855f7;font-weight:700;min-width:2.5em;font-size:.85rem;}
+
+    /* Drum pads */
+    #djPads{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+    .dj-pad{
+      background:rgba(0,0,0,.3);border:2px solid var(--pc,#ef4444);
+      color:var(--pc,#ef4444);border-radius:10px;padding:13px 4px;
+      font-size:.74rem;font-weight:700;cursor:pointer;
+      transition:background .07s,box-shadow .07s;touch-action:manipulation;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .dj-pad:active,.dj-pad.flash{
+      background:var(--pc,#ef4444);color:#fff;
+      box-shadow:0 0 16px var(--pc,#ef4444);
+    }
+
+    /* Step sequencer */
+    #djSeq{display:flex;flex-direction:column;gap:4px;background:#08071a;border-radius:10px;padding:8px 6px;}
+    .seq-row{display:flex;align-items:center;gap:3px;}
+    .seq-label{font-size:.6rem;color:#5a5a8a;width:26px;text-align:right;flex-shrink:0;padding-right:3px;}
+    .seq-steps{display:flex;gap:2px;flex:1;}
+    .seq-step{
+      flex:1;height:24px;background:#10102a;border:1.5px solid #1e1e38;
+      border-radius:4px;cursor:pointer;transition:background .07s;touch-action:manipulation;
+    }
+    .seq-step.seq-on{background:#5533bb;border-color:#7755dd;}
+    .seq-step.seq-current{border-color:#e2b714!important;box-shadow:0 0 6px #e2b714;}
+    .seq-step:nth-child(4n+1){margin-left:4px;}
+    .seq-step:first-child{margin-left:0;}
+
+    /* Pattern presets */
+    .dj-presets{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
+    .dj-pre-lbl{font-size:.68rem;color:#3a3a5a;}
+    .dj-preset-btn{
+      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#5a5a8a;
+      border-radius:18px;padding:4px 13px;font-size:.7rem;cursor:pointer;transition:all .12s;
+    }
+    .dj-preset-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
+
+    /* Scratch pad */
+    #djScratch{
+      background:#08071a;border:1.5px solid #1e1e38;border-radius:12px;
+      padding:10px 12px;user-select:none;touch-action:none;cursor:grab;
+    }
+    #djScratch:active{cursor:grabbing;}
+    #djScratchLbl{font-size:.65rem;color:#3a3a6a;text-align:center;margin-bottom:8px;}
+    #djScratchTrack{
+      background:#100f26;border-radius:8px;height:52px;
+      position:relative;overflow:hidden;
+    }
+    #djVinyl{
+      position:absolute;top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:44px;height:44px;border-radius:50%;
+      background:radial-gradient(circle at 40% 35%,#2a2860,#0a091a);
+      border:3px solid #5544aa;
+      box-shadow:0 0 12px rgba(100,80,200,.3);
+      transition:box-shadow .05s,border-color .05s;
+    }
+    #djVinyl.scratching{
+      box-shadow:0 0 22px rgba(160,100,255,.6);
+      border-color:#aa88ff;
+    }
+    #djScratchWave{
+      position:absolute;top:0;left:0;right:0;bottom:0;
+      display:flex;align-items:center;justify-content:center;
+      pointer-events:none;
+      font-size:.65rem;color:#2a2860;letter-spacing:.3em;
+    }
   </style>
 </head>
 <body>
@@ -159,6 +233,7 @@
     <button class="tab"        data-mode="keys"  >🎹 Keys</button>
     <button class="tab"        data-mode="flow"  >🥁 Beat</button>
     <button class="tab"        data-mode="play"  >▶ Play</button>
+    <button class="tab"        data-mode="dj"    >🎛 DJ</button>
   </div>
 
   <div class="note-card" id="noteCard">
@@ -226,6 +301,46 @@
     </div>
     <p id="playStatus">Drop a sheet music photo above to play it</p>
     <div id="playLog"></div>
+  </div>
+
+  <!-- ── DJ Tab ──────────────────────────────────────────── -->
+  <div id="djView">
+    <!-- BPM + play -->
+    <div class="dj-top">
+      <span style="font-size:.75rem;color:#5a5a8a;">BPM</span>
+      <input type="range" id="djBpmSlider" min="60" max="180" value="120">
+      <span id="djBpmVal">120</span>
+      <button class="btn btn-start" id="djPlayBtn" style="padding:7px 18px;font-size:.88rem;">▶ Play</button>
+    </div>
+    <!-- Drum pads -->
+    <div id="djPads">
+      <button class="dj-pad" data-drum="kick"    style="--pc:#ef4444;">Kick</button>
+      <button class="dj-pad" data-drum="snare"   style="--pc:#f97316;">Snare</button>
+      <button class="dj-pad" data-drum="hihat"   style="--pc:#eab308;">Hi-Hat</button>
+      <button class="dj-pad" data-drum="openhat" style="--pc:#22c55e;">Open HH</button>
+      <button class="dj-pad" data-drum="clap"    style="--pc:#06b6d4;">Clap</button>
+      <button class="dj-pad" data-drum="rim"     style="--pc:#3b82f6;">Rim</button>
+      <button class="dj-pad" data-drum="crash"   style="--pc:#8b5cf6;">Crash</button>
+      <button class="dj-pad" data-drum="cowbell" style="--pc:#ec4899;">More</button>
+    </div>
+    <!-- Step sequencer (grid built by JS) -->
+    <div id="djSeq"></div>
+    <!-- Pattern presets -->
+    <div class="dj-presets">
+      <span class="dj-pre-lbl">Pattern:</span>
+      <button class="dj-preset-btn" data-pattern="hiphop">Hip-Hop</button>
+      <button class="dj-preset-btn" data-pattern="house">House</button>
+      <button class="dj-preset-btn" data-pattern="trap">Trap</button>
+      <button class="dj-preset-btn" data-pattern="clear">Clear</button>
+    </div>
+    <!-- Scratch pad -->
+    <div id="djScratch">
+      <div id="djScratchLbl">🎛 Scratch pad — drag left ↔ right</div>
+      <div id="djScratchTrack">
+        <div id="djScratchWave">··· ◉ ···</div>
+        <div id="djVinyl"></div>
+      </div>
+    </div>
   </div>
 
   <div class="piano-area" id="pianoArea">
@@ -1526,18 +1641,20 @@
     if(isRunning) stop();
     if(isPlaying) stopPlay();
     if(currentMode==='flow' && mode!=='flow') stopMetroLoop();
+    if(currentMode==='dj' && mode!=='dj') stopDj();
     clearTimeout(kbTimeout);
     clearPiano();updateDisplay(null);updateStaff(null);
     currentMode=mode;
     document.querySelectorAll('.tab').forEach(t=>
       t.classList.toggle('active',t.dataset.mode===mode));
-    const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys';
-    staffView.style.display =(isFlow||isPlay)?'none':'';
+    const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys', isDjMode=mode==='dj';
+    staffView.style.display =(isFlow||isPlay||isDjMode)?'none':'';
     metroView.style.display =isFlow?'block':'none';
     playView.style.display  =isPlay?'flex':'none';
-    pianoArea.style.display =(isFlow||isPlay)?'none':'';
-    controls.style.display  =(isKeys||isPlay)?'none':'';
-    noteCard.style.display  =(isFlow||isPlay)?'none':'';
+    document.getElementById('djView').style.display=isDjMode?'flex':'none';
+    pianoArea.style.display =(isFlow||isPlay||isDjMode)?'none':'';
+    controls.style.display  =(isKeys||isPlay||isDjMode)?'none':'';
+    noteCard.style.display  =(isFlow||isPlay||isDjMode)?'none':'';
     const isDrum=currentInstrument==='drum';
     document.getElementById('instBar').classList.toggle('show',isKeys);
     octaveBar.classList.toggle('show',isKeys&&!isDrum);
@@ -1549,6 +1666,7 @@
       keys:'Tap piano keys or A-J keyboard (G=C4)',
       flow:'Tap Start, then play music or clap 🎵',
       play:'Paste notes below, tap ▶ Play',
+      dj:'Tap pads, build a beat, or scratch!',
     };
     hint.textContent=hints[mode]||'';
     if(isFlow){
@@ -1558,6 +1676,7 @@
       updateCents(null);
       setTimeout(()=>{initMetroCanvas();startMetroLoop();},80);
     }
+    if(isDjMode) initDjTab();
   }
 
   // ── Events ────────────────────────────────────────────────────────────
@@ -2321,6 +2440,279 @@ Output the token list now, nothing else:`
 
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+
+  // ── DJ Tab ────────────────────────────────────────────────────────────
+  let djCtx=null;
+  let djBpm=120;
+  let djIsPlaying=false;
+  let djCurrentStep=0;
+  let djNextStepTime=0;
+  let djSchedulerId=null;
+  let djSeqBuilt=false;
+
+  const DJ_TRACK_NAMES=['Kick','Snare','HH','Clap'];
+  const DJ_TRACK_KEYS =['kick','snare','hihat','clap'];
+  const DJ_STEPS=16;
+  let seqGrid=DJ_TRACK_KEYS.map(()=>new Array(DJ_STEPS).fill(false));
+
+  function djAudioCtx(){
+    if(!djCtx||djCtx.state==='closed')
+      djCtx=new(window.AudioContext||window.webkitAudioContext)();
+    return djCtx;
+  }
+
+  // ── Drum synthesis ───────────────────────────────────────────────────
+  function djDrum(name,when){
+    const ctx=djAudioCtx();
+    when=when??ctx.currentTime;
+    const dest=ctx.destination;
+
+    function noise(dur){
+      const len=Math.floor(ctx.sampleRate*dur);
+      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+      const n=ctx.createBufferSource(); n.buffer=buf; return n;
+    }
+    function gainEnv(peak,decay,out){
+      const g=ctx.createGain();
+      g.gain.setValueAtTime(peak,when);
+      g.gain.exponentialRampToValueAtTime(0.0001,when+decay);
+      g.connect(out||dest); return g;
+    }
+
+    switch(name){
+      case'kick':{
+        const o=ctx.createOscillator(),g=gainEnv(1.3,0.38);
+        o.frequency.setValueAtTime(160,when);
+        o.frequency.exponentialRampToValueAtTime(38,when+0.09);
+        o.connect(g); o.start(when); o.stop(when+0.4);
+        break;
+      }
+      case'snare':{
+        const nf=ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=2800; nf.Q.value=0.7;
+        const ng=gainEnv(0.9,0.17,nf); nf.connect(dest);
+        const n=noise(0.18); n.connect(ng); n.start(when);
+        const o=ctx.createOscillator(),og=gainEnv(0.45,0.07);
+        o.frequency.value=210; o.connect(og); o.start(when); o.stop(when+0.08);
+        break;
+      }
+      case'hihat':{
+        const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=7200;
+        const hg=gainEnv(0.55,0.05,hf); hf.connect(dest);
+        const n=noise(0.06); n.connect(hg); n.start(when);
+        break;
+      }
+      case'openhat':{
+        const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=6500;
+        const hg=gainEnv(0.5,0.28,hf); hf.connect(dest);
+        const n=noise(0.3); n.connect(hg); n.start(when);
+        break;
+      }
+      case'clap':{
+        [0,0.009,0.018].forEach(off=>{
+          const bf=ctx.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=1100; bf.Q.value=0.5;
+          const bg=gainEnv(0.75,0.05,bf); bf.connect(dest);
+          const n=noise(0.05); n.connect(bg); n.start(when+off);
+        }); break;
+      }
+      case'rim':{
+        const o=ctx.createOscillator(),g=gainEnv(0.9,0.04);
+        o.frequency.value=850; o.connect(g); o.start(when); o.stop(when+0.045);
+        break;
+      }
+      case'crash':{
+        const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=4800;
+        const hg=gainEnv(0.55,0.9,hf); hf.connect(dest);
+        const n=noise(0.9); n.connect(hg); n.start(when);
+        break;
+      }
+      case'cowbell':{
+        const g=gainEnv(0.65,0.55);
+        [540,845].forEach(f=>{
+          const o=ctx.createOscillator(); o.type='square'; o.frequency.value=f;
+          o.connect(g); o.start(when); o.stop(when+0.55);
+        }); break;
+      }
+    }
+  }
+
+  // ── Sequencer scheduler (Web Audio lookahead) ────────────────────────
+  const DJ_SCHEDULE_AHEAD=0.12;
+  const DJ_LOOKAHEAD=22;
+
+  function djSched(){
+    const ctx=djAudioCtx();
+    const stepDur=(60/djBpm)/4;
+    while(djNextStepTime<ctx.currentTime+DJ_SCHEDULE_AHEAD){
+      DJ_TRACK_KEYS.forEach((tk,ti)=>{
+        if(seqGrid[ti][djCurrentStep]) djDrum(tk,djNextStepTime);
+      });
+      const step=djCurrentStep;
+      const delay=Math.max(0,(djNextStepTime-ctx.currentTime)*1000);
+      setTimeout(()=>djHlStep(step),delay);
+      djCurrentStep=(djCurrentStep+1)%DJ_STEPS;
+      djNextStepTime+=stepDur;
+    }
+    djSchedulerId=setTimeout(djSched,DJ_LOOKAHEAD);
+  }
+
+  function startDj(){
+    const ctx=djAudioCtx(); ctx.resume();
+    djIsPlaying=true; djCurrentStep=0;
+    djNextStepTime=ctx.currentTime+0.05;
+    djSched();
+    document.getElementById('djPlayBtn').textContent='⏹ Stop';
+  }
+
+  function stopDj(){
+    djIsPlaying=false;
+    clearTimeout(djSchedulerId); djSchedulerId=null;
+    document.querySelectorAll('.seq-step').forEach(el=>el.classList.remove('seq-current'));
+    const btn=document.getElementById('djPlayBtn');
+    if(btn) btn.textContent='▶ Play';
+  }
+
+  function djHlStep(step){
+    document.querySelectorAll('.seq-step').forEach(el=>
+      el.classList.toggle('seq-current',+el.dataset.step===step));
+  }
+
+  // ── Presets ──────────────────────────────────────────────────────────
+  const DJ_PATTERNS={
+    hiphop:[
+      [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    ],
+    house:[
+      [1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    ],
+    trap:[
+      [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+    ],
+  };
+
+  function loadDjPattern(name){
+    if(!DJ_PATTERNS[name]){
+      seqGrid=DJ_TRACK_KEYS.map(()=>new Array(DJ_STEPS).fill(false));
+    } else {
+      seqGrid=DJ_PATTERNS[name].map(r=>r.map(v=>!!v));
+    }
+    document.querySelectorAll('.dj-preset-btn').forEach(b=>
+      b.classList.toggle('sel',b.dataset.pattern===name));
+    document.querySelectorAll('.seq-step').forEach(el=>
+      el.classList.toggle('seq-on',seqGrid[+el.dataset.track][+el.dataset.step]));
+  }
+
+  // ── Scratch pad ───────────────────────────────────────────────────────
+  let scratchX=null, scratchT=null;
+
+  function onScratchMove(x){
+    if(scratchX===null){scratchX=x;scratchT=Date.now();return;}
+    const now=Date.now(), dt=Math.max(1,now-scratchT);
+    const vel=(x-scratchX)/dt;  // px/ms
+    scratchX=x; scratchT=now;
+    if(Math.abs(vel)<0.06) return;
+    const ctx=djAudioCtx(); ctx.resume();
+    const when=ctx.currentTime;
+    const len=Math.floor(ctx.sampleRate*0.035);
+    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    const ns=ctx.createBufferSource(); ns.buffer=buf;
+    ns.playbackRate.value=0.6+Math.abs(vel)*8;
+    const bf=ctx.createBiquadFilter(); bf.type='bandpass';
+    bf.frequency.value=Math.max(300,Math.min(4000,1200+vel*4000));
+    bf.Q.value=1.8;
+    const g=ctx.createGain();
+    g.gain.value=Math.min(0.9,Math.abs(vel)*6);
+    ns.connect(bf); bf.connect(g); g.connect(ctx.destination);
+    ns.start(when); ns.stop(when+0.04);
+    // Visual
+    const vinyl=document.getElementById('djVinyl');
+    if(vinyl){
+      vinyl.classList.add('scratching');
+      clearTimeout(vinyl._sct);
+      vinyl._sct=setTimeout(()=>vinyl.classList.remove('scratching'),120);
+    }
+  }
+
+  // ── Build sequencer UI ────────────────────────────────────────────────
+  function initDjTab(){
+    if(djSeqBuilt) return;
+    djSeqBuilt=true;
+    const seqEl=document.getElementById('djSeq');
+    DJ_TRACK_NAMES.forEach((name,ti)=>{
+      const row=document.createElement('div'); row.className='seq-row';
+      const lbl=document.createElement('div'); lbl.className='seq-label'; lbl.textContent=name;
+      row.appendChild(lbl);
+      const steps=document.createElement('div'); steps.className='seq-steps';
+      for(let si=0;si<DJ_STEPS;si++){
+        const btn=document.createElement('div');
+        btn.className='seq-step';
+        btn.dataset.track=ti; btn.dataset.step=si;
+        btn.addEventListener('pointerdown',e=>{
+          e.preventDefault();
+          seqGrid[ti][si]=!seqGrid[ti][si];
+          btn.classList.toggle('seq-on',seqGrid[ti][si]);
+        });
+        steps.appendChild(btn);
+      }
+      row.appendChild(steps); seqEl.appendChild(row);
+    });
+
+    // Pad events
+    document.querySelectorAll('.dj-pad').forEach(pad=>{
+      pad.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        const name=pad.dataset.drum;
+        djAudioCtx().resume().then(()=>djDrum(name));
+        pad.classList.add('flash');
+        setTimeout(()=>pad.classList.remove('flash'),130);
+      });
+    });
+
+    // BPM slider
+    const slider=document.getElementById('djBpmSlider');
+    const bpmVal=document.getElementById('djBpmVal');
+    slider.addEventListener('input',()=>{
+      djBpm=+slider.value;
+      bpmVal.textContent=djBpm;
+    });
+
+    // Play/Stop
+    document.getElementById('djPlayBtn').addEventListener('click',()=>{
+      djAudioCtx().resume();
+      djIsPlaying?stopDj():startDj();
+    });
+
+    // Pattern presets
+    document.querySelectorAll('.dj-preset-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>loadDjPattern(btn.dataset.pattern));
+    });
+    loadDjPattern('hiphop');
+
+    // Scratch pad
+    const scratch=document.getElementById('djScratch');
+    scratch.addEventListener('pointerdown',e=>{
+      e.preventDefault(); scratch.setPointerCapture(e.pointerId);
+      scratchX=e.clientX; scratchT=Date.now();
+    });
+    scratch.addEventListener('pointermove',e=>{
+      if(e.buttons===0&&e.pointerType==='mouse') return;
+      onScratchMove(e.clientX);
+    });
+    ['pointerup','pointercancel'].forEach(ev=>
+      scratch.addEventListener(ev,()=>{scratchX=null; scratchT=null;}));
+  }
   </script>
 </body>
 </html>
