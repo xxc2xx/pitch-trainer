@@ -233,6 +233,11 @@
     }
     #djChopBtn:hover,#djChopBtn:active{border-color:#44aa44;color:#77dd77;}
     #djChopBtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    #djDemoBtn{
+      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#2a5a7a;
+      border-radius:8px;padding:5px 11px;font-size:.68rem;cursor:pointer;transition:all .12s;
+    }
+    #djDemoBtn:hover,#djDemoBtn:active{border-color:#3388cc;color:#66aaee;}
     #djChopStatus{font-size:.63rem;color:#2a5a2a;min-width:80px;}
 
     /* Scratch pad */
@@ -391,9 +396,10 @@
     <!-- CHOP sample loader -->
     <div id="djChopLoad">
       <button id="djChopBtn">
-        📁 Load audio → CHOP to 16 pads
+        📁 Load audio → CHOP
         <input type="file" id="djChopFile" accept="audio/*">
       </button>
+      <button id="djDemoBtn">🎹 Demo loop</button>
       <span id="djChopStatus"></span>
     </div>
     <!-- Scratch pad -->
@@ -2756,6 +2762,80 @@ Output the token list now, nothing else:`
     }
   }
 
+  // ── Demo loop generator ───────────────────────────────────────────────
+  // Renders a 2-bar C-major piano phrase + kick/snare into a raw buffer
+  // using typed-array math — no file upload needed, instant CHOP demo.
+  function loadDemoLoop(){
+    const ctx=djAudioCtx(); ctx.resume();
+    const sr=ctx.sampleRate, dur=60/djBpm*4;  // 1 bar
+    const len=Math.floor(sr*dur);
+    const raw=new Float32Array(len);
+    const beat=sr*60/djBpm;
+
+    // Piano melody — C major arpeggio / scale phrase
+    const FREQS=[261.63,293.66,329.63,349.23,392,440,493.88,523.25];
+    const melody=[
+      [0,0],[1,2],[2,4],[3,7],[4,4],[5,2],[6,0],[7,2],
+      [8,4],[9,5],[10,4],[11,2],[12,0],[13,2],[14,4],[15,7],
+    ];
+    melody.forEach(([step,ni])=>{
+      const s=Math.floor(step*beat/4);
+      const noteLen=Math.floor(sr*0.28);
+      for(let i=0;i<noteLen&&s+i<len;i++){
+        const t=i/sr;
+        // Soft piano: sine + slight 2nd harmonic, fast attack, medium decay
+        const env=Math.exp(-t/0.18)*(1-Math.exp(-t*120));
+        raw[s+i]+=( Math.sin(2*Math.PI*FREQS[ni]*t)*0.75
+                   +Math.sin(2*Math.PI*FREQS[ni]*2*t)*0.12 )*0.28*env;
+      }
+    });
+
+    // Kick on beats 1 and 3
+    [0,beat*2].forEach(start=>{
+      const s=Math.floor(start), dur2=Math.floor(sr*0.35);
+      for(let i=0;i<dur2&&s+i<len;i++){
+        const t=i/sr;
+        const f=160*Math.exp(-t/0.06)+38;
+        raw[s+i]+=Math.sin(2*Math.PI*f*t)*0.7*Math.exp(-t/0.22);
+      }
+    });
+
+    // Snare on beats 2 and 4 (noise burst)
+    [beat,beat*3].forEach(start=>{
+      const s=Math.floor(start), dur2=Math.floor(sr*0.16);
+      for(let i=0;i<dur2&&s+i<len;i++){
+        const t=i/sr;
+        raw[s+i]+=(Math.random()*2-1)*0.35*Math.exp(-t/0.09);
+      }
+    });
+
+    // Hi-hat every 8th note
+    for(let h=0;h<8;h++){
+      const s=Math.floor(h*beat/2), dur2=Math.floor(sr*0.04);
+      for(let i=0;i<dur2&&s+i<len;i++){
+        const t=i/sr;
+        raw[s+i]+=(Math.random()*2-1)*0.18*Math.exp(-t/0.025);
+      }
+    }
+
+    // Clip to ±1 (soft limiter)
+    for(let i=0;i<len;i++) raw[i]=Math.max(-0.95,Math.min(0.95,raw[i]));
+
+    // CHOP: slice into 16 equal buffers
+    const chunkLen=Math.floor(len/16);
+    djChoppedBuffers=[];
+    for(let i=0;i<16;i++){
+      const start=i*chunkLen;
+      const cLen=i===15?(len-start):chunkLen;
+      const cbuf=ctx.createBuffer(1,cLen,sr);
+      cbuf.getChannelData(0).set(raw.subarray(start,start+cLen));
+      djChoppedBuffers.push(cbuf);
+    }
+    const status=document.getElementById('djChopStatus');
+    if(status) status.textContent=`✓ Piano demo → 16 pads`;
+    switchDjBank('chop');
+  }
+
   function switchDjBank(bank){
     djChopMode=(bank==='chop');
     document.querySelectorAll('.dj-bank-btn').forEach(b=>b.classList.toggle('sel',b.dataset.bank===bank));
@@ -2930,6 +3010,12 @@ Output the token list now, nothing else:`
       const f=e.target.files[0];
       if(f) loadChopSample(f);
       e.target.value='';
+    });
+
+    // Demo loop
+    document.getElementById('djDemoBtn').addEventListener('click',()=>{
+      djAudioCtx().resume();
+      loadDemoLoop();
     });
 
     // Scratch pad
