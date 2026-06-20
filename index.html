@@ -1806,20 +1806,25 @@
   startBtn.addEventListener('click',()=>isRunning?stop():start());
   document.querySelectorAll('.tab').forEach(t=>
     t.addEventListener('click',()=>setMode(t.dataset.mode)));
-  document.querySelectorAll('.wk,.bk').forEach(el=>
-    el.addEventListener('pointerdown', e=>{
-      e.preventDefault();
+  document.querySelectorAll('.wk,.bk').forEach(el=>{
+    function playKey(){
       if(currentMode!=='keys') return;
-      // Create / unlock AudioContext synchronously inside the gesture (iOS Safari requirement)
       if(!kbCtx||kbCtx.state==='closed')
         kbCtx=new(window.AudioContext||window.webkitAudioContext)();
-      // Call resume() fire-and-forget then play synchronously — iOS Safari requires nodes
-      // created in the same synchronous call stack as the user gesture, not in .then()
-      kbCtx.resume();
       const bare=el.dataset.note;
       const freq=getFreq(NOTE_BARE.indexOf(bare),currentOctave);
-      playKeyNote(bare,freq);
-    }));
+      kbCtx.resume().then(()=>playKeyNote(bare,freq));
+    }
+    el.addEventListener('touchstart',e=>{
+      e.preventDefault();
+      playKey();
+    },{passive:false});
+    el.addEventListener('pointerdown',e=>{
+      if(e.pointerType==='touch') return;
+      e.preventDefault();
+      playKey();
+    });
+  });
 
   // ── MacBook keyboard shortcuts — G = C4 (middle), ASDFGHJKL;' white, QWERTY black ──
   // White: A=F3 S=G3 D=A3 F=B3 G=C4 H=D4 J=E4 K=F4 L=G4 ;=A4 '=B4  Enter=C5
@@ -2990,18 +2995,25 @@ Output the token list now, nothing else:`
       row.appendChild(steps); seqEl.appendChild(row);
     });
 
-    // Pad events — synchronous in gesture handler (iOS Safari requires this)
+    // Pad events — touchstart is the only trusted gesture for audio on iOS 17+
     document.querySelectorAll('.dj-pad').forEach(pad=>{
-      pad.addEventListener('pointerdown',e=>{
-        e.preventDefault();
-        const name=pad.dataset.drum;
-        const ctx=djAudioCtx();
-        ctx.resume();
-        djDrum(name);  // when=undefined → ctx.currentTime (0=immediate, or real time if running)
+      function go(name){
+        djAudioCtx().resume().then(()=>djDrum(name));
         startRepeat(name);
         pad.classList.add('flash');
         setTimeout(()=>pad.classList.remove('flash'),120);
+      }
+      pad.addEventListener('touchstart',e=>{
+        e.preventDefault();
+        go(pad.dataset.drum);
+      },{passive:false});
+      pad.addEventListener('pointerdown',e=>{
+        if(e.pointerType==='touch') return; // touchstart handles it
+        e.preventDefault();
+        go(pad.dataset.drum);
       });
+      pad.addEventListener('touchend',    ()=>stopRepeat());
+      pad.addEventListener('touchcancel', ()=>stopRepeat());
       pad.addEventListener('pointerup',   ()=>stopRepeat());
       pad.addEventListener('pointercancel',()=>stopRepeat());
     });
