@@ -2787,6 +2787,7 @@ Output the token list now, nothing else:`
   const DJ_LOOKAHEAD=22;
 
   function djSched(){
+    if(!djIsPlaying) return;  // guard against stale timer calls after stopDj()
     const ctx=djAudioCtx();
     const stepDur=(60/djBpm)/4;
     while(djNextStepTime<ctx.currentTime+DJ_SCHEDULE_AHEAD){
@@ -2814,6 +2815,9 @@ Output the token list now, nothing else:`
     djIsPlaying=false;
     clearTimeout(djSchedulerId); djSchedulerId=null;
     stopRepeat();
+    // Kill any orphaned FX timers (Stutter setInterval can survive touchend miss)
+    clearInterval(window._djFxStutter); window._djFxStutter=null;
+    document.querySelectorAll('.dj-fx-btn').forEach(b=>b.classList.remove('fx-on'));
     document.querySelectorAll('.seq-step').forEach(el=>el.classList.remove('seq-current'));
     const btn=document.getElementById('djPlayBtn');
     if(btn) btn.textContent='▶ Play';
@@ -3188,7 +3192,8 @@ Output the token list now, nothing else:`
     });
 
     // FX pads — hold to sustain where appropriate
-    let fxSpaceGain=null, fxStutterTimer=null;
+    let fxSpaceGain=null;
+    window._djFxStutter=null; // global so stopDj() can kill it
     document.querySelectorAll('.dj-fx-btn').forEach(btn=>{
       const fx=btn.dataset.fx;
 
@@ -3226,7 +3231,7 @@ Output the token list now, nothing else:`
             ns.connect(lp); lp.connect(g); g.connect(ctx.destination); ns.start();
           } else if(fx==='stutter'){
             // Rapid kick — hold to repeat
-            fxStutterTimer=setInterval(()=>{
+            window._djFxStutter=setInterval(()=>{
               djAudioCtx().resume().then(()=>djDrum('kick'));
             }, Math.floor(60000/djBpm/4));
           } else if(fx==='reverse'){
@@ -3248,7 +3253,7 @@ Output the token list now, nothing else:`
           fxSpaceGain.gain.exponentialRampToValueAtTime(0.0001,djAudioCtx().currentTime+0.5);
           fxSpaceGain=null;
         }
-        if(fx==='stutter'){ clearInterval(fxStutterTimer); fxStutterTimer=null; }
+        if(fx==='stutter'){ clearInterval(window._djFxStutter); window._djFxStutter=null; }
       }
 
       btn.addEventListener('touchstart',e=>{e.preventDefault();fxStart();},{passive:false});
