@@ -252,25 +252,32 @@
     #djDemoBtn:hover,#djDemoBtn:active{border-color:#3388cc;color:#66aaee;}
     #djChopStatus{font-size:.63rem;color:#2a5a2a;min-width:80px;}
 
-    /* Scratch pad */
+    /* Dual-disc scratch */
     #djScratch{
-      background:#07061a;border:1.5px solid #1a1a35;border-radius:12px;
-      padding:8px 12px;user-select:none;touch-action:none;cursor:grab;
+      display:flex;gap:16px;justify-content:center;align-items:center;
+      padding:6px 0;user-select:none;
     }
-    #djScratch:active{cursor:grabbing;}
-    #djScratchLbl{font-size:.62rem;color:#2a2a5a;text-align:center;margin-bottom:6px;}
-    #djScratchTrack{background:#0e0d24;border-radius:8px;height:46px;position:relative;overflow:hidden;}
-    #djVinyl{
-      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-      width:38px;height:38px;border-radius:50%;
-      background:radial-gradient(circle at 38% 33%,#28255a,#090818);
-      border:3px solid #4433aa;box-shadow:0 0 10px rgba(80,60,180,.3);
-      transition:box-shadow .05s,border-color .05s;
+    .dj-disc{
+      width:88px;height:88px;border-radius:50%;position:relative;
+      background:conic-gradient(#1a1838 0deg,#252448 30deg,#1a1838 60deg,#252448 90deg,
+        #1a1838 120deg,#252448 150deg,#1a1838 180deg,#252448 210deg,
+        #1a1838 240deg,#252448 270deg,#1a1838 300deg,#252448 330deg,#1a1838 360deg);
+      border:3px solid #4433aa;box-shadow:0 0 10px rgba(80,60,180,.25);
+      touch-action:none;cursor:grab;flex-shrink:0;
+      transition:box-shadow .06s,border-color .06s;
     }
-    #djVinyl.scratching{box-shadow:0 0 20px rgba(150,90,255,.65);border-color:#9966ff;}
-    #djScratchWave{
+    .dj-disc.scratching{box-shadow:0 0 22px rgba(150,90,255,.7);border-color:#9966ff;}
+    .dj-disc-groove{
+      position:absolute;inset:10px;border-radius:50%;
+      border:1.5px solid rgba(100,80,200,.22);
+      box-shadow:inset 0 0 0 8px rgba(100,80,200,.08),
+                 0 0 0 4px rgba(100,80,200,.06);
+      pointer-events:none;
+    }
+    .dj-disc-label{
       position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-      pointer-events:none;font-size:.6rem;color:#22205a;letter-spacing:.3em;
+      font-size:.75rem;font-weight:800;color:rgba(150,120,255,.55);
+      pointer-events:none;letter-spacing:.05em;
     }
   </style>
 </head>
@@ -380,6 +387,11 @@
       <button class="dj-preset-btn" data-pattern="hiphop">Hip-Hop</button>
       <button class="dj-preset-btn" data-pattern="house">House</button>
       <button class="dj-preset-btn" data-pattern="trap">Trap</button>
+      <button class="dj-preset-btn" data-pattern="funk">Funk</button>
+      <button class="dj-preset-btn" data-pattern="reggae">Reggae</button>
+      <button class="dj-preset-btn" data-pattern="dnb">DnB</button>
+      <button class="dj-preset-btn" data-pattern="afro">Afro</button>
+      <button class="dj-preset-btn" data-pattern="garage">Garage</button>
       <button class="dj-preset-btn" data-pattern="clear">Clear</button>
     </div>
     <!-- Audio diagnostic -->
@@ -396,12 +408,15 @@
       <button id="djDemoBtn">🎹 Demo loop</button>
       <span id="djChopStatus"></span>
     </div>
-    <!-- Scratch pad -->
+    <!-- Dual-disc scratch -->
     <div id="djScratch">
-      <div id="djScratchLbl">◉ Scratch — drag left ↔ right</div>
-      <div id="djScratchTrack">
-        <div id="djScratchWave">··· ◉ ···</div>
-        <div id="djVinyl"></div>
+      <div class="dj-disc" id="djDisc0">
+        <div class="dj-disc-groove"></div>
+        <div class="dj-disc-label">L</div>
+      </div>
+      <div class="dj-disc" id="djDisc1">
+        <div class="dj-disc-groove"></div>
+        <div class="dj-disc-label">R</div>
       </div>
     </div>
     <!-- 4×4 Pad grid (MPC layout) — bottom for thumb reach -->
@@ -2896,6 +2911,11 @@ Output the token list now, nothing else:`
 
   function switchDjBank(bank){
     djChopMode=(bank==='chop');
+    if(djChopMode&&djChoppedBuffers.length===0){
+      const s=document.getElementById('djChopStatus');
+      if(s) s.textContent='⟳ loading demo…';
+      loadDemoLoop();
+    }
     document.querySelectorAll('.dj-bank-btn').forEach(b=>b.classList.toggle('sel',b.dataset.bank===bank));
     document.querySelectorAll('.dj-pad').forEach((pad,i)=>{
       const nameEl=pad.querySelector('.dj-pad-name');
@@ -2934,6 +2954,36 @@ Output the token list now, nothing else:`
       [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
       [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
     ],
+    funk:[
+      [1,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0],
+      [0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0],
+      [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+    ],
+    reggae:[
+      [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
+      [0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0],
+      [1,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0],
+    ],
+    dnb:[
+      [1,0,0,1,0,0,1,0,0,1,0,0,0,0,0,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0],
+      [1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,0],
+      [0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1],
+    ],
+    afro:[
+      [1,0,0,0,0,0,1,0,1,0,0,0,0,0,1,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      [1,0,1,1,0,1,0,1,1,0,1,1,0,1,0,1],
+      [0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0],
+    ],
+    garage:[
+      [1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0],
+      [1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1],
+      [0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1],
+    ],
   };
 
   function loadDjPattern(name){
@@ -2948,35 +2998,25 @@ Output the token list now, nothing else:`
       el.classList.toggle('seq-on',seqGrid[+el.dataset.track][+el.dataset.step]));
   }
 
-  // ── Scratch pad ───────────────────────────────────────────────────────
-  let scratchX=null, scratchT=null;
-
-  function onScratchMove(x){
-    if(scratchX===null){scratchX=x;scratchT=Date.now();return;}
-    const now=Date.now(), dt=Math.max(1,now-scratchT);
-    const vel=(x-scratchX)/dt;
-    scratchX=x; scratchT=now;
-    if(Math.abs(vel)<0.06) return;
-    const ctx=djAudioCtx(); ctx.resume();
-    const when=ctx.currentTime;
-    const len=Math.floor(ctx.sampleRate*0.035);
-    const buf=ctx.createBuffer(1,len,ctx.sampleRate);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
-    const ns=ctx.createBufferSource(); ns.buffer=buf;
-    ns.playbackRate.value=0.6+Math.abs(vel)*8;
-    const bf=ctx.createBiquadFilter(); bf.type='bandpass';
-    bf.frequency.value=Math.max(300,Math.min(4000,1200+vel*4000));
-    bf.Q.value=1.8;
-    const g=ctx.createGain(); g.gain.value=Math.min(0.9,Math.abs(vel)*6);
-    ns.connect(bf); bf.connect(g); g.connect(ctx.destination);
-    ns.start(when); ns.stop(when+0.04);
-    const vinyl=document.getElementById('djVinyl');
-    if(vinyl){
-      vinyl.classList.add('scratching');
-      clearTimeout(vinyl._sct);
-      vinyl._sct=setTimeout(()=>vinyl.classList.remove('scratching'),120);
-    }
+  // ── Dual-disc scratch ─────────────────────────────────────────────────
+  function scratchSound(vel){
+    if(Math.abs(vel)<0.05) return;
+    const ctx=djAudioCtx();
+    ctx.resume().then(()=>{
+      const when=ctx.currentTime;
+      const len=Math.floor(ctx.sampleRate*0.035);
+      const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+      const ns=ctx.createBufferSource(); ns.buffer=buf;
+      ns.playbackRate.value=0.6+Math.abs(vel)*8;
+      const bf=ctx.createBiquadFilter(); bf.type='bandpass';
+      bf.frequency.value=Math.max(300,Math.min(4000,1200+vel*4000));
+      bf.Q.value=1.8;
+      const g=ctx.createGain(); g.gain.value=Math.min(0.9,Math.abs(vel)*6);
+      ns.connect(bf); bf.connect(g); g.connect(ctx.destination);
+      ns.start(when); ns.stop(when+0.04);
+    });
   }
 
   // ── Build UI (runs once on first tab open) ────────────────────────────
@@ -3103,18 +3143,42 @@ Output the token list now, nothing else:`
       loadDemoLoop();
     });
 
-    // Scratch pad
-    const scratch=document.getElementById('djScratch');
-    scratch.addEventListener('pointerdown',e=>{
-      e.preventDefault(); scratch.setPointerCapture(e.pointerId);
-      scratchX=e.clientX; scratchT=Date.now();
+    // Dual-disc scratch — each disc independent, touch + mouse
+    document.querySelectorAll('.dj-disc').forEach(disc=>{
+      let angle=0, lastX=null, lastT=null, tid=null;
+
+      function onMove(x){
+        if(lastX===null){lastX=x;lastT=Date.now();return;}
+        const now=Date.now(), dt=Math.max(1,now-lastT);
+        const dx=x-lastX;
+        const vel=dx/dt;
+        angle+=dx*1.8;
+        disc.style.transform=`rotate(${angle}deg)`;
+        lastX=x; lastT=now;
+        scratchSound(vel);
+        _iosAudioEl.play().catch(()=>{});
+      }
+      function end(){ lastX=null; lastT=null; tid=null; disc.classList.remove('scratching'); }
+
+      disc.addEventListener('touchstart',e=>{
+        e.preventDefault();
+        tid=e.changedTouches[0].identifier;
+        lastX=e.changedTouches[0].clientX; lastT=Date.now();
+        disc.classList.add('scratching');
+      },{passive:false});
+      disc.addEventListener('touchmove',e=>{
+        e.preventDefault();
+        for(const t of e.changedTouches){ if(t.identifier===tid) onMove(t.clientX); }
+      },{passive:false});
+      disc.addEventListener('touchend',  end);
+      disc.addEventListener('touchcancel',end);
+
+      // Mouse fallback for desktop
+      disc.addEventListener('mousedown',e=>{ lastX=e.clientX; lastT=Date.now(); disc.classList.add('scratching'); });
+      disc.addEventListener('mousemove',e=>{ if(e.buttons) onMove(e.clientX); });
+      disc.addEventListener('mouseup',  end);
+      disc.addEventListener('mouseleave',end);
     });
-    scratch.addEventListener('pointermove',e=>{
-      if(e.buttons===0&&e.pointerType==='mouse') return;
-      onScratchMove(e.clientX);
-    });
-    ['pointerup','pointercancel'].forEach(ev=>
-      scratch.addEventListener(ev,()=>{scratchX=null;scratchT=null;}));
   }
   </script>
 </body>
