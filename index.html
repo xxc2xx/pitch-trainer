@@ -197,7 +197,7 @@
     .dj-pad-name{pointer-events:none;}
     .dj-pad-row{font-size:.72rem;color:rgba(255,255,255,.25);margin-top:2px;pointer-events:none;letter-spacing:.04em;}
 
-    /* NOTE REPEAT row */
+    /* Echo (Note Repeat) row */
     .dj-repeat-row{display:flex;align-items:center;gap:6px;justify-content:center;}
     .dj-rep-lbl{font-size:.63rem;color:#3a3a6a;}
     .dj-rep-btn{
@@ -205,6 +205,26 @@
       border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
     .dj-rep-btn.sel{background:#2a1540;border-color:#aa55cc;color:#cc88ff;}
+
+    /* FX row */
+    .dj-fx-row{display:flex;align-items:center;gap:6px;justify-content:center;flex-wrap:wrap;}
+    .dj-fx-btn{
+      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#3a6a8a;
+      border-radius:14px;padding:4px 12px;font-size:.67rem;cursor:pointer;
+      transition:all .1s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    }
+    .dj-fx-btn:active,.dj-fx-btn.fx-on{background:#0a2535;border-color:#22aacc;color:#55ddff;
+      box-shadow:0 0 10px rgba(34,170,204,.4);}
+
+    /* Advanced toggle */
+    #djAdvBtn{
+      background:transparent;border:none;color:#2a2a4a;font-size:.62rem;cursor:pointer;
+      padding:2px 6px;touch-action:manipulation;align-self:center;
+    }
+
+    /* Play button pulse on first load */
+    @keyframes djPulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.5)}50%{box-shadow:0 0 0 8px rgba(99,102,241,0)}}
+    .dj-play-pulse{animation:djPulse 1.6s ease-in-out infinite;}
 
     /* Sequencer */
     #djSeq{display:flex;flex-direction:column;gap:4px;background:#07061a;border-radius:10px;padding:7px 5px;}
@@ -361,26 +381,36 @@
 
   <!-- ── DJ / MPC Tab ───────────────────────────────────── -->
   <div id="djView">
-    <!-- Bank + BPM + TAP + Play -->
+    <!-- Bank + Speed + TAP + Play -->
     <div class="dj-top">
       <button class="dj-bank-btn sel" data-bank="drums">DRUMS</button>
+      <button class="dj-bank-btn"    data-bank="melody">MELODY</button>
       <button class="dj-bank-btn"    data-bank="chop" >CHOP</button>
-      <span style="font-size:.7rem;color:#4a4a7a;margin-left:4px;">BPM</span>
+      <span style="font-size:.7rem;color:#4a4a7a;margin-left:4px;">Speed</span>
       <input type="range" id="djBpmSlider" min="60" max="180" value="120">
       <span id="djBpmVal">120</span>
       <button id="djTapBtn">TAP</button>
-      <button class="btn btn-start" id="djPlayBtn" style="padding:6px 14px;font-size:.84rem;">▶ Play</button>
+      <button class="btn btn-start dj-play-pulse" id="djPlayBtn" style="padding:6px 14px;font-size:.84rem;">▶ Play</button>
     </div>
-    <!-- NOTE REPEAT -->
+    <!-- Echo (Note Repeat) -->
     <div class="dj-repeat-row">
-      <span class="dj-rep-lbl">NOTE REPEAT:</span>
+      <span class="dj-rep-lbl">Echo:</span>
       <button class="dj-rep-btn sel" data-rep="0">OFF</button>
       <button class="dj-rep-btn"    data-rep="2">⅛</button>
       <button class="dj-rep-btn"    data-rep="4">¹⁄₁₆</button>
       <button class="dj-rep-btn"    data-rep="8">¹⁄₃₂</button>
     </div>
-    <!-- Sequencer (rows built by JS, includes mute buttons) -->
-    <div id="djSeq"></div>
+    <!-- FX pads -->
+    <div class="dj-fx-row">
+      <span class="dj-rep-lbl">FX:</span>
+      <button class="dj-fx-btn" data-fx="space">🌌 Space</button>
+      <button class="dj-fx-btn" data-fx="sweep">🌊 Sweep</button>
+      <button class="dj-fx-btn" data-fx="stutter">⚡ Stutter</button>
+      <button class="dj-fx-btn" data-fx="reverse">🔄 Reverse</button>
+    </div>
+    <!-- Sequencer (hidden by default — Advanced toggle) -->
+    <button id="djAdvBtn">⚙ Advanced ▼</button>
+    <div id="djSeq" style="display:none"></div>
     <!-- Patterns -->
     <div class="dj-presets">
       <span class="dj-pre-lbl">Pattern:</span>
@@ -393,11 +423,6 @@
       <button class="dj-preset-btn" data-pattern="afro">Afro</button>
       <button class="dj-preset-btn" data-pattern="garage">Garage</button>
       <button class="dj-preset-btn" data-pattern="clear">Clear</button>
-    </div>
-    <!-- Audio diagnostic -->
-    <div style="text-align:center;margin:2px 0;">
-      <button id="djTestBtn" style="background:#1a1a3a;border:1px solid #4a4a8a;color:#aaa;border-radius:6px;padding:4px 12px;font-size:.7rem;touch-action:manipulation;">🔊 Test tone</button>
-      <span id="djTestStatus" style="font-size:.65rem;color:#6a6a9a;margin-left:6px;"></span>
     </div>
     <!-- CHOP sample loader -->
     <div id="djChopLoad">
@@ -2611,6 +2636,19 @@ Output the token list now, nothing else:`
     ['noteC5','C','NOTE'],['noteE5','E','NOTE'],['noteG5','G','NOTE'],['noteBb5','B♭','NOTE'],
   ];
 
+  // Pentatonic melody bank — C major pentatonic across 4 octaves, solfège labels
+  // [id, label, freq, color]
+  const MELODY_PADS=[
+    ['melC3','Do',130.81,'#ef4444'],['melD3','Re',146.83,'#f97316'],
+    ['melE3','Mi',164.81,'#eab308'],['melG3','Sol',196.00,'#22c55e'],
+    ['melA3','La',220.00,'#06b6d4'],['melC4','Do',261.63,'#3b82f6'],
+    ['melD4','Re',293.66,'#6366f1'],['melE4','Mi',329.63,'#8b5cf6'],
+    ['melG4','Sol',392.00,'#a855f7'],['melA4','La',440.00,'#ec4899'],
+    ['melC5','Do',523.25,'#f43f5e'],['melD5','Re',587.33,'#ef4444'],
+    ['melE5','Mi',659.25,'#2563eb'],['melG5','Sol',784.00,'#0891b2'],
+    ['melA5','La',880.00,'#059669'],['melC6','Do',1046.50,'#ca8a04'],
+  ];
+
   function djAudioCtx(){
     if(!djCtx||djCtx.state==='closed')
       djCtx=new(window.AudioContext||window.webkitAudioContext)();
@@ -2717,6 +2755,22 @@ Output the token list now, nothing else:`
       case'noteG5': toneNote(783.99,0.5); break;
       case'noteBb5':toneNote(932.33,0.5); break;
       default:{
+        // Melody pads
+        const melPad=MELODY_PADS.find(m=>m[0]===name);
+        if(melPad){
+          const freq=melPad[2];
+          const o=ctx.createOscillator(), o2=ctx.createOscillator();
+          o.type='sine'; o2.type='triangle';
+          o.frequency.value=freq; o2.frequency.value=freq*2.005;
+          const g=ctx.createGain();
+          g.gain.setValueAtTime(0,when);
+          g.gain.linearRampToValueAtTime(0.38,when+0.015);
+          g.gain.exponentialRampToValueAtTime(0.0001,when+1.4);
+          o.connect(g); o2.connect(g); g.connect(dest);
+          o.start(when); o2.start(when);
+          o.stop(when+1.5); o2.stop(when+1.5);
+          break;
+        }
         // CHOP pads: name = 'chop0'..'chop15'
         const ci=parseInt(name.replace('chop',''),10);
         if(!isNaN(ci)&&djChoppedBuffers[ci]){
@@ -2920,14 +2974,23 @@ Output the token list now, nothing else:`
     document.querySelectorAll('.dj-pad').forEach((pad,i)=>{
       const nameEl=pad.querySelector('.dj-pad-name');
       const rowEl=pad.querySelector('.dj-pad-row');
-      if(djChopMode){
+      if(bank==='melody'){
+        const m=MELODY_PADS[i];
+        pad.dataset.drum=m[0];
+        pad.style.setProperty('--pc',m[3]);
+        if(nameEl) nameEl.textContent=m[1];
+        if(rowEl)  rowEl.textContent=['Low','Low','Low','Low','Mid','Mid','Mid','Mid',
+                                       'Mid','Mid','High','High','High','High','High','High'][i];
+      } else if(djChopMode){
         pad.dataset.drum=`chop${i}`;
+        pad.style.removeProperty('--pc');
         if(nameEl) nameEl.textContent=i+1;
         if(rowEl)  rowEl.textContent='CHOP';
       } else {
         const def=DJ_PAD_DEF[i];
         if(!def) return;
         pad.dataset.drum=def[0];
+        pad.style.removeProperty('--pc');
         if(nameEl) nameEl.textContent=def[1];
         if(rowEl)  rowEl.textContent=def[2];
       }
@@ -3054,6 +3117,7 @@ Output the token list now, nothing else:`
     // Pad events — touchstart is the only trusted gesture for audio on iOS 17+
     document.querySelectorAll('.dj-pad').forEach(pad=>{
       function go(name){
+        if(navigator.vibrate) navigator.vibrate(18);
         djAudioCtx().resume().then(()=>djDrum(name));
         startRepeat(name);
         pad.classList.add('flash');
@@ -3110,25 +3174,90 @@ Output the token list now, nothing else:`
     });
     loadDjPattern('hiphop');
 
-    // Test tone — bare minimum Web Audio, diagnoses iOS audio permission
-    document.getElementById('djTestBtn').addEventListener('touchstart', e=>{
-      e.preventDefault();
-      const status=document.getElementById('djTestStatus');
-      status.textContent='…';
-      _iosAudioEl.play().catch(function(){});
-      try{
-        const ctx=new(window.AudioContext||window.webkitAudioContext)();
-        status.textContent='ctx:'+ctx.state;
+    // Stop play-button pulse once user taps Play
+    document.getElementById('djPlayBtn').addEventListener('click',()=>{
+      document.getElementById('djPlayBtn').classList.remove('dj-play-pulse');
+    },{once:true});
+
+    // Advanced toggle (sequencer)
+    document.getElementById('djAdvBtn').addEventListener('click',()=>{
+      const seq=document.getElementById('djSeq');
+      const open=seq.style.display!=='none';
+      seq.style.display=open?'none':'flex';
+      document.getElementById('djAdvBtn').textContent=open?'⚙ Advanced ▼':'⚙ Advanced ▲';
+    });
+
+    // FX pads — hold to sustain where appropriate
+    let fxSpaceGain=null, fxStutterTimer=null;
+    document.querySelectorAll('.dj-fx-btn').forEach(btn=>{
+      const fx=btn.dataset.fx;
+
+      function fxStart(){
+        btn.classList.add('fx-on');
+        _iosAudioEl.play().catch(()=>{});
+        const ctx=djAudioCtx();
         ctx.resume().then(()=>{
-          status.textContent='running';
-          const o=ctx.createOscillator();
-          o.frequency.value=440;
-          o.connect(ctx.destination);
-          o.start();
-          setTimeout(()=>{ o.stop(); ctx.close(); status.textContent='done ✓'; },300);
-        }).catch(err=>{ status.textContent='err:'+err.message; });
-      }catch(err){ status.textContent='FAIL:'+err.message; }
-    },{passive:false});
+          const now=ctx.currentTime;
+          if(fx==='space'){
+            // Sustained reverb wash — hold to keep
+            const len=Math.floor(ctx.sampleRate*2);
+            const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+            const d=buf.getChannelData(0);
+            for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.5);
+            const ns=ctx.createBufferSource(); ns.buffer=buf; ns.loop=true;
+            const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2800;
+            fxSpaceGain=ctx.createGain(); fxSpaceGain.gain.setValueAtTime(0,now);
+            fxSpaceGain.gain.linearRampToValueAtTime(0.32,now+0.35);
+            ns.connect(lp); lp.connect(fxSpaceGain); fxSpaceGain.connect(ctx.destination);
+            ns.start();
+          } else if(fx==='sweep'){
+            // Filter whoosh — one-shot
+            const len=Math.floor(ctx.sampleRate*0.75);
+            const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+            const d=buf.getChannelData(0);
+            for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+            const ns=ctx.createBufferSource(); ns.buffer=buf;
+            const lp=ctx.createBiquadFilter(); lp.type='lowpass';
+            lp.frequency.setValueAtTime(80,now);
+            lp.frequency.exponentialRampToValueAtTime(14000,now+0.75);
+            const g=ctx.createGain();
+            g.gain.setValueAtTime(0.55,now);
+            g.gain.exponentialRampToValueAtTime(0.0001,now+0.75);
+            ns.connect(lp); lp.connect(g); g.connect(ctx.destination); ns.start();
+          } else if(fx==='stutter'){
+            // Rapid kick — hold to repeat
+            fxStutterTimer=setInterval(()=>{
+              djAudioCtx().resume().then(()=>djDrum('kick'));
+            }, Math.floor(60000/djBpm/4));
+          } else if(fx==='reverse'){
+            // Reverse crash build-up
+            const len=Math.floor(ctx.sampleRate*0.65);
+            const buf=ctx.createBuffer(1,len,ctx.sampleRate);
+            const d=buf.getChannelData(0);
+            for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(i/len);
+            const ns=ctx.createBufferSource(); ns.buffer=buf;
+            const hp=ctx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3500;
+            const g=ctx.createGain(); g.gain.value=0.55;
+            ns.connect(hp); hp.connect(g); g.connect(ctx.destination); ns.start();
+          }
+        });
+      }
+      function fxEnd(){
+        btn.classList.remove('fx-on');
+        if(fx==='space'&&fxSpaceGain){
+          fxSpaceGain.gain.exponentialRampToValueAtTime(0.0001,djAudioCtx().currentTime+0.5);
+          fxSpaceGain=null;
+        }
+        if(fx==='stutter'){ clearInterval(fxStutterTimer); fxStutterTimer=null; }
+      }
+
+      btn.addEventListener('touchstart',e=>{e.preventDefault();fxStart();},{passive:false});
+      btn.addEventListener('touchend',  ()=>fxEnd());
+      btn.addEventListener('touchcancel',()=>fxEnd());
+      btn.addEventListener('mousedown', ()=>fxStart());
+      btn.addEventListener('mouseup',   ()=>fxEnd());
+      btn.addEventListener('mouseleave',()=>fxEnd());
+    });
 
     // CHOP file loader
     document.getElementById('djChopFile').addEventListener('change',e=>{
