@@ -1548,7 +1548,7 @@
     const showOct=dispOct!==undefined?dispOct:currentOctave;
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
-    const ac=kbCtx, t=ac.currentTime;
+    const ac=kbCtx, t=ac.currentTime+0.03;
 
     if(currentInstrument==='drum'){
       const dname=DRUM_LABELS[bare]||bare;
