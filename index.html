@@ -382,6 +382,11 @@
       <button class="dj-preset-btn" data-pattern="trap">Trap</button>
       <button class="dj-preset-btn" data-pattern="clear">Clear</button>
     </div>
+    <!-- Audio diagnostic -->
+    <div style="text-align:center;margin:2px 0;">
+      <button id="djTestBtn" style="background:#1a1a3a;border:1px solid #4a4a8a;color:#aaa;border-radius:6px;padding:4px 12px;font-size:.7rem;touch-action:manipulation;">🔊 Test tone</button>
+      <span id="djTestStatus" style="font-size:.65rem;color:#6a6a9a;margin-left:6px;"></span>
+    </div>
     <!-- CHOP sample loader -->
     <div id="djChopLoad">
       <button id="djChopBtn">
@@ -3053,6 +3058,25 @@ Output the token list now, nothing else:`
       btn.addEventListener('click',()=>loadDjPattern(btn.dataset.pattern));
     });
     loadDjPattern('hiphop');
+
+    // Test tone — bare minimum Web Audio, diagnoses iOS audio permission
+    document.getElementById('djTestBtn').addEventListener('touchstart', e=>{
+      e.preventDefault();
+      const status=document.getElementById('djTestStatus');
+      status.textContent='…';
+      try{
+        const ctx=new(window.AudioContext||window.webkitAudioContext)();
+        status.textContent='ctx:'+ctx.state;
+        ctx.resume().then(()=>{
+          status.textContent='running';
+          const o=ctx.createOscillator();
+          o.frequency.value=440;
+          o.connect(ctx.destination);
+          o.start();
+          setTimeout(()=>{ o.stop(); ctx.close(); status.textContent='done ✓'; },300);
+        }).catch(err=>{ status.textContent='err:'+err.message; });
+      }catch(err){ status.textContent='FAIL:'+err.message; }
+    },{passive:false});
 
     // CHOP file loader
     document.getElementById('djChopFile').addEventListener('change',e=>{
