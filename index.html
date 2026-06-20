@@ -150,78 +150,110 @@
     }
     .inst-btn.sel{background:#1a1a40;border-color:#4848cc;color:#8888ee;}
 
-    /* ── DJ Tab ──────────────────────────────────────────────────── */
-    #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:10px;}
-    .dj-top{display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;}
-    #djBpmSlider{width:100px;accent-color:#a855f7;}
-    #djBpmVal{color:#a855f7;font-weight:700;min-width:2.5em;font-size:.85rem;}
+    /* ── DJ / MPC Tab ────────────────────────────────────────────── */
+    #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:9px;}
+    .dj-top{display:flex;align-items:center;gap:7px;justify-content:center;flex-wrap:wrap;}
+    #djBpmSlider{width:75px;accent-color:#a855f7;}
+    #djBpmVal{color:#a855f7;font-weight:700;min-width:2em;font-size:.82rem;}
 
-    /* Drum pads */
-    #djPads{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+    /* Bank + TAP */
+    .dj-bank-btn{
+      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#4a4a7a;
+      border-radius:7px;padding:5px 11px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .12s;
+    }
+    .dj-bank-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
+    #djTapBtn{
+      background:#1a1a30;border:1.5px solid #3333aa;color:#7777cc;
+      border-radius:7px;padding:5px 9px;font-size:.7rem;font-weight:700;cursor:pointer;
+      transition:background .08s;touch-action:manipulation;min-width:36px;text-align:center;
+    }
+    #djTapBtn:active{background:#252560;}
+
+    /* 4×4 pad grid */
+    #djPads{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
     .dj-pad{
-      background:rgba(0,0,0,.3);border:2px solid var(--pc,#ef4444);
-      color:var(--pc,#ef4444);border-radius:10px;padding:13px 4px;
-      font-size:.74rem;font-weight:700;cursor:pointer;
+      background:rgba(0,0,0,.35);border:2px solid var(--pc,#ef4444);
+      color:var(--pc,#ef4444);border-radius:9px;padding:10px 2px 7px;
+      font-size:.72rem;font-weight:700;cursor:pointer;line-height:1.15;
       transition:background .07s,box-shadow .07s;touch-action:manipulation;
-      -webkit-tap-highlight-color:transparent;
+      -webkit-tap-highlight-color:transparent;display:flex;flex-direction:column;align-items:center;
     }
     .dj-pad:active,.dj-pad.flash{
       background:var(--pc,#ef4444);color:#fff;
-      box-shadow:0 0 16px var(--pc,#ef4444);
+      box-shadow:0 0 14px var(--pc,#ef4444);
     }
+    .dj-pad-name{pointer-events:none;}
+    .dj-pad-row{font-size:.48rem;color:rgba(255,255,255,.25);margin-top:2px;pointer-events:none;letter-spacing:.04em;}
 
-    /* Step sequencer */
-    #djSeq{display:flex;flex-direction:column;gap:4px;background:#08071a;border-radius:10px;padding:8px 6px;}
-    .seq-row{display:flex;align-items:center;gap:3px;}
-    .seq-label{font-size:.6rem;color:#5a5a8a;width:26px;text-align:right;flex-shrink:0;padding-right:3px;}
+    /* NOTE REPEAT row */
+    .dj-repeat-row{display:flex;align-items:center;gap:6px;justify-content:center;}
+    .dj-rep-lbl{font-size:.63rem;color:#3a3a6a;}
+    .dj-rep-btn{
+      background:#0e0d1a;border:1.5px solid #1e1e3a;color:#3a3a5a;
+      border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
+    }
+    .dj-rep-btn.sel{background:#2a1540;border-color:#aa55cc;color:#cc88ff;}
+
+    /* Sequencer */
+    #djSeq{display:flex;flex-direction:column;gap:4px;background:#07061a;border-radius:10px;padding:7px 5px;}
+    .seq-row{display:flex;align-items:center;gap:2px;}
+    .seq-mute{
+      width:18px;height:18px;flex-shrink:0;
+      background:#0e0d20;border:1.5px solid #2a2a3a;border-radius:3px;
+      font-size:.46rem;font-weight:800;color:#2a2a4a;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;transition:all .1s;touch-action:manipulation;
+    }
+    .seq-mute.muted{background:#300a0a;border-color:#772222;color:#cc4444;}
+    .seq-label{font-size:.56rem;color:#4a4a7a;width:20px;text-align:right;flex-shrink:0;padding-right:2px;}
     .seq-steps{display:flex;gap:2px;flex:1;}
     .seq-step{
-      flex:1;height:24px;background:#10102a;border:1.5px solid #1e1e38;
-      border-radius:4px;cursor:pointer;transition:background .07s;touch-action:manipulation;
+      flex:1;height:20px;background:#0f0f28;border:1.5px solid #1a1a35;
+      border-radius:3px;cursor:pointer;transition:background .07s;touch-action:manipulation;
     }
-    .seq-step.seq-on{background:#5533bb;border-color:#7755dd;}
-    .seq-step.seq-current{border-color:#e2b714!important;box-shadow:0 0 6px #e2b714;}
-    .seq-step:nth-child(4n+1){margin-left:4px;}
+    .seq-step.seq-on{background:#4422aa;border-color:#6644cc;}
+    .seq-step.seq-current{border-color:#e2b714!important;box-shadow:0 0 5px #e2b714;}
+    .seq-step:nth-child(4n+1){margin-left:3px;}
     .seq-step:first-child{margin-left:0;}
 
-    /* Pattern presets */
-    .dj-presets{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
-    .dj-pre-lbl{font-size:.68rem;color:#3a3a5a;}
+    /* Patterns */
+    .dj-presets{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;align-items:center;}
+    .dj-pre-lbl{font-size:.63rem;color:#3a3a5a;}
     .dj-preset-btn{
       background:#0e0d1a;border:1.5px solid #2a2a4a;color:#5a5a8a;
-      border-radius:18px;padding:4px 13px;font-size:.7rem;cursor:pointer;transition:all .12s;
+      border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
     .dj-preset-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
 
+    /* CHOP loader */
+    #djChopLoad{display:flex;align-items:center;gap:8px;justify-content:center;}
+    #djChopBtn{
+      background:#0e0d1a;border:1.5px solid #1a3a1a;color:#2a5a2a;
+      border-radius:8px;padding:5px 13px;font-size:.68rem;cursor:pointer;
+      position:relative;overflow:hidden;transition:all .12s;
+    }
+    #djChopBtn:hover,#djChopBtn:active{border-color:#44aa44;color:#77dd77;}
+    #djChopBtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    #djChopStatus{font-size:.63rem;color:#2a5a2a;min-width:80px;}
+
     /* Scratch pad */
     #djScratch{
-      background:#08071a;border:1.5px solid #1e1e38;border-radius:12px;
-      padding:10px 12px;user-select:none;touch-action:none;cursor:grab;
+      background:#07061a;border:1.5px solid #1a1a35;border-radius:12px;
+      padding:8px 12px;user-select:none;touch-action:none;cursor:grab;
     }
     #djScratch:active{cursor:grabbing;}
-    #djScratchLbl{font-size:.65rem;color:#3a3a6a;text-align:center;margin-bottom:8px;}
-    #djScratchTrack{
-      background:#100f26;border-radius:8px;height:52px;
-      position:relative;overflow:hidden;
-    }
+    #djScratchLbl{font-size:.62rem;color:#2a2a5a;text-align:center;margin-bottom:6px;}
+    #djScratchTrack{background:#0e0d24;border-radius:8px;height:46px;position:relative;overflow:hidden;}
     #djVinyl{
-      position:absolute;top:50%;left:50%;
-      transform:translate(-50%,-50%);
-      width:44px;height:44px;border-radius:50%;
-      background:radial-gradient(circle at 40% 35%,#2a2860,#0a091a);
-      border:3px solid #5544aa;
-      box-shadow:0 0 12px rgba(100,80,200,.3);
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:38px;height:38px;border-radius:50%;
+      background:radial-gradient(circle at 38% 33%,#28255a,#090818);
+      border:3px solid #4433aa;box-shadow:0 0 10px rgba(80,60,180,.3);
       transition:box-shadow .05s,border-color .05s;
     }
-    #djVinyl.scratching{
-      box-shadow:0 0 22px rgba(160,100,255,.6);
-      border-color:#aa88ff;
-    }
+    #djVinyl.scratching{box-shadow:0 0 20px rgba(150,90,255,.65);border-color:#9966ff;}
     #djScratchWave{
-      position:absolute;top:0;left:0;right:0;bottom:0;
-      display:flex;align-items:center;justify-content:center;
-      pointer-events:none;
-      font-size:.65rem;color:#2a2860;letter-spacing:.3em;
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      pointer-events:none;font-size:.6rem;color:#22205a;letter-spacing:.3em;
     }
   </style>
 </head>
@@ -303,29 +335,52 @@
     <div id="playLog"></div>
   </div>
 
-  <!-- ── DJ Tab ──────────────────────────────────────────── -->
+  <!-- ── DJ / MPC Tab ───────────────────────────────────── -->
   <div id="djView">
-    <!-- BPM + play -->
+    <!-- Bank + BPM + TAP + Play -->
     <div class="dj-top">
-      <span style="font-size:.75rem;color:#5a5a8a;">BPM</span>
+      <button class="dj-bank-btn sel" data-bank="drums">DRUMS</button>
+      <button class="dj-bank-btn"    data-bank="chop" >CHOP</button>
+      <span style="font-size:.7rem;color:#4a4a7a;margin-left:4px;">BPM</span>
       <input type="range" id="djBpmSlider" min="60" max="180" value="120">
       <span id="djBpmVal">120</span>
-      <button class="btn btn-start" id="djPlayBtn" style="padding:7px 18px;font-size:.88rem;">▶ Play</button>
+      <button id="djTapBtn">TAP</button>
+      <button class="btn btn-start" id="djPlayBtn" style="padding:6px 14px;font-size:.84rem;">▶ Play</button>
     </div>
-    <!-- Drum pads -->
+    <!-- 4×4 Pad grid (MPC layout) -->
     <div id="djPads">
-      <button class="dj-pad" data-drum="kick"    style="--pc:#ef4444;">Kick</button>
-      <button class="dj-pad" data-drum="snare"   style="--pc:#f97316;">Snare</button>
-      <button class="dj-pad" data-drum="hihat"   style="--pc:#eab308;">Hi-Hat</button>
-      <button class="dj-pad" data-drum="openhat" style="--pc:#22c55e;">Open HH</button>
-      <button class="dj-pad" data-drum="clap"    style="--pc:#06b6d4;">Clap</button>
-      <button class="dj-pad" data-drum="rim"     style="--pc:#3b82f6;">Rim</button>
-      <button class="dj-pad" data-drum="crash"   style="--pc:#8b5cf6;">Crash</button>
-      <button class="dj-pad" data-drum="cowbell" style="--pc:#ec4899;">More</button>
+      <!-- Row 1: Core drums -->
+      <button class="dj-pad" data-drum="kick"    style="--pc:#ef4444;"><span class="dj-pad-name">Kick</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="snare"   style="--pc:#f97316;"><span class="dj-pad-name">Snare</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="hihat"   style="--pc:#eab308;"><span class="dj-pad-name">Hi-Hat</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="clap"    style="--pc:#22c55e;"><span class="dj-pad-name">Clap</span><span class="dj-pad-row">DRUM</span></button>
+      <!-- Row 2: Texture -->
+      <button class="dj-pad" data-drum="openhat" style="--pc:#06b6d4;"><span class="dj-pad-name">Open HH</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="rim"     style="--pc:#3b82f6;"><span class="dj-pad-name">Rim</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="crash"   style="--pc:#6366f1;"><span class="dj-pad-name">Crash</span><span class="dj-pad-row">DRUM</span></button>
+      <button class="dj-pad" data-drum="cowbell" style="--pc:#8b5cf6;"><span class="dj-pad-name">Cowbell</span><span class="dj-pad-row">DRUM</span></button>
+      <!-- Row 3: Toms + perc -->
+      <button class="dj-pad" data-drum="tomh"    style="--pc:#a855f7;"><span class="dj-pad-name">Tom H</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="toml"    style="--pc:#ec4899;"><span class="dj-pad-name">Tom L</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="shaker"  style="--pc:#f43f5e;"><span class="dj-pad-name">Shaker</span><span class="dj-pad-row">PERC</span></button>
+      <button class="dj-pad" data-drum="subkick" style="--pc:#78716c;"><span class="dj-pad-name">Sub</span><span class="dj-pad-row">BASS</span></button>
+      <!-- Row 4: Melodic pads -->
+      <button class="dj-pad" data-drum="noteC5"  style="--pc:#2563eb;"><span class="dj-pad-name">C</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteE5"  style="--pc:#0891b2;"><span class="dj-pad-name">E</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteG5"  style="--pc:#059669;"><span class="dj-pad-name">G</span><span class="dj-pad-row">NOTE</span></button>
+      <button class="dj-pad" data-drum="noteBb5" style="--pc:#ca8a04;"><span class="dj-pad-name">B♭</span><span class="dj-pad-row">NOTE</span></button>
     </div>
-    <!-- Step sequencer (grid built by JS) -->
+    <!-- NOTE REPEAT -->
+    <div class="dj-repeat-row">
+      <span class="dj-rep-lbl">NOTE REPEAT:</span>
+      <button class="dj-rep-btn sel" data-rep="0">OFF</button>
+      <button class="dj-rep-btn"    data-rep="2">⅛</button>
+      <button class="dj-rep-btn"    data-rep="4">¹⁄₁₆</button>
+      <button class="dj-rep-btn"    data-rep="8">¹⁄₃₂</button>
+    </div>
+    <!-- Sequencer (rows built by JS, includes mute buttons) -->
     <div id="djSeq"></div>
-    <!-- Pattern presets -->
+    <!-- Patterns -->
     <div class="dj-presets">
       <span class="dj-pre-lbl">Pattern:</span>
       <button class="dj-preset-btn" data-pattern="hiphop">Hip-Hop</button>
@@ -333,9 +388,17 @@
       <button class="dj-preset-btn" data-pattern="trap">Trap</button>
       <button class="dj-preset-btn" data-pattern="clear">Clear</button>
     </div>
+    <!-- CHOP sample loader -->
+    <div id="djChopLoad">
+      <button id="djChopBtn">
+        📁 Load audio → CHOP to 16 pads
+        <input type="file" id="djChopFile" accept="audio/*">
+      </button>
+      <span id="djChopStatus"></span>
+    </div>
     <!-- Scratch pad -->
     <div id="djScratch">
-      <div id="djScratchLbl">🎛 Scratch pad — drag left ↔ right</div>
+      <div id="djScratchLbl">◉ Scratch — drag left ↔ right</div>
       <div id="djScratchTrack">
         <div id="djScratchWave">··· ◉ ···</div>
         <div id="djVinyl"></div>
@@ -2441,7 +2504,7 @@ Output the token list now, nothing else:`
   if('serviceWorker' in navigator)
     window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
-  // ── DJ Tab ────────────────────────────────────────────────────────────
+  // ── DJ / MPC Tab ──────────────────────────────────────────────────────
   let djCtx=null;
   let djBpm=120;
   let djIsPlaying=false;
@@ -2449,11 +2512,25 @@ Output the token list now, nothing else:`
   let djNextStepTime=0;
   let djSchedulerId=null;
   let djSeqBuilt=false;
+  let djRepeatMult=0;        // 0=off, 2=⅛, 4=¹⁄₁₆, 8=¹⁄₃₂
+  let djRepeatTimer=null;
+  let djMuted=[false,false,false,false];
+  let djChopMode=false;
+  let djChoppedBuffers=[];
+  let djTapTimes=[];
 
   const DJ_TRACK_NAMES=['Kick','Snare','HH','Clap'];
   const DJ_TRACK_KEYS =['kick','snare','hihat','clap'];
   const DJ_STEPS=16;
   let seqGrid=DJ_TRACK_KEYS.map(()=>new Array(DJ_STEPS).fill(false));
+
+  // Pad definition table — used by switchDjBank to restore DRUMS mode
+  const DJ_PAD_DEF=[
+    ['kick','Kick','DRUM'],['snare','Snare','DRUM'],['hihat','Hi-Hat','DRUM'],['clap','Clap','DRUM'],
+    ['openhat','Open HH','DRUM'],['rim','Rim','DRUM'],['crash','Crash','DRUM'],['cowbell','Cowbell','DRUM'],
+    ['tomh','Tom H','PERC'],['toml','Tom L','PERC'],['shaker','Shaker','PERC'],['subkick','Sub','BASS'],
+    ['noteC5','C','NOTE'],['noteE5','E','NOTE'],['noteG5','G','NOTE'],['noteBb5','B♭','NOTE'],
+  ];
 
   function djAudioCtx(){
     if(!djCtx||djCtx.state==='closed')
@@ -2461,7 +2538,7 @@ Output the token list now, nothing else:`
     return djCtx;
   }
 
-  // ── Drum synthesis ───────────────────────────────────────────────────
+  // ── Drum / instrument synthesis ───────────────────────────────────────
   function djDrum(name,when){
     const ctx=djAudioCtx();
     when=when??ctx.currentTime;
@@ -2480,34 +2557,33 @@ Output the token list now, nothing else:`
       g.gain.exponentialRampToValueAtTime(0.0001,when+decay);
       g.connect(out||dest); return g;
     }
+    function toneNote(freq,dur){
+      const o=ctx.createOscillator(),g=gainEnv(0.5,dur*0.8);
+      o.frequency.value=freq; o.connect(g); o.start(when); o.stop(when+dur);
+    }
 
     switch(name){
       case'kick':{
         const o=ctx.createOscillator(),g=gainEnv(1.3,0.38);
-        o.frequency.setValueAtTime(160,when);
-        o.frequency.exponentialRampToValueAtTime(38,when+0.09);
-        o.connect(g); o.start(when); o.stop(when+0.4);
-        break;
+        o.frequency.setValueAtTime(160,when); o.frequency.exponentialRampToValueAtTime(38,when+0.09);
+        o.connect(g); o.start(when); o.stop(when+0.4); break;
       }
       case'snare':{
         const nf=ctx.createBiquadFilter(); nf.type='bandpass'; nf.frequency.value=2800; nf.Q.value=0.7;
         const ng=gainEnv(0.9,0.17,nf); nf.connect(dest);
         const n=noise(0.18); n.connect(ng); n.start(when);
         const o=ctx.createOscillator(),og=gainEnv(0.45,0.07);
-        o.frequency.value=210; o.connect(og); o.start(when); o.stop(when+0.08);
-        break;
+        o.frequency.value=210; o.connect(og); o.start(when); o.stop(when+0.08); break;
       }
       case'hihat':{
         const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=7200;
         const hg=gainEnv(0.55,0.05,hf); hf.connect(dest);
-        const n=noise(0.06); n.connect(hg); n.start(when);
-        break;
+        const n=noise(0.06); n.connect(hg); n.start(when); break;
       }
       case'openhat':{
         const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=6500;
         const hg=gainEnv(0.5,0.28,hf); hf.connect(dest);
-        const n=noise(0.3); n.connect(hg); n.start(when);
-        break;
+        const n=noise(0.3); n.connect(hg); n.start(when); break;
       }
       case'clap':{
         [0,0.009,0.018].forEach(off=>{
@@ -2518,14 +2594,12 @@ Output the token list now, nothing else:`
       }
       case'rim':{
         const o=ctx.createOscillator(),g=gainEnv(0.9,0.04);
-        o.frequency.value=850; o.connect(g); o.start(when); o.stop(when+0.045);
-        break;
+        o.frequency.value=850; o.connect(g); o.start(when); o.stop(when+0.045); break;
       }
       case'crash':{
         const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=4800;
         const hg=gainEnv(0.55,0.9,hf); hf.connect(dest);
-        const n=noise(0.9); n.connect(hg); n.start(when);
-        break;
+        const n=noise(0.9); n.connect(hg); n.start(when); break;
       }
       case'cowbell':{
         const g=gainEnv(0.65,0.55);
@@ -2533,6 +2607,44 @@ Output the token list now, nothing else:`
           const o=ctx.createOscillator(); o.type='square'; o.frequency.value=f;
           o.connect(g); o.start(when); o.stop(when+0.55);
         }); break;
+      }
+      case'tomh':{
+        const o=ctx.createOscillator(),g=gainEnv(1.0,0.22);
+        o.frequency.setValueAtTime(120,when); o.frequency.exponentialRampToValueAtTime(60,when+0.07);
+        o.connect(g); o.start(when); o.stop(when+0.25); break;
+      }
+      case'toml':{
+        const o=ctx.createOscillator(),g=gainEnv(1.0,0.30);
+        o.frequency.setValueAtTime(80,when); o.frequency.exponentialRampToValueAtTime(35,when+0.1);
+        o.connect(g); o.start(when); o.stop(when+0.32); break;
+      }
+      case'shaker':{
+        const hf=ctx.createBiquadFilter(); hf.type='highpass'; hf.frequency.value=8000;
+        const hg=gainEnv(0.3,0.04,hf); hf.connect(dest);
+        const n=noise(0.04); n.connect(hg); n.start(when);
+        const hf2=ctx.createBiquadFilter(); hf2.type='highpass'; hf2.frequency.value=9000;
+        const hg2=ctx.createGain();
+        hg2.gain.setValueAtTime(0.18,when+0.02); hg2.gain.exponentialRampToValueAtTime(0.0001,when+0.06);
+        hg2.connect(dest); hf2.connect(hg2);
+        const n2=noise(0.03); n2.connect(hf2); n2.start(when+0.02); break;
+      }
+      case'subkick':{
+        const o=ctx.createOscillator(),g=gainEnv(1.1,0.55);
+        o.frequency.setValueAtTime(60,when); o.frequency.exponentialRampToValueAtTime(22,when+0.14);
+        o.connect(g); o.start(when); o.stop(when+0.6); break;
+      }
+      case'noteC5': toneNote(523.25,0.5); break;
+      case'noteE5': toneNote(659.25,0.5); break;
+      case'noteG5': toneNote(783.99,0.5); break;
+      case'noteBb5':toneNote(932.33,0.5); break;
+      default:{
+        // CHOP pads: name = 'chop0'..'chop15'
+        const ci=parseInt(name.replace('chop',''),10);
+        if(!isNaN(ci)&&djChoppedBuffers[ci]){
+          const src=ctx.createBufferSource(); src.buffer=djChoppedBuffers[ci];
+          const g=ctx.createGain(); g.gain.value=0.85;
+          src.connect(g); g.connect(dest); src.start(when);
+        }
       }
     }
   }
@@ -2546,7 +2658,7 @@ Output the token list now, nothing else:`
     const stepDur=(60/djBpm)/4;
     while(djNextStepTime<ctx.currentTime+DJ_SCHEDULE_AHEAD){
       DJ_TRACK_KEYS.forEach((tk,ti)=>{
-        if(seqGrid[ti][djCurrentStep]) djDrum(tk,djNextStepTime);
+        if(!djMuted[ti]&&seqGrid[ti][djCurrentStep]) djDrum(tk,djNextStepTime);
       });
       const step=djCurrentStep;
       const delay=Math.max(0,(djNextStepTime-ctx.currentTime)*1000);
@@ -2568,6 +2680,7 @@ Output the token list now, nothing else:`
   function stopDj(){
     djIsPlaying=false;
     clearTimeout(djSchedulerId); djSchedulerId=null;
+    stopRepeat();
     document.querySelectorAll('.seq-step').forEach(el=>el.classList.remove('seq-current'));
     const btn=document.getElementById('djPlayBtn');
     if(btn) btn.textContent='▶ Play';
@@ -2578,7 +2691,92 @@ Output the token list now, nothing else:`
       el.classList.toggle('seq-current',+el.dataset.step===step));
   }
 
-  // ── Presets ──────────────────────────────────────────────────────────
+  // ── NOTE REPEAT ───────────────────────────────────────────────────────
+  function stopRepeat(){
+    clearInterval(djRepeatTimer); djRepeatTimer=null;
+  }
+
+  function startRepeat(name){
+    stopRepeat();
+    if(!djRepeatMult) return;
+    const intervalMs=(60000/djBpm)/djRepeatMult;
+    djRepeatTimer=setInterval(()=>{
+      djAudioCtx().resume();
+      djDrum(name);
+      const pad=document.querySelector(`.dj-pad[data-drum="${name}"]`);
+      if(pad){pad.classList.add('flash');setTimeout(()=>pad.classList.remove('flash'),80);}
+    },intervalMs);
+  }
+
+  // ── TAP TEMPO ─────────────────────────────────────────────────────────
+  function tapTempo(){
+    const now=Date.now();
+    if(djTapTimes.length&&now-djTapTimes[djTapTimes.length-1]>3000) djTapTimes=[];
+    djTapTimes.push(now);
+    if(djTapTimes.length>8) djTapTimes.shift();
+    const tapBtn=document.getElementById('djTapBtn');
+    if(djTapTimes.length<2){tapBtn&&(tapBtn.textContent='TAP…');return;}
+    const intervals=[];
+    for(let i=1;i<djTapTimes.length;i++) intervals.push(djTapTimes[i]-djTapTimes[i-1]);
+    const avgMs=intervals.reduce((a,b)=>a+b,0)/intervals.length;
+    djBpm=Math.round(Math.max(40,Math.min(240,60000/avgMs)));
+    const slider=document.getElementById('djBpmSlider');
+    const bpmVal=document.getElementById('djBpmVal');
+    if(slider) slider.value=Math.max(60,Math.min(180,djBpm));
+    if(bpmVal) bpmVal.textContent=djBpm;
+    if(tapBtn){
+      tapBtn.textContent=String(djBpm);
+      clearTimeout(tapBtn._t);
+      tapBtn._t=setTimeout(()=>{tapBtn.textContent='TAP';},1500);
+    }
+  }
+
+  // ── CHOP mode ─────────────────────────────────────────────────────────
+  async function loadChopSample(file){
+    const status=document.getElementById('djChopStatus');
+    if(status) status.textContent='⟳ Decoding…';
+    try{
+      const ab=await file.arrayBuffer();
+      const ctx=djAudioCtx(); await ctx.resume();
+      const decoded=await ctx.decodeAudioData(ab);
+      const total=decoded.length, chunkLen=Math.floor(total/16);
+      djChoppedBuffers=[];
+      for(let i=0;i<16;i++){
+        const start=i*chunkLen;
+        const len=i===15?(total-start):chunkLen;
+        const buf=ctx.createBuffer(decoded.numberOfChannels,len,ctx.sampleRate);
+        for(let ch=0;ch<decoded.numberOfChannels;ch++)
+          buf.getChannelData(ch).set(decoded.getChannelData(ch).subarray(start,start+len));
+        djChoppedBuffers.push(buf);
+      }
+      if(status) status.textContent=`✓ ${decoded.duration.toFixed(1)}s → 16 slices`;
+      switchDjBank('chop');
+    }catch(e){
+      if(status) status.textContent=`✗ ${e.message}`;
+    }
+  }
+
+  function switchDjBank(bank){
+    djChopMode=(bank==='chop');
+    document.querySelectorAll('.dj-bank-btn').forEach(b=>b.classList.toggle('sel',b.dataset.bank===bank));
+    document.querySelectorAll('.dj-pad').forEach((pad,i)=>{
+      const nameEl=pad.querySelector('.dj-pad-name');
+      const rowEl=pad.querySelector('.dj-pad-row');
+      if(djChopMode){
+        pad.dataset.drum=`chop${i}`;
+        if(nameEl) nameEl.textContent=i+1;
+        if(rowEl)  rowEl.textContent='CHOP';
+      } else {
+        const def=DJ_PAD_DEF[i];
+        if(!def) return;
+        pad.dataset.drum=def[0];
+        if(nameEl) nameEl.textContent=def[1];
+        if(rowEl)  rowEl.textContent=def[2];
+      }
+    });
+  }
+
+  // ── Presets ───────────────────────────────────────────────────────────
   const DJ_PATTERNS={
     hiphop:[
       [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
@@ -2618,7 +2816,7 @@ Output the token list now, nothing else:`
   function onScratchMove(x){
     if(scratchX===null){scratchX=x;scratchT=Date.now();return;}
     const now=Date.now(), dt=Math.max(1,now-scratchT);
-    const vel=(x-scratchX)/dt;  // px/ms
+    const vel=(x-scratchX)/dt;
     scratchX=x; scratchT=now;
     if(Math.abs(vel)<0.06) return;
     const ctx=djAudioCtx(); ctx.resume();
@@ -2632,11 +2830,9 @@ Output the token list now, nothing else:`
     const bf=ctx.createBiquadFilter(); bf.type='bandpass';
     bf.frequency.value=Math.max(300,Math.min(4000,1200+vel*4000));
     bf.Q.value=1.8;
-    const g=ctx.createGain();
-    g.gain.value=Math.min(0.9,Math.abs(vel)*6);
+    const g=ctx.createGain(); g.gain.value=Math.min(0.9,Math.abs(vel)*6);
     ns.connect(bf); bf.connect(g); g.connect(ctx.destination);
     ns.start(when); ns.stop(when+0.04);
-    // Visual
     const vinyl=document.getElementById('djVinyl');
     if(vinyl){
       vinyl.classList.add('scratching');
@@ -2645,20 +2841,28 @@ Output the token list now, nothing else:`
     }
   }
 
-  // ── Build sequencer UI ────────────────────────────────────────────────
+  // ── Build UI (runs once on first tab open) ────────────────────────────
   function initDjTab(){
     if(djSeqBuilt) return;
     djSeqBuilt=true;
+
+    // Sequencer rows with mute buttons
     const seqEl=document.getElementById('djSeq');
     DJ_TRACK_NAMES.forEach((name,ti)=>{
       const row=document.createElement('div'); row.className='seq-row';
+      const mute=document.createElement('div'); mute.className='seq-mute'; mute.textContent='M';
+      mute.addEventListener('pointerdown',e=>{
+        e.preventDefault();
+        djMuted[ti]=!djMuted[ti];
+        mute.classList.toggle('muted',djMuted[ti]);
+      });
+      row.appendChild(mute);
       const lbl=document.createElement('div'); lbl.className='seq-label'; lbl.textContent=name;
       row.appendChild(lbl);
       const steps=document.createElement('div'); steps.className='seq-steps';
       for(let si=0;si<DJ_STEPS;si++){
         const btn=document.createElement('div');
-        btn.className='seq-step';
-        btn.dataset.track=ti; btn.dataset.step=si;
+        btn.className='seq-step'; btn.dataset.track=ti; btn.dataset.step=si;
         btn.addEventListener('pointerdown',e=>{
           e.preventDefault();
           seqGrid[ti][si]=!seqGrid[ti][si];
@@ -2669,23 +2873,44 @@ Output the token list now, nothing else:`
       row.appendChild(steps); seqEl.appendChild(row);
     });
 
-    // Pad events
+    // Pad events — tap plays; hold with repeat active retriggers
     document.querySelectorAll('.dj-pad').forEach(pad=>{
       pad.addEventListener('pointerdown',e=>{
         e.preventDefault();
         const name=pad.dataset.drum;
-        djAudioCtx().resume().then(()=>djDrum(name));
+        djAudioCtx().resume().then(()=>{
+          djDrum(name);
+          startRepeat(name);
+        });
         pad.classList.add('flash');
-        setTimeout(()=>pad.classList.remove('flash'),130);
+        setTimeout(()=>pad.classList.remove('flash'),120);
+      });
+      pad.addEventListener('pointerup',   ()=>stopRepeat());
+      pad.addEventListener('pointercancel',()=>stopRepeat());
+    });
+
+    // Bank toggle (DRUMS ↔ CHOP)
+    document.querySelectorAll('.dj-bank-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>switchDjBank(btn.dataset.bank));
+    });
+
+    // NOTE REPEAT buttons
+    document.querySelectorAll('.dj-rep-btn').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        djRepeatMult=+btn.dataset.rep;
+        document.querySelectorAll('.dj-rep-btn').forEach(b=>b.classList.toggle('sel',b===btn));
       });
     });
 
     // BPM slider
-    const slider=document.getElementById('djBpmSlider');
-    const bpmVal=document.getElementById('djBpmVal');
-    slider.addEventListener('input',()=>{
-      djBpm=+slider.value;
-      bpmVal.textContent=djBpm;
+    document.getElementById('djBpmSlider').addEventListener('input',e=>{
+      djBpm=+e.target.value;
+      document.getElementById('djBpmVal').textContent=djBpm;
+    });
+
+    // TAP TEMPO
+    document.getElementById('djTapBtn').addEventListener('pointerdown',e=>{
+      e.preventDefault(); tapTempo();
     });
 
     // Play/Stop
@@ -2700,6 +2925,13 @@ Output the token list now, nothing else:`
     });
     loadDjPattern('hiphop');
 
+    // CHOP file loader
+    document.getElementById('djChopFile').addEventListener('change',e=>{
+      const f=e.target.files[0];
+      if(f) loadChopSample(f);
+      e.target.value='';
+    });
+
     // Scratch pad
     const scratch=document.getElementById('djScratch');
     scratch.addEventListener('pointerdown',e=>{
@@ -2711,7 +2943,7 @@ Output the token list now, nothing else:`
       onScratchMove(e.clientX);
     });
     ['pointerup','pointercancel'].forEach(ev=>
-      scratch.addEventListener(ev,()=>{scratchX=null; scratchT=null;}));
+      scratch.addEventListener(ev,()=>{scratchX=null;scratchT=null;}));
   }
   </script>
 </body>
