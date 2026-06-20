@@ -18,11 +18,18 @@
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       padding:10px 12px;gap:9px;touch-action:manipulation;
     }
-    /* DJ mode: fill screen top-to-bottom, hide title */
-    body.mode-dj{justify-content:flex-start;padding-top:6px;padding-bottom:6px;gap:6px;}
+    /* DJ mode: content fills the whole screen */
+    body.mode-dj{justify-content:flex-start;padding:5px 10px 4px;gap:5px;}
     body.mode-dj h1{display:none;}
-    body.mode-dj .tabs{gap:5px;}
-    body.mode-dj #djView{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0;}
+    body.mode-dj .tabs{gap:4px;max-width:none;}
+    /* djView stretches to fill remaining height, distributing space to pads */
+    body.mode-dj #djView{flex:1;min-height:0;overflow:hidden;gap:6px;}
+    /* Pad grid takes all spare vertical space; rows fill it equally */
+    body.mode-dj #djPads{flex:1;min-height:0;grid-template-rows:repeat(4,1fr);}
+    body.mode-dj .dj-pad{padding:4px 2px;}
+    /* Scratch gets a fixed slice of height */
+    body.mode-dj #djScratch{flex-shrink:0;}
+    body.mode-dj #djScratchTrack{height:40px;}
     h1{font-size:clamp(1.05rem,3.8vw,1.45rem);font-weight:800;}
 
     .tabs{display:flex;gap:7px;width:100%;max-width:400px;}
@@ -453,6 +460,26 @@
   </div>
 
   <script>
+  // ── iOS audio unlock ──────────────────────────────────────────────────
+  // iOS Safari suspends every new AudioContext until the page has received
+  // a user gesture AND a context has been resumed inside it. One silent
+  // buffer played on the very first touch grants that permission globally —
+  // all subsequent AudioContexts on this page start in 'running' state.
+  (function(){
+    function unlock(){
+      document.removeEventListener('touchstart',unlock,true);
+      document.removeEventListener('touchend',  unlock,true);
+      var C=window.AudioContext||window.webkitAudioContext; if(!C) return;
+      var ctx=new C();
+      var buf=ctx.createBuffer(1,1,ctx.sampleRate);
+      var src=ctx.createBufferSource(); src.buffer=buf;
+      src.connect(ctx.destination); src.start(0);
+      ctx.resume().then(function(){ctx.close();});
+    }
+    document.addEventListener('touchstart',unlock,true);
+    document.addEventListener('touchend',  unlock,true);
+  })();
+
   // ── Constants ─────────────────────────────────────────────────────────
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTE_BARE  = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
@@ -1548,7 +1575,7 @@
     const showOct=dispOct!==undefined?dispOct:currentOctave;
     clearTimeout(kbTimeout);
     clearPiano(); glowKey(bare,1.0);
-    const ac=kbCtx, t=ac.currentTime+0.03;
+    const ac=kbCtx, t=ac.currentTime+0.05;
 
     if(currentInstrument==='drum'){
       const dname=DRUM_LABELS[bare]||bare;
@@ -2966,7 +2993,7 @@ Output the token list now, nothing else:`
         const name=pad.dataset.drum;
         const ctx=djAudioCtx();
         ctx.resume();                        // fire-and-forget unlock
-        djDrum(name, ctx.currentTime+0.02);  // synchronous, same call stack
+        djDrum(name, ctx.currentTime+0.05);  // synchronous, same call stack
         startRepeat(name);
         pad.classList.add('flash');
         setTimeout(()=>pad.classList.remove('flash'),120);
