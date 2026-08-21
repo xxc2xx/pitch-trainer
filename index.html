@@ -20,7 +20,7 @@
     }
     /* DJ mode: content fills the whole screen */
     body.mode-dj{justify-content:flex-start;padding:5px 10px 4px;gap:5px;}
-    body.mode-dj h1{display:none;}
+    body.mode-dj #headerRow{display:none;}
     body.mode-dj .tabs{gap:4px;max-width:none;}
     /* djView stretches to fill remaining height, distributing space to pads */
     body.mode-dj #djView{flex:1;min-height:0;overflow:hidden;gap:6px;}
@@ -31,6 +31,39 @@
     body.mode-dj #djScratch{flex-shrink:0;}
     body.mode-dj #djScratchTrack{height:40px;}
     h1{font-size:clamp(1.05rem,3.8vw,1.45rem);font-weight:800;}
+    #headerRow{display:flex;align-items:center;gap:9px;}
+    #avatarBadge{
+      display:none;width:34px;height:34px;border-radius:8px;object-fit:cover;
+      border:2px solid #2a2a4e;cursor:pointer;transition:border-color .15s;
+    }
+    #avatarBadge:hover{border-color:#5555cc;}
+
+    /* Avatar onboarding gate */
+    #avatarGate{
+      position:fixed;inset:0;z-index:9999;background:#0f0e17;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      gap:14px;padding:20px;
+    }
+    #avatarGate.hidden{display:none;}
+    #avatarGate h2{font-size:1.1rem;font-weight:700;color:#e6e6f5;text-align:center;margin:0;}
+    #avatarGate .gate-inner{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:340px;}
+    #avatarDropZone{
+      width:100%;border:2px dashed #1e1e38;border-radius:12px;
+      padding:28px 12px;text-align:center;cursor:pointer;
+      transition:border-color .2s,background .2s;color:#3a3a6a;font-size:.8rem;
+      position:relative;
+    }
+    #avatarDropZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
+    #avatarDropZone .zone-icon{font-size:2rem;display:block;margin-bottom:6px;}
+    #avatarDropZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    #avatarPixelCanvas{display:none;width:180px;height:180px;border-radius:14px;background:#06050f;border:1px solid #1e1e38;}
+    #avatarControls{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;}
+    #avatarControls label{font-size:.72rem;color:#5a5a8a;display:flex;align-items:center;gap:6px;}
+    #avatarConfirmBtn,#avatarRetakeBtn{padding:8px 20px;font-size:.82rem;}
+    #avatarSkipBtn{
+      background:transparent;border:none;color:#3a3a5a;font-size:.7rem;
+      text-decoration:underline;cursor:pointer;padding:4px;
+    }
 
     .tabs{display:flex;gap:7px;width:100%;max-width:400px;}
     .tab{
@@ -161,6 +194,22 @@
       border-radius:18px;padding:3px 11px;font-size:.71rem;cursor:pointer;transition:all .12s;white-space:nowrap;
     }
     .inst-btn.sel{background:#1a1a40;border-color:#4848cc;color:#8888ee;}
+
+    /* ── Stats Tab ───────────────────────────────────────────────── */
+    #statsView{width:100%;max-width:580px;display:none;flex-direction:column;gap:10px;}
+    #statsSummary{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+    .stats-card{background:#0e0d1a;border:1px solid #1e1e38;border-radius:10px;
+      padding:8px 14px;text-align:center;min-width:76px;}
+    .stats-card .num{font-size:1.15rem;font-weight:700;color:#8888ee;}
+    .stats-card .lbl{font-size:.62rem;color:#4a4a7a;text-transform:uppercase;letter-spacing:.03em;}
+    #statsCanvas{width:100%;background:#06050f;border-radius:10px;border:1px solid #0d0d28;display:block;}
+    #statsSessionList{font-size:.7rem;color:#8a8ac0;background:#0a0a18;
+      border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;max-height:160px;overflow-y:auto;}
+    .stats-row{display:flex;justify-content:space-between;gap:8px;padding:3px 2px;
+      border-bottom:1px solid #14142a;}
+    .stats-row:last-child{border-bottom:none;}
+    .stats-row .rate{font-weight:600;}
+    #statsEmpty{font-size:.75rem;color:#3a3a5a;text-align:center;padding:20px 10px;}
 
     /* ── DJ / MPC Tab ────────────────────────────────────────────── */
     #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:9px;}
@@ -302,12 +351,34 @@
   </style>
 </head>
 <body>
-  <h1>🎵 Pitch Trainer</h1>
+  <div id="avatarGate">
+    <div class="gate-inner">
+      <h2>Welcome! Set up your avatar</h2>
+      <div id="avatarDropZone">
+        <span class="zone-icon">📷</span>
+        Tap to take or upload a photo
+        <input type="file" id="avatarFile" accept="image/*">
+      </div>
+      <canvas id="avatarPixelCanvas"></canvas>
+      <div id="avatarControls">
+        <label>Pixel size <input type="range" id="avatarPixelSize" min="4" max="32" value="12"></label>
+        <button class="btn btn-start" id="avatarConfirmBtn">Use this avatar</button>
+        <button class="btn btn-stop" id="avatarRetakeBtn">Retake</button>
+      </div>
+      <button id="avatarSkipBtn">Skip for now</button>
+    </div>
+  </div>
+
+  <div id="headerRow">
+    <h1>🎵 Pitch Trainer</h1>
+    <img id="avatarBadge" alt="Your avatar">
+  </div>
 
   <div class="tabs">
     <button class="tab active" data-mode="listen">🎤 Listen</button>
     <button class="tab"        data-mode="keys"  >🎹 Keys</button>
     <button class="tab"        data-mode="flow"  >🥁 Beat</button>
+    <button class="tab"        data-mode="stats" >📊 Stats</button>
     <button class="tab"        data-mode="play"   style="display:none">▶ Play</button>
     <button class="tab"        data-mode="dj"    >🎛 DJ</button>
   </div>
@@ -377,6 +448,14 @@
     </div>
     <p id="playStatus">Drop a sheet music photo above to play it</p>
     <div id="playLog"></div>
+  </div>
+
+  <!-- ── Stats Tab ──────────────────────────────────────── -->
+  <div id="statsView">
+    <div id="statsSummary"></div>
+    <canvas id="statsCanvas" height="120"></canvas>
+    <div id="statsSessionList"></div>
+    <p id="statsEmpty" style="display:none;">No practice sessions yet — try 🥁 Beat mode!</p>
   </div>
 
   <!-- ── DJ / MPC Tab ───────────────────────────────────── -->
@@ -505,6 +584,22 @@
   </div>
 
   <script>
+  // ── Avatar onboarding gate ───────────────────────────────────────────
+  // #avatarGate defaults to visible via CSS (safe default, no build step
+  // available to inject a head-blocking script) — this hides it
+  // immediately for returning users before anything else runs. For a
+  // first-time user it stays up until the gate's own confirm/skip
+  // handlers (defined further down) dismiss it.
+  function showAvatarBadge(){
+    var avatar=localStorage.getItem('pitchTrainer_avatar');
+    var badge=document.getElementById('avatarBadge');
+    if(avatar){ badge.src=avatar; badge.style.display='block'; }
+  }
+  if(localStorage.getItem('pitchTrainer_onboarded')==='1'){
+    document.getElementById('avatarGate').classList.add('hidden');
+    showAvatarBadge();
+  }
+
   // ── iOS audio unlock ──────────────────────────────────────────────────
   // iOS Safari suspends every new AudioContext until the page has received
   // a user gesture AND a context has been resumed inside it. One silent
@@ -540,6 +635,83 @@
     document.addEventListener('touchend',  unlock,true);
   })();
 
+  // ── Avatar gate wiring ───────────────────────────────────────────────
+  // pixelateToDataURL/drawPixelated/loadImg are defined further down the
+  // script but callable here — function declarations hoist, and these are
+  // only ever invoked from inside event-handler callbacks below, which
+  // run well after the whole script (and its hoisting) has completed.
+  (function(){
+    const gate=document.getElementById('avatarGate');
+    const dropZone=document.getElementById('avatarDropZone');
+    const fileInput=document.getElementById('avatarFile');
+    const previewCanvas=document.getElementById('avatarPixelCanvas');
+    const controls=document.getElementById('avatarControls');
+    const pixelSlider=document.getElementById('avatarPixelSize');
+    const confirmBtn=document.getElementById('avatarConfirmBtn');
+    const retakeBtn=document.getElementById('avatarRetakeBtn');
+    const skipBtn=document.getElementById('avatarSkipBtn');
+    let loadedImg=null;
+
+    previewCanvas.width=previewCanvas.height=180;
+
+    function showDropZoneState(){
+      dropZone.style.display='';
+      previewCanvas.style.display='none';
+      controls.style.display='none';
+      loadedImg=null;
+      fileInput.value='';  // so re-picking the same file still fires 'change'
+    }
+
+    function renderPreview(){
+      if(!loadedImg) return;
+      drawPixelated(previewCanvas,loadedImg,Number(pixelSlider.value));
+    }
+
+    fileInput.addEventListener('change',function(){
+      const file=fileInput.files&&fileInput.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=function(e){
+        loadImg(e.target.result).then(function(img){
+          loadedImg=img;
+          dropZone.style.display='none';
+          previewCanvas.style.display='block';
+          controls.style.display='flex';
+          renderPreview();
+        }).catch(function(){
+          showDropZoneState();  // corrupt/unsupported image — just let them retry
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    pixelSlider.addEventListener('input',renderPreview);
+
+    confirmBtn.addEventListener('click',function(){
+      if(!loadedImg) return;
+      const dataUrl=pixelateToDataURL(loadedImg,Number(pixelSlider.value),240);
+      try{
+        localStorage.setItem('pitchTrainer_avatar',dataUrl);
+      }catch(err){ /* quota/storage disabled — proceed without persisting */ }
+      localStorage.setItem('pitchTrainer_onboarded','1');
+      gate.classList.add('hidden');
+      showAvatarBadge();
+    });
+
+    retakeBtn.addEventListener('click',showDropZoneState);
+
+    skipBtn.addEventListener('click',function(){
+      localStorage.setItem('pitchTrainer_onboarded','1');
+      gate.classList.add('hidden');
+    });
+
+    // Header badge — tap to redo the avatar at any time
+    document.getElementById('avatarBadge').addEventListener('click',function(){
+      showDropZoneState();
+      gate.classList.remove('hidden');
+    });
+  })();
+
   // ── Constants ─────────────────────────────────────────────────────────
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
   const NOTE_BARE  = ['C','Cs','D','Ds','E','F','Fs','G','Gs','A','As','B'];
@@ -561,6 +733,11 @@
   const playBtn      = document.getElementById('playBtn');
   const playStatus   = document.getElementById('playStatus');
   const playLog      = document.getElementById('playLog');
+  const statsView        = document.getElementById('statsView');
+  const statsSummaryEl   = document.getElementById('statsSummary');
+  const statsCanvas      = document.getElementById('statsCanvas');
+  const statsSessionList = document.getElementById('statsSessionList');
+  const statsEmptyEl     = document.getElementById('statsEmpty');
   function logPlay(msg, kind){
     if(!playLog) return;
     const t=new Date(); const hh=String(t.getHours()).padStart(2,'0'), mm=String(t.getMinutes()).padStart(2,'0'), ss=String(t.getSeconds()).padStart(2,'0');
@@ -729,6 +906,19 @@
   let ploHits=0, ploMisses=0;  // session totals
   let ploBeatCount=0;          // beats fired in the current PLO session (resets on relock)
   let lastMetroFrameAt=0;      // performance.now() of last processMetroFrame call
+
+  // ── Practice logging (whole-session, not per-relock) ──────────────────
+  // A mid-session relock (confidence drop → re-acquire, see the ploConf
+  // branch below) resets ploBeatCount/phaseErrors/hitWindow, but NOT
+  // ploHits/ploMisses — those already span relocks as "session totals".
+  // These new vars follow that same convention: they persist across a
+  // relock and only reset at the actual start()→stop() session boundary,
+  // so a session summary reflects the whole practice, not just the
+  // current lock.
+  let flowSessionId=null, flowSessionStartedAt=0;
+  let flowTight=0, flowLoose=0;
+  let flowAttemptBuf=[];             // beats since last flush, flushed at session end
+  let flowErrSum=0, flowErrCount=0;  // for whole-session meanErrMs (phaseErrors[] only holds last 16)
   // Multi-band flux ring buffers
   const eBufBass=new Float32Array(METRO_BUF);
   const eBufMid =new Float32Array(METRO_BUF);
@@ -761,6 +951,104 @@
     countdownVal=0;
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
   }
+
+  // ── Practice-attempt logging ──────────────────────────────────────────
+  // Ported from the shadow/eval/adjudicate shape built for the busy-brain
+  // QC gate this same week: a raw per-attempt log, a classification
+  // function, and a separate session-summary rollup the dashboard reads.
+  // No backend here, so both grains live in localStorage instead of JSONL
+  // files. See ~/busy-brain/claude-config/ARCHITECTURE.md for the
+  // reference this was ported from.
+  const FLOW_ATTEMPTS_KEY='pitchTrainer_flowAttempts';
+  const FLOW_SESSIONS_KEY='pitchTrainer_flowSessions';
+  const FLOW_ATTEMPTS_CAP=1500, FLOW_SESSIONS_CAP=500;
+
+  function readJSONList(key){
+    try{
+      const raw=localStorage.getItem(key);
+      const list=raw?JSON.parse(raw):[];
+      return Array.isArray(list)?list:[];
+    }catch(err){ return []; }  // corrupted/edited localStorage — start fresh, don't throw
+  }
+
+  function writeJSONList(key,list,cap){
+    try{
+      const trimmed=list.length>cap?list.slice(list.length-cap):list;
+      localStorage.setItem(key,JSON.stringify(trimmed));
+    }catch(err){ /* quota exceeded or storage disabled — logging is best-effort */ }
+  }
+
+  // Fraction-of-beat-period thresholds, not fixed ms, so classification
+  // stays meaningful across tempos (30ms is tight at 60bpm, sloppy at
+  // 180bpm). Mirrors the app's own existing 3-tier accuracy language
+  // (green/yellow/red in updateCents()) rather than inventing new terms.
+  // Three buckets, not four: there's no equivalent here to the QC system's
+  // INFRA class — mic/permission failures are already caught in start()
+  // before ever reaching fireBeat(), so they can't reach this function.
+  function classifyBeatOutcome(bestOnset,bestDist,ploPeriod){
+    if(bestOnset===null) return 'MISS';
+    if(!ploPeriod) return 'MISS';  // defensive: avoid divide-by-zero if called before a period is set
+    return (bestDist/ploPeriod)<0.05 ? 'HIT_TIGHT' : 'HIT_LOOSE';
+  }
+
+  // Called from both hitWindow.push(...) sites in stepPLO(). Buffers in
+  // memory rather than writing localStorage per beat — a 3-minute session
+  // at 120bpm is ~360 beats, and per-beat writes are wasteful I/O for no
+  // benefit when a session-end flush captures the same data.
+  function logBeatAttempt(bestOnset,bestDist,ploPeriod,bpm){
+    if(!flowSessionId) return;  // not inside a tracked session (e.g. mode !== 'flow')
+    const outcome=classifyBeatOutcome(bestOnset,bestDist,ploPeriod);
+    if(outcome==='HIT_TIGHT') flowTight++;
+    else if(outcome==='HIT_LOOSE') flowLoose++;
+    if(outcome!=='MISS'){ flowErrSum+=bestDist; flowErrCount++; }
+    flowAttemptBuf.push({t:Date.now(),sid:flowSessionId,bpm:Math.round(bpm||0),
+      errMs:outcome==='MISS'?null:Math.round(bestDist),outcome:outcome});
+  }
+
+  function startFlowSession(){
+    flowSessionId=String(Date.now());
+    flowSessionStartedAt=Date.now();
+    flowTight=0;flowLoose=0;flowErrSum=0;flowErrCount=0;
+    flowAttemptBuf=[];
+  }
+
+  // Called from stop() and from the visibilitychange safety net. Guarded
+  // so it's safe to call more than once (stop() then a later visibility
+  // event, or vice versa) — only the first call in a given session writes
+  // a row; subsequent calls are no-ops because flowSessionId is nulled.
+  function endFlowSession(){
+    if(!flowSessionId) return;
+    if(flowAttemptBuf.length>0){  // nothing logged (e.g. Start then immediate Stop) — skip the write
+      const meanErrMs=flowErrCount>0?Math.round(flowErrSum/flowErrCount):null;
+      const beatsTotal=flowAttemptBuf.length;  // every attempt is exactly one of TIGHT/LOOSE/MISS
+      const misses=flowAttemptBuf.filter(a=>a.outcome==='MISS').length;
+      const hits=flowTight+flowLoose;
+      writeJSONList(FLOW_SESSIONS_KEY,
+        [...readJSONList(FLOW_SESSIONS_KEY),{
+          id:flowSessionId,
+          startedAt:flowSessionStartedAt, endedAt:Date.now(),
+          durationMs:Date.now()-flowSessionStartedAt,
+          beatsTotal:beatsTotal, hits:hits, misses:misses,
+          hitRate:beatsTotal>0?hits/beatsTotal:0,
+          tightCount:flowTight, looseCount:flowLoose, missCount:misses,
+          meanErrMs:meanErrMs
+        }],
+        FLOW_SESSIONS_CAP);
+      if(flowAttemptBuf.length>0){
+        writeJSONList(FLOW_ATTEMPTS_KEY,
+          [...readJSONList(FLOW_ATTEMPTS_KEY),...flowAttemptBuf],
+          FLOW_ATTEMPTS_CAP);
+      }
+    }
+    flowSessionId=null;
+  }
+
+  // iOS doesn't reliably fire beforeunload for a backgrounded/closed PWA
+  // tab — this is the safety net so a session that's just left open (not
+  // explicitly Stopped) still gets logged.
+  document.addEventListener('visibilitychange',function(){
+    if(document.hidden) endFlowSession();
+  });
 
   // Phase optimization at PLO launch: test 20 equidistant phase offsets and pick
   // the one that minimises sum-of-squares distance from recent onsets to predicted beats.
@@ -850,6 +1138,7 @@
       }
       hitWindow.push(bestOnset!==null);
       if(hitWindow.length>16) hitWindow.shift();
+      logBeatAttempt(bestOnset,bestDist,ploPeriod,60000/ploPeriod);
       if(bestOnset!==null){
         phaseErrors.push(bestDist); if(phaseErrors.length>16) phaseErrors.shift();
         ploHits++;
@@ -870,6 +1159,7 @@
 
     hitWindow.push(bestOnset!==null);
     if(hitWindow.length>16) hitWindow.shift();
+    logBeatAttempt(bestOnset,bestDist,ploPeriod,60000/ploPeriod);
     const hitRate=hitWindow.length>0?hitWindow.filter(Boolean).length/hitWindow.length:0.5;
     const meanErr=phaseErrors.length>0?phaseErrors.reduce((a,b)=>a+b)/phaseErrors.length:30;
 
@@ -1764,6 +2054,7 @@
 
       if(currentMode==='flow'){
         resetMetro();
+        startFlowSession();
         initMetroCanvas();   // ensure canvas sized correctly
         startMetroLoop();    // restart if loop died
         countdownVal=8;
@@ -1784,6 +2075,9 @@
   }
 
   function stop(){
+    endFlowSession();  // no-op if no Flow session is open (checks flowSessionId internally,
+                        // not currentMode — more robust since setMode() may have already
+                        // switched currentMode away from 'flow' before calling stop())
     isRunning=false;
     if(rafId) cancelAnimationFrame(rafId);
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
@@ -1798,6 +2092,98 @@
   }
 
   // ── Mode switching ────────────────────────────────────────────────────
+  // ── Stats dashboard ──────────────────────────────────────────────────
+  // Reads pitchTrainer_flowSessions (written by endFlowSession() above) and
+  // renders a summary + trend chart. No topic/skill breakdown here — Flow
+  // mode has exactly one skill (rhythm timing), so there's nothing to break
+  // down by; a session-over-session trend is the honest shape of this data.
+  const STATS_CHART_SESSIONS=20;  // how many recent sessions the bar chart shows
+
+  function fmtDuration(ms){
+    const s=Math.round(ms/1000);
+    if(s<60) return s+'s';
+    return Math.floor(s/60)+'m '+(s%60)+'s';
+  }
+
+  function renderStatsView(){
+    const sessions=readJSONList(FLOW_SESSIONS_KEY);
+    if(sessions.length===0){
+      statsEmptyEl.style.display='block';
+      statsSummaryEl.innerHTML='';
+      statsSessionList.innerHTML='';
+      const ctx=statsCanvas.getContext('2d');
+      ctx.clearRect(0,0,statsCanvas.width,statsCanvas.height);
+      return;
+    }
+    statsEmptyEl.style.display='none';
+
+    const totalBeats=sessions.reduce((a,s)=>a+s.beatsTotal,0);
+    const totalHits=sessions.reduce((a,s)=>a+s.hits,0);
+    const errSessions=sessions.filter(s=>s.meanErrMs!==null);
+    const avgErr=errSessions.length
+      ?Math.round(errSessions.reduce((a,s)=>a+s.meanErrMs,0)/errSessions.length)
+      :null;
+    const avgHitRate=totalBeats>0?totalHits/totalBeats:0;
+
+    statsSummaryEl.innerHTML=
+      `<div class="stats-card"><div class="num">${sessions.length}</div><div class="lbl">Sessions</div></div>`+
+      `<div class="stats-card"><div class="num">${totalBeats}</div><div class="lbl">Beats</div></div>`+
+      `<div class="stats-card"><div class="num">${Math.round(avgHitRate*100)}%</div><div class="lbl">Avg Hit Rate</div></div>`+
+      `<div class="stats-card"><div class="num">${avgErr!==null?avgErr+'ms':'—'}</div><div class="lbl">Avg Error</div></div>`;
+
+    drawStatsChart(sessions.slice(-STATS_CHART_SESSIONS));
+
+    // Most recent first
+    statsSessionList.innerHTML=sessions.slice().reverse().slice(0,30).map(s=>{
+      const d=new Date(s.startedAt);
+      const dateStr=d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+
+        d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+      const rateCol=s.hitRate>0.80?'#22c55e':s.hitRate>0.55?'#e2b714':'#ef4444';
+      return `<div class="stats-row"><span>${dateStr} · ${fmtDuration(s.durationMs)}</span>`+
+        `<span class="rate" style="color:${rateCol}">${Math.round(s.hitRate*100)}%</span></div>`;
+    }).join('');
+  }
+
+  function drawStatsChart(sessions){
+    const dpr=window.devicePixelRatio||1;
+    const rect=statsCanvas.getBoundingClientRect();
+    const cssW=rect.width||statsView.clientWidth||300, cssH=120;
+    statsCanvas.width=cssW*dpr; statsCanvas.height=cssH*dpr;
+    const ctx=statsCanvas.getContext('2d');
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cssW,cssH);
+
+    if(!sessions.length) return;
+    const padTop=10,padBottom=18,padSide=6;
+    const chartH=cssH-padTop-padBottom;
+    const n=sessions.length;
+    const barGap=4;
+    const barW=Math.max(4,(cssW-padSide*2-barGap*(n-1))/n);
+
+    sessions.forEach((s,i)=>{
+      const x=padSide+i*(barW+barGap);
+      const h=Math.max(2,s.hitRate*chartH);
+      const y=padTop+chartH-h;
+      const col=s.hitRate>0.80?'#22c55e':s.hitRate>0.55?'#e2b714':'#ef4444';
+      const [r,g,b]=hexRgb(col);
+      ctx.fillStyle=`rgb(${r},${g},${b})`;
+      roundRect(ctx,x,y,barW,h,Math.min(3,barW/2));
+      ctx.fill();
+    });
+
+    // Baseline
+    ctx.strokeStyle='#1a1a30';
+    ctx.beginPath();
+    ctx.moveTo(padSide,padTop+chartH);
+    ctx.lineTo(cssW-padSide,padTop+chartH);
+    ctx.stroke();
+
+    ctx.fillStyle='#3a3a5a';
+    ctx.font='9px system-ui,sans-serif';
+    ctx.textAlign='left';
+    ctx.fillText('Hit rate — last '+n+' session'+(n===1?'':'s'),padSide,10);
+  }
+
   function setMode(mode){
     if(isRunning) stop();
     if(isPlaying) stopPlay();
@@ -1808,15 +2194,16 @@
     currentMode=mode;
     document.querySelectorAll('.tab').forEach(t=>
       t.classList.toggle('active',t.dataset.mode===mode));
-    const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys', isDjMode=mode==='dj';
+    const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys', isDjMode=mode==='dj', isStats=mode==='stats';
     document.body.classList.toggle('mode-dj', isDjMode);
-    staffView.style.display =(isFlow||isPlay||isDjMode)?'none':'';
+    staffView.style.display =(isFlow||isPlay||isDjMode||isStats)?'none':'';
     metroView.style.display =isFlow?'block':'none';
     playView.style.display  =isPlay?'flex':'none';
     document.getElementById('djView').style.display=isDjMode?'flex':'none';
-    pianoArea.style.display =(isFlow||isPlay||isDjMode)?'none':'';
-    controls.style.display  =(isKeys||isPlay||isDjMode)?'none':'';
-    noteCard.style.display  =(isFlow||isPlay||isDjMode)?'none':'';
+    statsView.style.display =isStats?'flex':'none';
+    pianoArea.style.display =(isFlow||isPlay||isDjMode||isStats)?'none':'';
+    controls.style.display  =(isKeys||isPlay||isDjMode||isStats)?'none':'';
+    noteCard.style.display  =(isFlow||isPlay||isDjMode||isStats)?'none':'';
     const isDrum=currentInstrument==='drum';
     document.getElementById('instBar').classList.toggle('show',isKeys);
     octaveBar.classList.toggle('show',isKeys&&!isDrum);
@@ -1829,6 +2216,7 @@
       flow:'Tap Start, then play music or clap 🎵',
       play:'Paste notes below, tap ▶ Play',
       dj:'Tap pads, build a beat, or scratch!',
+      stats:'Your rhythm practice history',
     };
     hint.textContent=hints[mode]||'';
     if(isFlow){
@@ -1839,6 +2227,7 @@
       setTimeout(()=>{initMetroCanvas();startMetroLoop();},80);
     }
     if(isDjMode) initDjTab();
+    if(isStats) renderStatsView();
   }
 
   // ── Events ────────────────────────────────────────────────────────────
@@ -2257,6 +2646,32 @@ Output the token list now, nothing else:`
       i.onerror=()=>rej(new Error('Image decode failed (corrupt or unsupported)'));
       i.src=src;
     });
+  }
+
+  // Center-crop to square, downscale to a tiny canvas, upscale back up with
+  // smoothing off — the standard blocky-pixelation technique, no library.
+  // Shared by the live preview (draws onto an existing canvas) and the
+  // final stored avatar (draws onto a fresh one, then reads it back out).
+  function drawPixelated(destCanvas,img,pixelSize){
+    const outSize=destCanvas.width;  // caller sets destCanvas.width===height beforehand
+    const side=Math.min(img.width,img.height);
+    const sx=(img.width-side)/2, sy=(img.height-side)/2;
+    const small=document.createElement('canvas');
+    small.width=small.height=Math.max(2,Math.round(outSize/pixelSize));
+    small.getContext('2d').drawImage(img,sx,sy,side,side,0,0,small.width,small.height);
+    const dctx=destCanvas.getContext('2d');
+    dctx.imageSmoothingEnabled=false;
+    dctx.clearRect(0,0,outSize,outSize);
+    dctx.drawImage(small,0,0,outSize,outSize);
+  }
+
+  // Pixelated PNGs (large flat color blocks) compress to just a few KB, well
+  // within a localStorage budget even at a few hundred px.
+  function pixelateToDataURL(img,pixelSize,outSize){
+    const out=document.createElement('canvas');
+    out.width=out.height=outSize;
+    drawPixelated(out,img,pixelSize);
+    return out.toDataURL('image/png');
   }
 
   // Render one horizontal strip of img to a JPEG dataURL upscaled to ≥1800px wide
