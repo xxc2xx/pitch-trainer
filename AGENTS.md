@@ -14,17 +14,32 @@ manager. Tone.js / Web Audio for pitch and beat detection.
 
 ## Division of labour with the existing QC tooling — read this first
 
-`dj-lab2.html` (the "Beat Hive" reskin prototype) already has a purpose-built
-validator at `tools/qc.js` — 15+ checks including stub-DOM execution, CSS-rule
-presence, sprite integrity, and layout-order collision. It catches classes of
-bug that static review cannot (temporal dead zone, detached nodes, CSS silently
-deleted by positional edits). `tools/EVAL.md` is its bug log.
+**Both files referenced below are currently UNTRACKED — local-only, not in
+HEAD.** So in a clean checkout neither exists and none of this applies:
+there is no `dj-lab2.html` to review and no validator to defer to. Codex
+correctly flagged this on 2026-08-22 (the first review of this repo) as a
+dangling deferral; the note is kept here rather than deleted because the
+files do exist in the working tree, and re-tracking them is a pending
+decision, not an oversight.
 
-**Do not duplicate those checks.** For `dj-lab2.html`, defer to `tools/qc.js`
-and only raise things it structurally cannot see (e.g. a hardcoded secret).
-Your value here is `index.html`, which has no automated coverage at all.
+When `dj-lab2.html` (the "Beat Hive" reskin prototype) **is** present, it has
+a purpose-built validator at `tools/qc.js` — 15+ checks including stub-DOM
+execution, CSS-rule presence, sprite integrity, and layout-order collision.
+It catches classes of bug that static review cannot (temporal dead zone,
+detached nodes, CSS silently deleted by positional edits). `tools/EVAL.md`
+is its bug log.
 
-Known-failing check, already understood — do not re-report:
+**Only when both files are present in the tree under review:** don't
+duplicate those checks — defer to `tools/qc.js` for `dj-lab2.html` and raise
+only what it structurally cannot see (e.g. a hardcoded secret). If
+`dj-lab2.html` is present but `tools/qc.js` is not, review it normally;
+there is nothing to defer to.
+
+Either way, your primary focus is `index.html` — it is tracked, it is the
+whole shipped app, and it has no automated coverage at all.
+
+Known-failing check, already understood — do not re-report (applies only in
+the local working tree, since the validator isn't tracked):
 `tools/qc.js` check #6 ("live app untouched") compares every line of
 `index.html` against `dj-lab2.html` and currently reports ~337 missing lines.
 Cause: `index.html` gained the practice-logging / Stats / avatar features
