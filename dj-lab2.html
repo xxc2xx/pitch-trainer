@@ -5284,7 +5284,14 @@ Output the token list now, nothing else:`
   // playback. Recover automatically rather than waiting for the next tap.
   (function watchCtx(){
     try{
-      const c=djAudioCtx();
+      // Watch only an ALREADY-created context — read djCtx directly, never call
+      // djAudioCtx() here. On first page load djCtx is null, and djAudioCtx()
+      // would mint an AudioContext outside any user gesture, before the
+      // first-touch silent WAV switches the iOS audio session to playback. That
+      // reverses the load-bearing unlock ordering and can leave the DJ graph
+      // suspended / silenced by the mute switch. Once a gesture creates djCtx,
+      // the next 1500ms tick picks it up and attaches the recovery listener.
+      const c=djCtx;
       if(c && !c.__rsWatched){
         c.__rsWatched=true;
         c.addEventListener('statechange',()=>{ if(c.state!=='running') c.resume().catch(()=>{}); });

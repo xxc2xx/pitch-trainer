@@ -8,7 +8,21 @@
 // (TDZ, undefined refs, bad ordering) that a parse-only check misses.
 const fs=require('fs');
 const h=fs.readFileSync('/Users/xxc2xx/pitch-trainer/dj-lab2.html','utf8');
-const js=[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].pop()[1];
+// Select the RESKIN block specifically. dj-lab2.html has three <script> blocks:
+// block 1 is the original pitch-trainer app, block 2 is the Beat Hive reskin
+// (what this gate exists to validate), block 3 is a tiny fallback that catches
+// its OWN exceptions. A naive .pop() picks the fallback, so a real TDZ / null
+// lookup / ordering bug in the reskin still reports "executes without throwing"
+// — defeating the one thing this runtime gate is for. Match by signature, and
+// fail closed if it can't be uniquely located rather than run a false pass.
+const blocks=[...h.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
+const reskin=blocks.filter(b=>/getElementById\(['"]djView['"]\)/.test(b) && /rsDisplay/.test(b));
+if(reskin.length!==1){
+  console.log('  FAIL  exec-check could not uniquely locate the reskin <script> block '+
+              '(matched '+reskin.length+' of '+blocks.length+') — refusing to run a false pass');
+  process.exit(1);
+}
+const js=reskin[0];
 
 const mkStyle=()=>new Proxy({},{get:(t,k)=>
   k==='setProperty'||k==='removeProperty'?()=>{}:
@@ -61,8 +75,19 @@ global.document={
   addEventListener(){},
   body:el(),
 };
-global.window={AudioContext:function(){},addEventListener(){},djDrum:function(){},switchDjBank:function(){}};
-global.navigator={vibrate(){},canShare:()=>false,share:async()=>{}};
+global.window={AudioContext:function(){},webkitAudioContext:function(){},
+  AudioNode:function(){},MediaRecorder:function(){},isSecureContext:true,
+  addEventListener(){},djDrum:function(){},switchDjBank:function(){}};
+global.navigator={vibrate(){},canShare:()=>false,share:async()=>{},
+  mediaDevices:{getUserMedia:async()=>({getTracks:()=>[]})}};
+// The reskin reads location.protocol/host for the insecure-origin warning path;
+// a secure https origin takes the happy path (skips the warning insert).
+global.location={protocol:'https:',host:'xxc2xx.github.io',
+  href:'https://xxc2xx.github.io/beat-hive/'};
+// djCtx is a block-1 `let` the reskin reads (watchCtx) but this check only runs
+// block 2; model "no context created yet" so that path runs for real instead of
+// short-circuiting on a swallowed ReferenceError.
+global.djCtx=null;
 global.AudioNode=function(){}; global.AudioNode.prototype={connect(){}};
 global.MediaRecorder=function(){}; global.MediaRecorder.isTypeSupported=()=>true;
 global.Audio=function(){return{play(){},pause(){}};}; global.Blob=function(){}; global.File=function(){};
