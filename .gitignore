@@ -1,0 +1,17 @@
+# Local HTTPS dev certs. .certs/key.pem is a PRIVATE KEY — this repo has a
+# public remote, so it must never be committed. Was previously unprotected
+# (no .gitignore existed at all); verified never committed on any branch.
+.certs/
+*.pem
+*.key
+
+# Codex review output. Reports contain code excerpts, findings, and absolute
+# operator paths — same reason the other QC-gated repos gitignore this.
+reports/
+
+# OS / editor noise
+.DS_Store
+*.swp
+*.swo
+__pycache__/
+*.pyc
