@@ -31,13 +31,13 @@ HEAD. They are now committed, so the deferral is valid on a clean checkout.)
 Your primary focus is `index.html` — the whole shipped app, and the part
 with no automated coverage of its own.
 
-Known-failing check, already understood — do not re-report:
-`tools/qc.js` check #6 ("live app untouched") compares every line of
-`index.html` against `dj-lab2.html` and currently reports ~337 missing lines.
-Cause: `index.html` gained the practice-logging / Stats / avatar features
-(commit `defc7f3`) and the prototype was not re-synced. The check cannot
-distinguish "prototype deleted app code" (the bug it guards against) from
-"live app moved ahead" (what actually happened).
+`tools/qc.js` check #6 ("fork-point app preserved") verifies the reskin did
+not DELETE original app code. It compares `dj-lab2.html` against
+`tools/baseline-index.html` — a pinned snapshot of `index.html` at the fork
+commit (`1bbf46d`) — NOT live `index.html`. Comparing to live gave a permanent
+false failure once the app gained Stats/avatar (`defc7f3`) that the DJ-mode
+prototype intentionally does not carry. Re-snapshot the baseline only on a
+deliberate re-sync: `git show <app-sha>:index.html > tools/baseline-index.html`.
 
 ---
 

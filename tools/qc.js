@@ -55,10 +55,18 @@ const clash=Object.entries(byOrd).filter(([n,set])=>{
 clash.length?bad('order collision: '+clash.map(([n,s])=>n+'->'+[...s]).join(' '))
            :ok('layout order: '+Object.entries(byOrd).sort((a,b)=>a[0]-b[0]).map(([n,s])=>n+'='+[...s][0]).join(' '));
 
-// 6 ── live app untouched
-const live=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
-const removed=live.split('\n').filter(l=>l.trim()&&!h.includes(l)).length;
-removed?bad(removed+' lines of index.html missing from prototype'):ok('index.html fully preserved (0 lines lost)');
+// 6 ── prototype preserves the app as of its fork point
+// The reskin is a DJ-mode fork; it must not DELETE original app code. It is
+// checked against tools/baseline-index.html — a pinned snapshot of index.html
+// at the fork commit (1bbf46d, i.e. defc7f3^) — NOT live index.html. Comparing
+// to live conflated "prototype deleted code" (the real bug) with "live app
+// added features after the fork" (Stats/avatar in defc7f3), producing a
+// permanent false 337-line failure. Re-snapshot the baseline ONLY when the
+// prototype is deliberately re-synced to a newer app state:
+//   git show <app-sha>:index.html > tools/baseline-index.html
+const base=fs.readFileSync(require('path').join(__dirname,'baseline-index.html'),'utf8');
+const removed=base.split('\n').filter(l=>l.trim()&&!h.includes(l)).length;
+removed?bad(removed+' baseline app lines missing from prototype (fork-point deletion)'):ok('fork-point app preserved (0 lines lost vs baseline)');
 
 
 // 7 ── pad colour integrity: every pad must ship an inline --pc, and the
