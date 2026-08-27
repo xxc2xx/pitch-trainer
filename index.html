@@ -59,6 +59,7 @@
     #avatarPixelCanvas{display:none;width:180px;height:180px;border-radius:14px;background:#06050f;border:1px solid #1e1e38;}
     #avatarControls{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;}
     #avatarControls label{font-size:.72rem;color:#5a5a8a;display:flex;align-items:center;gap:6px;}
+    #avatarPalette{background:#0f0e17;color:#e6e6f5;border:1px solid #242440;border-radius:6px;padding:3px 6px;font-size:.72rem;}
     #avatarConfirmBtn,#avatarRetakeBtn{padding:8px 20px;font-size:.82rem;}
     #avatarSkipBtn{
       background:transparent;border:none;color:#3a3a5a;font-size:.7rem;
@@ -351,7 +352,7 @@
   </style>
 </head>
 <body>
-  <div id="avatarGate" class="hidden">
+  <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
       <div id="avatarDropZone">
@@ -361,7 +362,16 @@
       </div>
       <canvas id="avatarPixelCanvas"></canvas>
       <div id="avatarControls">
-        <label>Pixel size <input type="range" id="avatarPixelSize" min="4" max="32" value="12"></label>
+        <label>Pixel size <input type="range" id="avatarPixelSize" min="3" max="16" value="5"></label>
+        <label>Style
+          <select id="avatarPalette">
+            <option value="sweet16" selected>Retro 16</option>
+            <option value="pico8">PICO-8</option>
+            <option value="gameboy">Game Boy</option>
+            <option value="">Full colour</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="avatarDither"> Dither</label>
         <button class="btn btn-start" id="avatarConfirmBtn">Use this avatar</button>
         <button class="btn btn-stop" id="avatarRetakeBtn">Retake</button>
       </div>
@@ -590,15 +600,20 @@
   // immediately for returning users before anything else runs. For a
   // first-time user it stays up until the gate's own confirm/skip
   // handlers (defined further down) dismiss it.
+  // Neutral person-silhouette placeholder so the badge is always visible and
+  // tappable — it's the single entry point to (re)create the avatar. Without
+  // this, a user who skipped onboarding had no way to reach the gate again.
+  var AVATAR_PLACEHOLDER="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect width='34' height='34' fill='%230f0e17'/%3E%3Ccircle cx='17' cy='13' r='6' fill='%234a4a7a'/%3E%3Cpath d='M6 31c0-6 5-9 11-9s11 3 11 9' fill='%234a4a7a'/%3E%3C/svg%3E";
   function showAvatarBadge(){
     var avatar=localStorage.getItem('pitchTrainer_avatar');
     var badge=document.getElementById('avatarBadge');
-    if(avatar){ badge.src=avatar; badge.style.display='block'; }
+    badge.src=avatar||AVATAR_PLACEHOLDER;
+    badge.style.display='block';
   }
   if(localStorage.getItem('pitchTrainer_onboarded')==='1'){
     document.getElementById('avatarGate').classList.add('hidden');
-    showAvatarBadge();
   }
+  showAvatarBadge();  // always show the badge (placeholder until an avatar is set)
 
   // ── iOS audio unlock ──────────────────────────────────────────────────
   // iOS Safari suspends every new AudioContext until the page has received
@@ -636,10 +651,10 @@
   })();
 
   // ── Avatar gate wiring ───────────────────────────────────────────────
-  // pixelateToDataURL/drawPixelated/loadImg are defined further down the
-  // script but callable here — function declarations hoist, and these are
-  // only ever invoked from inside event-handler callbacks below, which
-  // run well after the whole script (and its hoisting) has completed.
+  // Pixelation is delegated to the shared, standalone pixel-avatar.js module
+  // (same code that runs in the other apps), loaded lazily via dynamic
+  // import() the first time the gate does any work. That keeps a single
+  // source of truth for the pixel-art transform across every project.
   (function(){
     const gate=document.getElementById('avatarGate');
     const dropZone=document.getElementById('avatarDropZone');
@@ -647,24 +662,59 @@
     const previewCanvas=document.getElementById('avatarPixelCanvas');
     const controls=document.getElementById('avatarControls');
     const pixelSlider=document.getElementById('avatarPixelSize');
+    const paletteSel=document.getElementById('avatarPalette');
+    const ditherChk=document.getElementById('avatarDither');
     const confirmBtn=document.getElementById('avatarConfirmBtn');
     const retakeBtn=document.getElementById('avatarRetakeBtn');
     const skipBtn=document.getElementById('avatarSkipBtn');
-    let loadedImg=null;
 
+    const STORE_OUT=240;  // stored avatar size (px) — unchanged from before
     previewCanvas.width=previewCanvas.height=180;
+
+    let srcDataUrl=null;   // picked image as a dataURL (module input)
+    let lastResult=null;   // latest {dataURL,canvas} from the module
+    let renderToken=0;     // guards against out-of-order async previews
+
+    // Lazy singleton import of the shared module.
+    let _pa=null;
+    function pa(){ return _pa || (_pa=import('./pixel-avatar.js')); }
+
+    // Their slider is "pixel size" (block px). Convert to the module's grid
+    // (block count) against the stored size so the feel is preserved.
+    function gridFromSlider(){
+      return Math.max(4, Math.round(STORE_OUT / Number(pixelSlider.value)));
+    }
+    function opts(){
+      return {
+        grid: gridFromSlider(),
+        output: STORE_OUT,
+        palette: paletteSel.value || null,
+        dither: ditherChk.checked,
+        circle: false,   // badge is a rounded square — keep the art square
+        contrast: 1.12,
+        saturate: 1.35,  // punchier colour so it reads as pixel art, not mosaic
+      };
+    }
 
     function showDropZoneState(){
       dropZone.style.display='';
       previewCanvas.style.display='none';
       controls.style.display='none';
-      loadedImg=null;
+      srcDataUrl=null; lastResult=null;
       fileInput.value='';  // so re-picking the same file still fires 'change'
     }
 
-    function renderPreview(){
-      if(!loadedImg) return;
-      drawPixelated(previewCanvas,loadedImg,Number(pixelSlider.value));
+    async function renderPreview(){
+      if(!srcDataUrl) return;
+      const my=++renderToken;
+      const mod=await pa();
+      const res=await mod.pixelize(srcDataUrl, opts());
+      if(my!==renderToken) return;  // a newer render superseded this one
+      lastResult=res;
+      const ctx=previewCanvas.getContext('2d');
+      ctx.imageSmoothingEnabled=false;
+      ctx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+      ctx.drawImage(res.canvas,0,0,previewCanvas.width,previewCanvas.height);
     }
 
     fileInput.addEventListener('change',function(){
@@ -672,24 +722,26 @@
       if(!file) return;
       const reader=new FileReader();
       reader.onload=function(e){
-        loadImg(e.target.result).then(function(img){
-          loadedImg=img;
-          dropZone.style.display='none';
-          previewCanvas.style.display='block';
-          controls.style.display='flex';
-          renderPreview();
-        }).catch(function(){
-          showDropZoneState();  // corrupt/unsupported image — just let them retry
+        srcDataUrl=e.target.result;
+        dropZone.style.display='none';
+        previewCanvas.style.display='block';
+        controls.style.display='flex';
+        renderPreview().catch(function(){
+          showDropZoneState();  // corrupt/unsupported image — let them retry
         });
       };
       reader.readAsDataURL(file);
     });
 
-    pixelSlider.addEventListener('input',renderPreview);
+    pixelSlider.addEventListener('input',function(){ renderPreview(); });
+    paletteSel.addEventListener('change',function(){ renderPreview(); });
+    ditherChk.addEventListener('change',function(){ renderPreview(); });
 
-    confirmBtn.addEventListener('click',function(){
-      if(!loadedImg) return;
-      const dataUrl=pixelateToDataURL(loadedImg,Number(pixelSlider.value),240);
+    confirmBtn.addEventListener('click',async function(){
+      if(!srcDataUrl) return;
+      if(!lastResult) await renderPreview();
+      const dataUrl=lastResult && lastResult.dataURL;
+      if(!dataUrl) return;
       try{
         localStorage.setItem('pitchTrainer_avatar',dataUrl);
       }catch(err){ /* quota/storage disabled — proceed without persisting */ }
@@ -2648,31 +2700,9 @@ Output the token list now, nothing else:`
     });
   }
 
-  // Center-crop to square, downscale to a tiny canvas, upscale back up with
-  // smoothing off — the standard blocky-pixelation technique, no library.
-  // Shared by the live preview (draws onto an existing canvas) and the
-  // final stored avatar (draws onto a fresh one, then reads it back out).
-  function drawPixelated(destCanvas,img,pixelSize){
-    const outSize=destCanvas.width;  // caller sets destCanvas.width===height beforehand
-    const side=Math.min(img.width,img.height);
-    const sx=(img.width-side)/2, sy=(img.height-side)/2;
-    const small=document.createElement('canvas');
-    small.width=small.height=Math.max(2,Math.round(outSize/pixelSize));
-    small.getContext('2d').drawImage(img,sx,sy,side,side,0,0,small.width,small.height);
-    const dctx=destCanvas.getContext('2d');
-    dctx.imageSmoothingEnabled=false;
-    dctx.clearRect(0,0,outSize,outSize);
-    dctx.drawImage(small,0,0,outSize,outSize);
-  }
-
-  // Pixelated PNGs (large flat color blocks) compress to just a few KB, well
-  // within a localStorage budget even at a few hundred px.
-  function pixelateToDataURL(img,pixelSize,outSize){
-    const out=document.createElement('canvas');
-    out.width=out.height=outSize;
-    drawPixelated(out,img,pixelSize);
-    return out.toDataURL('image/png');
-  }
+  // NOTE: avatar pixelation moved to the shared pixel-avatar.js module
+  // (see the avatar gate wiring above). loadImg() is retained because the
+  // sheet-music strip pipeline below still uses it.
 
   // Render one horizontal strip of img to a JPEG dataURL upscaled to ≥1800px wide
   // (noteheads on a multi-system strip need this resolution to be readable by Vision)

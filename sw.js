@@ -1,5 +1,5 @@
-const CACHE = 'pitch-v15';
-const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json'];
+const CACHE = 'pitch-v16';
+const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
