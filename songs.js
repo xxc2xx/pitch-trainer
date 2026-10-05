@@ -151,7 +151,8 @@
       const level = d.getLevel();
       notes = fitToRange(MC.skyline(t.notes), level.range);
       bpm = t.bpm || 90; idx = 0; wrong = 0; judged.clear();
-      mode = level.follow === 'timed' ? 'timed' : 'wait';
+      // every level opens playable in wait mode; Grow gets ⏱ Play along
+      mode = 'wait';
       d.onOpen && d.onOpen({ ...t, notes });
       const tempoRow = level.id === 'sprout' ? '' :
         `<label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>`;
@@ -179,7 +180,7 @@
       const tr = host.querySelector('#sgTempo');
       if(tr) tr.oninput = () => { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; };
       sizeCanvas(); pulse(true);
-      startMode(mode === 'timed' ? 'wait-preview' : 'wait');
+      startMode('wait');
     }
 
     function sizeCanvas(){
@@ -213,11 +214,7 @@
     function startMode(m){
       stopAll(); idx = 0; wrong = 0; judged.clear();
       if(m === 'timed'){ mode = 'timed'; startTimed(); }
-      else {
-        mode = m === 'wait-preview' ? 'timed' : 'wait';
-        if(mode === 'wait') target();
-        else d.getKb() && d.getKb().scrollTo(notes[0] ? notes[0].m : 60, true);
-      }
+      else { mode = 'wait'; target(); }
       setBtns(); progress(); animateTo();
     }
 

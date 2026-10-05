@@ -27,13 +27,22 @@
   const KEY_PRIOR = { 0:1.5, 5:1, 7:1, 2:0.5, 10:0.5 };   // C, F, G, D, Bb
 
   // ── Shared mic plumbing ───────────────────────────────────────────────
+  // Must be called synchronously from the tap handler: the AudioContext is
+  // created and resumed BEFORE awaiting the permission prompt, because iOS
+  // only unlocks audio inside the original gesture — one created after the
+  // await can stay suspended and the analyser never sees a frame.
   async function openMic(){
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
       throw new Error('Microphone needs https (or localhost)');
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }, video:false });
     const ac = new (window.AudioContext || window.webkitAudioContext)();
-    await ac.resume().catch(() => {});
+    const resumed = ac.resume().catch(() => {});
+    let stream;
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio:{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }, video:false });
+    }catch(e){ try{ ac.close(); }catch(_){} throw e; }
+    await resumed;
+    if(ac.state !== 'running') await ac.resume().catch(() => {});
     const src = ac.createMediaStreamSource(stream);
     const an = ac.createAnalyser(); an.fftSize = 2048; an.smoothingTimeConstant = 0;
     src.connect(an);

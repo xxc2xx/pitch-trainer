@@ -677,6 +677,7 @@
 
     let srcDataUrl=null;   // picked image as a dataURL (module input)
     let lastResult=null;   // latest {dataURL,canvas} from the module
+    let lastResultToken=0; // renderToken that produced lastResult
     let renderToken=0;     // guards against out-of-order async previews
 
     // Lazy singleton import of the shared module.
@@ -714,7 +715,7 @@
       const mod=await pa();
       const res=await mod.pixelize(srcDataUrl, opts());
       if(my!==renderToken) return;  // a newer render superseded this one
-      lastResult=res;
+      lastResult=res; lastResultToken=my;
       const ctx=previewCanvas.getContext('2d');
       ctx.imageSmoothingEnabled=false;
       ctx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
@@ -743,7 +744,9 @@
 
     confirmBtn.addEventListener('click',async function(){
       if(!srcDataUrl) return;
-      if(!lastResult) await renderPreview();
+      // a slider/palette change may still be rendering: lastResult would be
+      // the previous image, so re-render with the current controls first
+      if(!lastResult||lastResultToken!==renderToken) await renderPreview();
       const dataUrl=lastResult && lastResult.dataURL;
       if(!dataUrl) return;
       try{
@@ -2441,6 +2444,12 @@
     document.getElementById('pbRecGroup').style.display=isKeys?'':'none';
     document.getElementById('instBar').classList.toggle('show',isKeys);
     if(isKeys||isSongs||mode==='listen') updateKeyLabels();
+    if(isSongs&&currentInstrument==='drum'){
+      // Songs hides the instrument picker — melody needs a melodic voice
+      currentInstrument='piano';
+      document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b.dataset.inst==='piano'));
+      updateKeyLabels();
+    }
     if(isSongs) songs.show(); else songs.hide();
     document.getElementById('hearRow').style.display=mode==='listen'?'':'none';
     if(singRec&&mode!=='listen'){ singRec.stop(); singRec=null; singRecBtn.classList.remove('on'); singRecBtn.textContent='⏺ Sing a song'; }
