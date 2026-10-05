@@ -115,6 +115,8 @@
     let take = null, notes = [], idx = 0, mode = 'wait', wrong = 0;
     let demo = null, timed = null, camX = 0, raf = 0, bpm = 90;
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
+    let finishT = 0;                       // pending completion — cancelled on leave
+    function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
 
@@ -232,6 +234,7 @@
         timed = null;
       }
       cancelAnimationFrame(raf); raf = 0;
+      clearTimeout(finishT); finishT = 0;
       const kb = d.getKb(); kb && kb.setTarget(null);
     }
 
@@ -257,7 +260,7 @@
         if(m === notes[idx].m){
           kb && kb.flash(m); judged.set(idx, 'ok');
           idx++; progress(); target(); animateTo();
-          if(idx >= notes.length) setTimeout(finish, 450);
+          if(idx >= notes.length) later(finish, 450);
         } else { wrong++; kb && kb.wobble(m); }
         return;
       }
@@ -306,7 +309,7 @@
           hold = 0; needGap = true; gapT = now;
           const kb = d.getKb(); kb && kb.flash(notes[idx].m);
           judged.set(idx, 'ok'); idx++; progress(); target(); animateTo();
-          if(idx >= notes.length){ stopSing(); setTimeout(finish, 450); }
+          if(idx >= notes.length){ stopSing(); later(finish, 450); }
         }
       } else hold = Math.max(0, hold - 15);
       if(d.getLevel().see !== 'lane') return;
@@ -314,7 +317,7 @@
 
     // ── Demo: the app plays it, keys light up ───────────────────────────
     function startDemo(){
-      stopAll();
+      stopAll(); stopSing();               // the mic would hear the demo through the speaker
       const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.25;
       const bus = ac.createGain(); bus.connect(ac.destination);
       demo = { timers: [], bus };
@@ -333,6 +336,7 @@
     // ── Timed play-along ────────────────────────────────────────────────
     function nowBeat(){ return timed ? (d.audio().currentTime - timed.t0) / (60 / timed.bpm) : 0; }
     function startTimed(){
+      stopSing();
       const ac = d.audio(), spb = 60 / bpm;
       const bar = (take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4);
       const t0 = ac.currentTime + 0.3 + bar * spb;           // one-bar count-in
@@ -372,11 +376,16 @@
       const n = addSticker(take.id);
       const av = d.avatar && d.avatar();
       const ov = document.createElement('div'); ov.className = 'sg-done';
-      ov.innerHTML = `${av ? `<img src="${av}" alt="">` : '<div class="emo">🦀</div>'}
+      ov.innerHTML = `<div class="emo">🦀</div>
         <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
         <div class="msg">You played ${esc(take.title)}!${n > 1 ? `<br><small style="color:#ffd54f">${n} times now 🏅</small>` : ''}</div>
         <div class="sg-ctrl"><button class="sg-btn go" data-a="again">↺ Again</button>
         <button class="sg-btn" data-a="shelf">🎵 Songs</button></div>`;
+      // stored data goes in as a property, never as markup
+      if(av && /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(av)){
+        const img = document.createElement('img'); img.alt = ''; img.src = av;
+        ov.querySelector('.emo').replaceWith(img);
+      }
       document.body.appendChild(ov);
       const conf = ['🎉','⭐','🎵','🌈','✨','🎈'];
       for(let i = 0; i < 26; i++){
