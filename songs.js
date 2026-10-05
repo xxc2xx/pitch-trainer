@@ -94,7 +94,14 @@
     let shift = 0;
     while(lo + shift < range[0] && hi + shift + 12 <= range[1]) shift += 12;
     while(hi + shift > range[1] && lo + shift - 12 >= range[0]) shift -= 12;
-    return shift ? notes.map(n => ({ ...n, m: n.m + shift })) : notes;
+    // a melody wider than the range (Grow take opened at Sprout) can't move
+    // as a whole — fold the stragglers note by note so every step has a key
+    const span = range[1] - range[0];
+    return notes.map(n => {
+      let m = n.m + shift;
+      if(span >= 11){ while(m < range[0]) m += 12; while(m > range[1]) m -= 12; }
+      return m === n.m ? n : { ...n, m };
+    });
   }
 
   function create(d){
@@ -139,6 +146,8 @@
           e.stopPropagation();
           el.style.opacity = .3;
           try{ await MC.store.deleteTake(t.id); }catch(_){}
+          // the raw recording can be MBs — don't strand it in IndexedDB
+          if(t.audioId){ try{ await MC.store.deleteAudio(t.audioId); }catch(_){} }
           renderShelf(); return;
         }
         open(t);
@@ -522,8 +531,11 @@
     window.addEventListener('resize', () => { if(take) sizeCanvas(); });
 
     return {
-      show(){ host.style.display = 'flex'; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); target(); } },
-      hide(){ stopAll(); pulse(false); stopSing(); host.style.display = 'none'; },
+      show(){ host.style.display = 'flex'; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
+      hide(){
+        stopAll(); pulse(false); stopSing(); host.style.display = 'none';
+        if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
+      },
       refresh(){ if(take) open(take); else renderShelf(); },
       onKey,
       get open(){ return !!take; },

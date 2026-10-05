@@ -88,10 +88,11 @@
     const active = new Map();       // pointerId → m
     const downCount = new Map();    // m → number of pointers holding it
     let target = null;
+    const touched = new Set();      // keys whose inline style a caller set via keys()
 
     function build(){
       lo = snapWhite(o.range[0], +1); hi = snapWhite(o.range[1], -1);
-      whites = []; wIndex.clear(); keyEls.clear();
+      whites = []; wIndex.clear(); keyEls.clear(); touched.clear();
       for(let m = lo; m <= hi; m++) if(!MC.isBlack(m)){ wIndex.set(m, whites.length); whites.push(m); }
       o.view = Math.max(5, Math.min(o.view, whites.length));
       root.className = 'pv2 ' + (o.levelClass || '');
@@ -286,11 +287,16 @@
         o.start = c; build(); scrollTo(c, true);
         return o.view;
       },
-      keys: m => keyEls.get(m) || [],
+      // keys(m) hands out elements for caller styling (Listen glow); remember
+      // them so clearMarks() resets only those, not every key, each frame
+      keys: m => { const els = keyEls.get(m) || []; if(els.length) touched.add(m); return els; },
       press, release,
       flash: m => mark(m, 'flash', 450),
       wobble: m => mark(m, 'wobble', 300),
-      clearMarks(){ keyEls.forEach(els => els.forEach(el => { el.style.background = ''; el.style.boxShadow = ''; })); },
+      clearMarks(){
+        touched.forEach(m => (keyEls.get(m) || []).forEach(el => { el.style.background = ''; el.style.boxShadow = ''; }));
+        touched.clear();
+      },
       destroy(){ host.innerHTML = ''; },
     };
   }

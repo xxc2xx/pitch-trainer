@@ -216,6 +216,7 @@
     deleteTake:id   => tx('takes', 'readwrite', s => s.delete(id)),
     saveAudio: (id, blob) => tx('audio', 'readwrite', s => s.put(blob, id)).then(() => id),
     getAudio:  id   => tx('audio', 'readonly',  s => s.get(id)),
+    deleteAudio: id => tx('audio', 'readwrite', s => s.delete(id)),
   };
 
   const MusicCore = {
