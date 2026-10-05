@@ -13,7 +13,7 @@ git -C "$REPO" fetch -q origin
 [ -d "$WT" ] && git -C "$REPO" worktree remove --force "$WT"
 git -C "$REPO" worktree add -q --detach "$WT" origin/main
 rm -rf "$WT/staging"; mkdir -p "$WT/staging"
-for f in "$@"; do git -C "$REPO" show "$BRANCH:$f" > "$WT/staging/$f"; done
+for f in "$@"; do mkdir -p "$WT/staging/$(dirname "$f")"; git -C "$REPO" show "$BRANCH:$f" > "$WT/staging/$f"; done
 SHA="$(git -C "$REPO" rev-parse --short "$BRANCH")"
 # Mark it unmistakably: banner, noindex, distinct install name
 python3 - "$WT/staging" "$SHA" <<'PY'
