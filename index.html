@@ -934,7 +934,7 @@
     getLabels:()=>labelOverride||level.labels,
     audio:()=>ensureKbCtx(),
     playNote:(ac,freq,when,dur,dest)=>schedulePianoNote(ac,freq,when,dur,dest),
-    click:(ac,when,accent)=>scheduleMetroClick(ac,when,accent),
+    click:(ac,when,accent,dest)=>scheduleMetroClick(ac,when,accent,dest),
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
   });
@@ -3158,12 +3158,12 @@ Output the token list now, nothing else:`
     master.gain.exponentialRampToValueAtTime(0.0001,when+d);
   }
 
-  function scheduleMetroClick(ac,when,accent){
+  function scheduleMetroClick(ac,when,accent,dest){
     const o=ac.createOscillator(),g=ac.createGain();
     o.type='sine'; o.frequency.value=accent?1200:900;
     g.gain.setValueAtTime(accent?0.3:0.18,when);
     g.gain.exponentialRampToValueAtTime(0.0001,when+0.06);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(dest||ac.destination);
     o.start(when); o.stop(when+0.07);
   }
 

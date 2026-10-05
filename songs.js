@@ -187,7 +187,7 @@
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
       host.querySelector('#sgRestart').onclick = () => startMode(mode);
-      host.querySelector('#sgDemo').onclick = () => demo ? stopAll() : startDemo();
+      host.querySelector('#sgDemo').onclick = () => { if(demo){ stopAll(); setBtns(); } else startDemo(); };
       host.querySelector('#sgWait').onclick = () => startMode('wait');
       const tb = host.querySelector('#sgTimed'); if(tb) tb.onclick = () => startMode('timed');
       const sb = host.querySelector('#sgSing'); if(sb) sb.onclick = toggleSing;
@@ -226,7 +226,11 @@
         try{ demo.bus.gain.cancelScheduledValues(0); demo.bus.disconnect(); }catch(e){}
         demo = null;
       }
-      if(timed){ timed.stop = true; timed = null; }
+      if(timed){
+        timed.stop = true;
+        try{ timed.bus.disconnect(); }catch(e){}     // silence a count-in still queued
+        timed = null;
+      }
       cancelAnimationFrame(raf); raf = 0;
       const kb = d.getKb(); kb && kb.setTarget(null);
     }
@@ -332,8 +336,9 @@
       const ac = d.audio(), spb = 60 / bpm;
       const bar = (take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4);
       const t0 = ac.currentTime + 0.3 + bar * spb;           // one-bar count-in
-      for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0);
-      timed = { t0, bpm, running: true, stop: false };
+      const bus = ac.createGain(); bus.connect(ac.destination);
+      for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
+      timed = { t0, bpm, running: true, stop: false, bus };
       const len = MC.takeLength({ notes });
       const tick = () => {
         if(!timed || timed.stop) return;
