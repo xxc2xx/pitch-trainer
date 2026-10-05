@@ -80,7 +80,12 @@
     document.head.appendChild(s);
   }
   const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
-  function readStickers(){ try{ return JSON.parse(localStorage.getItem(STICKER_KEY) || '{}'); }catch(e){ return {}; } }
+  function readStickers(){
+    try{
+      const v = JSON.parse(localStorage.getItem(STICKER_KEY) || '{}');
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : {};   // storage is user-editable
+    }catch(e){ return {}; }
+  }
   function addSticker(id){ const s = readStickers(); s[id] = (s[id] || 0) + 1; try{ localStorage.setItem(STICKER_KEY, JSON.stringify(s)); }catch(e){} return s[id]; }
   function mix(hex, toHex, amt){            // amt=1 → hex, amt=0 → toHex
     const p = h => [1,3,5].map(i => parseInt(h.slice(i, i+2), 16));
@@ -214,7 +219,13 @@
     }
 
     function stopAll(){
-      if(demo){ demo.timers.forEach(clearTimeout); demo = null; }
+      if(demo){
+        demo.timers.forEach(clearTimeout);
+        // every demo note was scheduled up front — cutting the bus silences
+        // the rest instead of letting the song play out under the next one
+        try{ demo.bus.gain.cancelScheduledValues(0); demo.bus.disconnect(); }catch(e){}
+        demo = null;
+      }
       if(timed){ timed.stop = true; timed = null; }
       cancelAnimationFrame(raf); raf = 0;
       const kb = d.getKb(); kb && kb.setTarget(null);
@@ -301,9 +312,10 @@
     function startDemo(){
       stopAll();
       const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.25;
-      demo = { timers: [] };
+      const bus = ac.createGain(); bus.connect(ac.destination);
+      demo = { timers: [], bus };
       notes.forEach((n, i) => {
-        d.playNote(ac, MC.midiToFreq(n.m), t0 + n.t * spb, n.d * spb);
+        d.playNote(ac, MC.midiToFreq(n.m), t0 + n.t * spb, n.d * spb, bus);
         demo.timers.push(setTimeout(() => {
           idx = i; progress(); const kb = d.getKb();
           kb && (kb.setTarget(n.m), kb.flash(n.m)); animateTo();

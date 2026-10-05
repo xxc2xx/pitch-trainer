@@ -933,7 +933,7 @@
     getKb:()=>kb, getLevel:()=>level,
     getLabels:()=>labelOverride||level.labels,
     audio:()=>ensureKbCtx(),
-    playNote:(ac,freq,when,dur)=>schedulePianoNote(ac,freq,when,dur),
+    playNote:(ac,freq,when,dur,dest)=>schedulePianoNote(ac,freq,when,dur,dest),
     click:(ac,when,accent)=>scheduleMetroClick(ac,when,accent),
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
@@ -3133,12 +3133,12 @@ Output the token list now, nothing else:`
     });
   }
 
-  function schedulePianoNote(ac,freq,when,dur){
+  function schedulePianoNote(ac,freq,when,dur,dest){
     const master=ac.createGain(), filt=ac.createBiquadFilter();
     filt.type='lowpass'; filt.Q.value=0.6;
     filt.frequency.setValueAtTime(Math.min(freq*20,20000),when);
     filt.frequency.exponentialRampToValueAtTime(Math.min(freq*3,6000),when+0.5);
-    master.connect(filt); filt.connect(ac.destination);
+    master.connect(filt); filt.connect(dest||ac.destination);   // dest: a cancellable bus (Songs demo)
     const d=Math.min(dur*0.92,2.5);
     [[1,0.52],[2,0.28],[3,0.14],[4.01,0.07],[5.09,0.03]].forEach(([m,v])=>{
       const o=ac.createOscillator(),g=ac.createGain();

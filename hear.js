@@ -211,8 +211,9 @@
   async function toMono22k(blob){
     const C = window.AudioContext || window.webkitAudioContext;
     const ac = new C();
-    const buf = await ac.decodeAudioData(await blob.arrayBuffer());
-    ac.close && ac.close();
+    let buf;
+    try{ buf = await ac.decodeAudioData(await blob.arrayBuffer()); }
+    finally{ try{ ac.close(); }catch(e){} }          // a corrupt file must not leak the context
     const len = Math.ceil(buf.duration * 22050);
     const off = new OfflineAudioContext(1, len, 22050);
     const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
