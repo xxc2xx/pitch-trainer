@@ -1,5 +1,6 @@
-const CACHE = 'pitch-v16';
-const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js'];
+const CACHE = 'pitch-v17';
+const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js',
+                './music-core.js', './piano.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -20,10 +21,19 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
 
-  // Always fetch HTML fresh so app updates are picked up immediately
-  if (url.pathname.endsWith('.html') || url.pathname.endsWith('/') || url.pathname === '') {
+  // Always fetch HTML and JS fresh so app updates are picked up immediately
+  // (JS modules ship in lockstep with index.html — a stale piano.js against a
+  // new index.html breaks). Cache is only the offline fallback.
+  if (url.pathname.endsWith('.html') || url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('/') || url.pathname === '') {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      fetch(e.request).then(r => {
+        if (r.ok && url.pathname.endsWith('.js')) {
+          const copy = r.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
+        return r;
+      }).catch(() => caches.match(e.request))
     );
     return;
   }

@@ -1,15 +1,42 @@
 # pitch-trainer
 
-Client-side ear-training PWA. Single file (`index.html`, ~3,700 lines —
-HTML/CSS/JS in one `<script>` block), no backend, no build step. Tone.js/
+Client-side ear-training + music-learning PWA. `index.html` plus a few
+classic-script modules (below), no backend, no build step. Tone.js/
 Web Audio for pitch and beat detection. `sw.js` + `manifest.json` for PWA
 install; service worker always re-fetches the HTML fresh, only caches
 icons.
 
+## Music ecosystem modules (added 2026-10-05)
+
+Hear → See → Play → Integrate, built for a 4-year-old first (plan:
+`~/.claude/plans/bubbly-rolling-milner.md`). Each is a classic `<script src>`
+that sets a global, loaded before the inline script:
+
+- `music-core.js` → `MusicCore`: Boomwhackers palette (C red … B pink),
+  Figurenotes octave shapes, `LEVELS` (sprout/bloom/grow — one engine,
+  three presentations), the **Take** shape (`notes:[{m,t,d,v}]`, times in
+  BEATS), token interop with the old `"F4:1 R:1"` format, 6 built-in songs,
+  IndexedDB store `music-eco` (shared with beat-hive: same origin).
+- `piano.js` → `PianoV2`: generated keys over any MIDI range, minimap
+  slider, zoom, two-row, multi-touch + glissando via Pointer Events.
+- `songs.js` → `Songs`: Songs tab — shelf, colour lane (Sprout) / colour
+  staff (Bloom/Grow), wait mode, timed play-along, sing-along, stickers.
+- `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
+  normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
+  jsDelivr for audio files.
+
+**beat-hive carries vendored copies of `music-core.js` and `hear.js`.**
+Edit here, then `tools/sync-core.sh`; beat-hive's `tools/qc.js` fails on
+drift. `node tools/core-test.mjs` is the gate for music-core.
+
+Keys are 30px minimum; Sprout locks to C4–C5 (the classroom bell set).
+Chrome only treats touch *pointerup* as a user gesture, so the piano resumes
+its AudioContext on both edges (`ensureKbCtx`).
+
 ## Modes (tabs)
 
-`listen` (real-time pitch feedback, no target to match — see note below),
-`keys` (free-play synth), `flow` (beat/rhythm practice — has real
+`listen` (real-time pitch feedback, plus ⏺ Sing a song / 📁 From audio →
+Take), `songs` (follow-along), `keys` (Piano v2 free play, ⏺ records a Take), `flow` (beat/rhythm practice — has real
 attempt+outcome data), `stats` (practice history dashboard), `play`
 (sheet-music photo → playback via Claude Vision or an OMR server), `dj`
 (pads/scratch/sequencer).
@@ -55,6 +82,7 @@ gate shows; `pitchTrainer_avatar` holds the image. Header badge
 - No backend, no npm/build step — keep it that way. Any new feature needing
   server-side logic is a bigger architectural decision, not a quick add.
 - Verify JS changes with `node --check` on the extracted `<script>` block
+  and on each module
   before considering a change done — no test suite exists, this is the
   cheap first gate. See commit history from 2026-08-17 for the pattern
   (extract script, `node --check`, then real browser verification via
