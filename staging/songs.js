@@ -195,7 +195,8 @@
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
       host.querySelector('#sgRestart').onclick = () => startMode(mode);
-      host.querySelector('#sgDemo').onclick = () => { if(demo){ stopAll(); setBtns(); } else startDemo(); };
+      // stopping Listen goes back to step-by-step from the top, guide key lit
+      host.querySelector('#sgDemo').onclick = () => { if(demo) startMode('wait'); else startDemo(); };
       host.querySelector('#sgWait').onclick = () => startMode('wait');
       const tb = host.querySelector('#sgTimed'); if(tb) tb.onclick = () => { if(timed){ startMode('wait'); } else startMode('timed'); };
       const sb = host.querySelector('#sgSing'); if(sb) sb.onclick = toggleSing;

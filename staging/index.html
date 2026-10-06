@@ -345,7 +345,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING b70a8d7</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 0adfa16</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -598,11 +598,11 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=b70a8d7"></script>
-  <script src="piano.js?v=b70a8d7"></script>
-  <script src="songs.js?v=b70a8d7"></script>
-  <script src="hear.js?v=b70a8d7"></script>
-  <script src="sound.js?v=b70a8d7"></script>
+  <script src="music-core.js?v=0adfa16"></script>
+  <script src="piano.js?v=0adfa16"></script>
+  <script src="songs.js?v=0adfa16"></script>
+  <script src="hear.js?v=0adfa16"></script>
+  <script src="sound.js?v=0adfa16"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -2458,7 +2458,7 @@
     if(isKeys||isSongs||mode==='listen') updateKeyLabels();
     if(isSongs&&currentInstrument==='drum'){
       // Songs hides the instrument picker — melody needs a melodic voice
-      currentInstrument='piano';
+      currentInstrument='piano'; Sound.setInstrument('piano');   // demo/guide voice too
       document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b.dataset.inst==='piano'));
       updateKeyLabels();
     }
