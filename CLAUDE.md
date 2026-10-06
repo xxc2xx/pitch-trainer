@@ -20,7 +20,16 @@ that sets a global, loaded before the inline script:
 - `piano.js` → `PianoV2`: generated keys over any MIDI range, minimap
   slider, zoom, two-row, multi-touch + glissando via Pointer Events.
 - `songs.js` → `Songs`: Songs tab — shelf, colour lane (Sprout) / colour
-  staff (Bloom/Grow), wait mode, timed play-along, sing-along, stickers.
+  staff (Bloom/Grow); 👂 Listen and 🎵 Play along scroll on the audio clock
+  (per-level timing windows, Sprout never scored down), 👆 Step by step
+  (wait mode), 🎤 Sing it, stickers. Computer keys (G=C4…) work in Keys and
+  Songs through `kb.press/release`.
+- `sound.js` → `Sound`: instrument voices. Sampled via smplr (lazy from
+  jsDelivr): Steinway grand (ONE velocity layer, ~5.8 MB — all five are
+  ~20 MB; velocities are clamped into it or notes go silent), CP80 e-piano,
+  GM soundfonts for guitar/bass/strings. Synth fallback until loaded or
+  offline. `noteOn`/`noteOff` = press-and-hold sustain; `schedule`/`cancel`
+  by tag for Songs. Safari gets .m4a (smplr skips ogg there).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.

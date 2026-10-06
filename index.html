@@ -121,6 +121,8 @@
     .pb-btn.sel{background:#2c2c5a;color:#fff;}
     .pb-btn:disabled{opacity:.3;cursor:default;}
     #pbRec.on{background:#e94560;color:#fff;animation:recblink 1s infinite;}
+    #soundBadge{font-size:.68rem;color:#7a7aa8;min-width:0;}
+    #soundBadge:empty{display:none;}
     @keyframes recblink{50%{opacity:.6}}
     #recToast{align-items:center;justify-content:center;gap:8px;font-size:.75rem;color:#9a9ad0;padding:0 0 6px;}
 
@@ -572,6 +574,7 @@
         <button class="pb-btn" id="pbZoomOut" title="Show more keys">−</button>
         <button class="pb-btn" id="pbZoomIn"  title="Bigger keys">＋</button>
       </div>
+      <span id="soundBadge" title="Instrument sound"></span>
       <div class="pb-group" id="pbRecGroup">
         <button class="pb-btn" id="pbRec" title="Record a tune — it becomes a song">⏺</button>
       </div>
@@ -597,6 +600,7 @@
   <script src="piano.js"></script>
   <script src="songs.js"></script>
   <script src="hear.js"></script>
+  <script src="sound.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -874,8 +878,16 @@
     if(!kbCtx||kbCtx.state==='closed')
       kbCtx=new(window.AudioContext||window.webkitAudioContext)();
     if(kbCtx.state!=='running') kbCtx.resume().catch(()=>{});
+    Sound.use(kbCtx);                       // first call starts the sample download
     return kbCtx;
   }
+  const SOUND_NAME={piano:'grand piano',epiano:'e-piano',guitar:'guitar',bass:'bass',strings:'strings'};
+  Sound.onStatus(st=>{
+    const b=document.getElementById('soundBadge'); if(!b) return;
+    if(st.state==='loading') b.textContent='⏳ '+SOUND_NAME[st.id]+(st.total?' '+Math.round(100*st.loaded/st.total)+'%':'');
+    else if(st.state==='ready'){ b.textContent='✓ '+SOUND_NAME[st.id]; setTimeout(()=>{ if(b.textContent.startsWith('✓')) b.textContent=''; },2500); }
+    else b.textContent='';
+  });
   function onPianoDown(m){
     if(currentMode!=='keys'&&currentMode!=='songs') return;
     const ac=ensureKbCtx(), bare=NOTE_BARE[m%12], oct=MC.octaveOf(m);
@@ -888,6 +900,7 @@
   function onPianoUp(m){
     if(currentMode!=='keys'&&currentMode!=='songs') return;
     ensureKbCtx();
+    if(currentInstrument!=='drum') Sound.noteOff(m);
     if(pianoRec) for(let i=pianoRec.length-1;i>=0;i--)
       if(pianoRec[i].m===m&&pianoRec[i].off==null){ pianoRec[i].off=performance.now(); break; }
   }
@@ -933,7 +946,8 @@
     getKb:()=>kb, getLevel:()=>level,
     getLabels:()=>labelOverride||level.labels,
     audio:()=>ensureKbCtx(),
-    playNote:(ac,freq,when,dur,dest)=>schedulePianoNote(ac,freq,when,dur,dest),
+    playNote:(ac,m,when,dur,o)=>Sound.schedule(m,when,dur,o),
+    cancelNotes:tag=>Sound.cancel(tag),
     click:(ac,when,accent,dest)=>scheduleMetroClick(ac,when,accent,dest),
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
@@ -2174,13 +2188,9 @@
     const idx=NOTE_BARE.indexOf(bare);
     if(idx>=0) updateStaff(buildInfo(idx,showOct,0));
 
-    switch(currentInstrument){
-      case 'epiano':  playEPiano(ac,freq,t);  break;
-      case 'guitar':  playGuitar(ac,freq,t);  break;
-      case 'bass':    playBass(ac,freq,t);    break;
-      case 'strings': playStrings(ac,freq,t); break;
-      default:        playPiano(ac,freq,t);   break;
-    }
+    // sampled instrument via sound.js; sounds until the key is released
+    Sound.use(ac); Sound.setInstrument(currentInstrument);
+    Sound.noteOn(MC.midiOf(bare,showOct),90);
 
     kbTimeout=setTimeout(()=>{
       clearPiano(); updateStaff(null);
@@ -2480,6 +2490,7 @@
     const btn=e.target.closest('.inst-btn');
     if(!btn) return;
     currentInstrument=btn.dataset.inst;
+    if(currentInstrument!=='drum') Sound.setInstrument(currentInstrument);
     document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b===btn));
     const isDrum=currentInstrument==='drum';
     staffView.style.display=isDrum?'none':'';
@@ -2506,19 +2517,27 @@
     o:{bare:'Fs',oct:4},p:{bare:'Gs',oct:4},
     enter:{bare:'C',oct:5},
   };
+  const kbDown=new Map();   // physical key → midi it pressed (release the same note)
   document.addEventListener('keydown',e=>{
-    if(currentMode!=='keys') return;
+    if(currentMode!=='keys'&&currentMode!=='songs') return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
+    if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k=e.key==='Enter'?'enter':e.key.toLowerCase();
     const entry=KEY_MAP[k];
     if(!entry) return;
     e.preventDefault();
-    if(!kbCtx||kbCtx.state==='closed')
-      kbCtx=new(window.AudioContext||window.webkitAudioContext)();
-    kbCtx.resume();
-    const{bare,oct}=entry;
-    playKeyNote(bare,getFreq(NOTE_BARE.indexOf(bare),oct),oct);
+    if(document.activeElement&&document.activeElement!==document.body) document.activeElement.blur();
+    const m=MC.midiOf(entry.bare,entry.oct);
+    kbDown.set(k,m);
+    if(kb) kb.press(m); else onPianoDown(m);   // kb.press → onPianoDown (sound, song, record)
   });
+  document.addEventListener('keyup',e=>{
+    const k=e.key==='Enter'?'enter':e.key.toLowerCase();
+    if(!kbDown.has(k)) return;
+    const m=kbDown.get(k); kbDown.delete(k);
+    if(kb) kb.release(m); else onPianoUp(m);
+  });
+  window.addEventListener('blur',()=>{ kbDown.forEach(m=>kb&&kb.release(m)); kbDown.clear(); });
 
   // ── Play tab — score renderer ─────────────────────────────────────────
   let isPlaying=false, playCtx2=null, playTimers=[];
