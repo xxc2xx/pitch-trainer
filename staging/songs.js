@@ -7,7 +7,8 @@
      getLevel: () => level,
      getLabels: () => 'solfege',
      audio:  () => AudioContext (already resumed inside a gesture),
-     playNote(ac, freq, when, dur),   // schedulable piano voice
+     playNote(ac, midi, when, dur, {vel, tag}),  // scheduled note (sound.js)
+     cancelNotes(tag),                // stop every note scheduled with tag
      click(ac, when, accent),         // metronome click
      avatar: () => dataURL|null,
      onOpen(take) / onClose(),        // index.html adjusts the keyboard
@@ -18,9 +19,10 @@
    Follow modes:
    - wait   : the next key pulses; nothing moves until it's pressed. No timing
               pressure, wrong keys get a gentle wobble — never a buzzer.
-   - timed  : the song runs at tempo after a one-bar count-in; presses are
-              graded tight/loose/miss against the beat (Grow level).
-   - demo   : "listen first" — the app plays it, keys light up as it goes.
+   - timed  : 🎵 Play along — the music plays and the notes scroll to the
+              line after a one-bar count-in; presses are graded against the
+              beat with a per-level window (Sprout: generous, never scored down).
+   - demo   : 👂 Listen — the app plays it, the notes scroll, keys light up.
 */
 (function(){
   'use strict';
@@ -109,6 +111,10 @@
     });
   }
 
+  // Play-along timing windows in beats: [tight, loose, accept]. A 4-year-old
+  // gets most of a beat either side; Grow is closer to a real rhythm game.
+  const WINDOWS = { sprout:[0.3, 0.6, 0.8], bloom:[0.15, 0.35, 0.5], grow:[0.12, 0.3, 0.45] };
+
   function create(d){
     injectCSS();
     const host = d.host;
@@ -116,6 +122,7 @@
     let demo = null, timed = null, camX = 0, raf = 0, bpm = 90;
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
     let finishT = 0;                       // pending completion — cancelled on leave
+    let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -166,22 +173,21 @@
       take = t;
       const level = d.getLevel();
       notes = fitToRange(MC.skyline(t.notes), level.range);
-      bpm = t.bpm || 90; idx = 0; wrong = 0; judged.clear();
-      // every level opens playable in wait mode; Grow gets ⏱ Play along
+      // Sprout starts a little slower — rhythm is new
+      bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
       mode = 'wait';
       d.onOpen && d.onOpen({ ...t, notes });
-      const tempoRow = level.id === 'sprout' ? '' :
-        `<label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>`;
       host.innerHTML = `
         <div class="sg-top"><button class="sg-btn" id="sgBack">←</button>
           <span class="t">${esc(t.icon || '🎵')} ${esc(t.title)}</span>
           <div class="sg-ctrl">
-            <button class="sg-btn" id="sgDemo">👂 Listen</button>
-            <button class="sg-btn${mode === 'wait' ? ' sel' : ''}" id="sgWait">👆 My turn</button>
+            <button class="sg-btn" id="sgDemo" title="Hear it and watch the notes">👂 Listen</button>
+            <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">🎵 Play along</button>
+            <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
-            ${level.id === 'sprout' ? '' : `<button class="sg-btn${mode === 'timed' ? ' sel' : ''}" id="sgTimed">⏱ Play along</button>`}
+            <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
-            ${tempoRow}
+            <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
         <div class="sg-prog"><i id="sgProg"></i></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
@@ -191,8 +197,10 @@
       host.querySelector('#sgRestart').onclick = () => startMode(mode);
       host.querySelector('#sgDemo').onclick = () => { if(demo){ stopAll(); setBtns(); } else startDemo(); };
       host.querySelector('#sgWait').onclick = () => startMode('wait');
-      const tb = host.querySelector('#sgTimed'); if(tb) tb.onclick = () => startMode('timed');
+      const tb = host.querySelector('#sgTimed'); if(tb) tb.onclick = () => { if(timed){ startMode('wait'); } else startMode('timed'); };
       const sb = host.querySelector('#sgSing'); if(sb) sb.onclick = toggleSing;
+      const gb = host.querySelector('#sgGuide');
+      gb.onclick = () => { guideOn = !guideOn; gb.classList.toggle('sel', guideOn); gb.textContent = guideOn ? '🔈' : '🔇'; };
       const tr = host.querySelector('#sgTempo');
       if(tr) tr.oninput = () => { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; };
       sizeCanvas(); pulse(true);
@@ -218,18 +226,19 @@
       q('#sgWait') && q('#sgWait').classList.toggle('sel', mode === 'wait');
       q('#sgTimed') && q('#sgTimed').classList.toggle('sel', mode === 'timed');
       q('#sgDemo') && (q('#sgDemo').textContent = demo ? '⏹ Stop' : '👂 Listen');
+      q('#sgTimed') && (q('#sgTimed').textContent = timed ? '⏹ Stop' : '🎵 Play along');
     }
 
     function stopAll(){
       if(demo){
-        demo.timers.forEach(clearTimeout);
-        // every demo note was scheduled up front — cutting the bus silences
-        // the rest instead of letting the song play out under the next one
-        try{ demo.bus.gain.cancelScheduledValues(0); demo.bus.disconnect(); }catch(e){}
+        // every demo note was scheduled up front — cancel them, don't let the
+        // song play out under whatever comes next
+        demo.stop = true; d.cancelNotes && d.cancelNotes(demo.tag);
         demo = null;
       }
       if(timed){
         timed.stop = true;
+        d.cancelNotes && d.cancelNotes(timed.tag);
         try{ timed.bus.disconnect(); }catch(e){}     // silence a count-in still queued
         timed = null;
       }
@@ -265,15 +274,16 @@
         return;
       }
       if(mode === 'timed' && timed && timed.running){
-        const beat = nowBeat();
+        const beat = nowBeat(timed);
         let best = -1, bestDt = 1e9;
         notes.forEach((n, i) => {
           if(judged.has(i) || n.m !== m) return;
           const dt = Math.abs(n.t - beat);
           if(dt < bestDt){ bestDt = dt; best = i; }
         });
-        if(best >= 0 && bestDt <= 0.5){
-          judged.set(best, bestDt <= 0.12 ? 'tight' : bestDt <= 0.3 ? 'loose' : 'ok');
+        const W = timed.W;
+        if(best >= 0 && bestDt <= W[2]){
+          judged.set(best, bestDt <= W[0] ? 'tight' : bestDt <= W[1] ? 'loose' : 'ok');
           kb && kb.flash(m);
         } else { kb && kb.wobble(m); }
       }
@@ -315,46 +325,60 @@
       if(d.getLevel().see !== 'lane') return;
     }
 
-    // ── Demo: the app plays it, keys light up ───────────────────────────
+    // ── Clock: Listen and Play along both scroll with the music ─────────
+    // Notes move right→left at tempo; the dotted line is "now". Everything
+    // is scheduled on the AudioContext clock, the screen just follows it.
+    function nowBeat(run){ run = run || timed || demo; return run ? (d.audio().currentTime - run.t0) / (60 / run.bpm) : 0; }
+
     function startDemo(){
       stopAll(); stopSing();               // the mic would hear the demo through the speaker
-      const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.25;
-      const bus = ac.createGain(); bus.connect(ac.destination);
-      demo = { timers: [], bus };
-      notes.forEach((n, i) => {
-        d.playNote(ac, MC.midiToFreq(n.m), t0 + n.t * spb, n.d * spb, bus);
-        demo.timers.push(setTimeout(() => {
-          idx = i; progress(); const kb = d.getKb();
-          kb && (kb.setTarget(n.m), kb.flash(n.m)); animateTo();
-        }, (t0 - ac.currentTime + n.t * spb) * 1000));
-      });
-      const end = notes.length ? MC.takeLength({ notes }) * spb : 0;
-      demo.timers.push(setTimeout(() => { stopAll(); startMode('wait'); }, (t0 - ac.currentTime + end) * 1000 + 400));
+      const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.4;
+      demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1 };
+      notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
+      const len = MC.takeLength({ notes });
+      const run = demo;
+      const tick = () => {
+        if(run.stop) return;
+        const beat = nowBeat(run);
+        let i = -1; notes.forEach((n, k) => { if(n.t <= beat + 1e-3) i = k; });
+        if(i !== run.last && i >= 0){
+          run.last = i; idx = i; progress();
+          const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
+        }
+        camX = xOf(Math.max(-1, beat)) - camLead();
+        draw(beat);
+        if(beat > len + 0.5){ stopAll(); startMode('wait'); return; }
+        raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
       setBtns();
     }
 
-    // ── Timed play-along ────────────────────────────────────────────────
-    function nowBeat(){ return timed ? (d.audio().currentTime - timed.t0) / (60 / timed.bpm) : 0; }
     function startTimed(){
       stopSing();
-      const ac = d.audio(), spb = 60 / bpm;
+      const ac = d.audio(), spb = 60 / bpm, lv = d.getLevel().id, W = WINDOWS[lv] || WINDOWS.bloom;
       const bar = (take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4);
       const t0 = ac.currentTime + 0.3 + bar * spb;           // one-bar count-in
       const bus = ac.createGain(); bus.connect(ac.destination);
       for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
-      timed = { t0, bpm, running: true, stop: false, bus };
+      timed = { t0, bpm, running: true, stop: false, bus, tag: 'play' + (++runSeq), W };
+      // the "music": melody softly underneath so she hears what to play
+      if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
       const len = MC.takeLength({ notes });
+      const run = timed;
       const tick = () => {
-        if(!timed || timed.stop) return;
-        const beat = nowBeat();
-        notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + 0.5) judged.set(i, 'miss'); });
-        let next = notes.findIndex((n, i) => !judged.has(i));
+        if(run.stop) return;
+        const beat = nowBeat(run);
+        notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
+        const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
         const kb = d.getKb();
-        if(kb && notes[idx]) kb.setTarget(notes[idx].t - beat < 1 ? notes[idx].m : null);
+        // Sprout always sees the next key; others only as it arrives
+        const lead = lv === 'sprout' ? 99 : 1;
+        if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
         draw(beat);
-        if(beat > len + 0.6){ timed.running = false; finish(); return; }
+        if(beat > len + 0.6){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -372,13 +396,15 @@
           stars = pct >= .9 ? 3 : pct >= .65 ? 2 : 1;
         } else stars = wrong <= 1 ? 3 : wrong <= 4 ? 2 : 1;
       }
-      stopAll();
+      const wasTimed = mode === 'timed';
+      const onBeat = notes.reduce((c, _, i) => c + (/tight|loose|ok/.test(judged.get(i) || '') ? 1 : 0), 0);
+      stopAll(); setBtns();
       const n = addSticker(take.id);
       const av = d.avatar && d.avatar();
       const ov = document.createElement('div'); ov.className = 'sg-done';
       ov.innerHTML = `<div class="emo">🦀</div>
         <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
-        <div class="msg">You played ${esc(take.title)}!${n > 1 ? `<br><small style="color:#ffd54f">${n} times now 🏅</small>` : ''}</div>
+        <div class="msg">You played ${esc(take.title)}!${wasTimed ? `<br><small style="color:#9fe8b0">🎯 ${onBeat} of ${notes.length} notes on the beat</small>` : ''}${n > 1 ? `<br><small style="color:#ffd54f">${n} times now 🏅</small>` : ''}</div>
         <div class="sg-ctrl"><button class="sg-btn go" data-a="again">↺ Again</button>
         <button class="sg-btn" data-a="shelf">🎵 Songs</button></div>`;
       // stored data goes in as a property, never as markup
@@ -408,7 +434,7 @@
     function camLead(){ return (canvas ? canvas.clientWidth : 360) * 0.3; }
     function xOf(beat){ return 70 + beat * ppb(); }
     function animateTo(){
-      if(mode === 'timed' && timed) return;      // timed mode drives its own camera
+      if(timed || demo) return;                  // the clock drives the camera
       const want = xOf(notes[Math.min(idx, notes.length - 1)] ? notes[Math.min(idx, notes.length - 1)].t : 0) - camLead();
       cancelAnimationFrame(raf);
       draw();                                     // immediate frame even if rAF is throttled
@@ -446,7 +472,12 @@
       const pulse = 1 + 0.08 * Math.sin(performance.now() / 160);
       notes.forEach((n, i) => {
         const x = xOf(n.t) - camX; if(x < -60 || x > W + 60) return;
-        const y = yOf(n.m), col = MC.colorOf(n.m), done = i < idx, cur = i === idx;
+        // Play along: done = judged (✓ on a hit; a miss just fades — no red ✗
+        // for a pre-schooler). Listen/step: done = already played.
+        const verdict = timed ? judged.get(i) : null;
+        const done = timed ? judged.has(i) : demo ? i < idx : i < idx;
+        const hit = done && verdict !== 'miss', cur = i === idx;
+        const y = yOf(n.m), col = MC.colorOf(n.m);
         g.globalAlpha = done ? 0.22 : 0.35;
         g.fillStyle = col;
         g.beginPath(); (g.roundRect ? g.roundRect(x, y - 7, Math.max(0, n.d * P - 22), 14, 7) : g.rect(x, y - 7, Math.max(0, n.d * P - 22), 14)); g.fill();
@@ -455,7 +486,7 @@
         if(cur){ g.shadowColor = col; g.shadowBlur = 24; }
         shapePath(g, MC.shapeOf(n.m), x, y, r); g.fill();
         g.shadowBlur = 0;
-        if(done){ g.globalAlpha = .7; g.fillStyle = '#fff'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + 6); }
+        if(done && hit){ g.globalAlpha = .8; g.fillStyle = '#fff'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.fillText('✓', x, y + 6); }
       });
       g.globalAlpha = 1;
       if(sing && sungM != null && notes[idx]){
