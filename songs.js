@@ -60,6 +60,8 @@
     font-size:.8rem;font-weight:700;cursor:pointer;}
   .sg-btn.sel{background:#3a3a7a;color:#fff;border-color:#6a6ad0;}
   .sg-btn.go{background:#e94560;border-color:#e94560;color:#fff;}
+  .sg-media video{display:block;max-height:28vh;max-width:100%;margin:0 auto;border-radius:10px;background:#000;}
+  @media(orientation:landscape) and (max-height:500px){.sg-media video{max-height:22vh;}}
   .sg-canvas{width:100%;display:block;border-radius:12px;background:#06050f;border:1px solid #14142c;touch-action:pan-y;}
   .sg-ctrl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
   .sg-ctrl label{font-size:.72rem;color:#7a7aa8;display:flex;gap:4px;align-items:center;}
@@ -124,6 +126,8 @@
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
     let finishT = 0;                       // pending completion — cancelled on leave
     let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
+    // Imported songs carry their original recording: it becomes the clock.
+    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -140,7 +144,7 @@
     }
     let shelfTakes = new Map();
     async function renderShelf(){
-      stopAll(); pulse(false); stopSing(); take = null; d.onClose && d.onClose();
+      stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       const builtin = MC.builtinTakes();
       let mine = [];
       try{ mine = await MC.store.listTakes(); }catch(e){}
@@ -189,10 +193,12 @@
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
+            <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
         <div class="sg-prog"><i id="sgProg"></i></div>
+        <div id="sgMedia" class="sg-media"></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
       canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d');
       progEl = host.querySelector('#sgProg');
@@ -206,9 +212,70 @@
       const gb = host.querySelector('#sgGuide');
       gb.onclick = () => { guideOn = !guideOn; gb.classList.toggle('sel', guideOn); gb.textContent = guideOn ? '🔈' : '🔇'; };
       const tr = host.querySelector('#sgTempo');
-      if(tr) tr.oninput = () => { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; };
+      if(tr) tr.oninput = () => {
+        if(media){ rate = +tr.value / 100; media.playbackRate = rate; host.querySelector('#sgBpm').textContent = tr.value + '%'; }
+        else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
+      };
+      host.querySelector('#sgLoop').onclick = setLoop;
+      canvas.onclick = seekTo;
       sizeCanvas(); pulse(true);
       startMode('wait');
+      loadMedia(t);
+    }
+
+    // ── Original recording (video / audio) ──────────────────────────────
+    function dropMedia(){
+      if(media){ try{ media.pause(); }catch(e){} media.removeAttribute('src'); media = null; }
+      if(mediaUrl){ URL.revokeObjectURL(mediaUrl); mediaUrl = null; }
+      loopAB = null; abStage = 0; rate = 1;
+    }
+    async function loadMedia(t){
+      dropMedia();
+      const id = t.sync && (t.sync.audioId || t.audioId);
+      if(!id) return;
+      let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
+      if(!blob || take !== t) return;                       // gone, or user moved on
+      const isVideo = t.sync.kind === 'video' || /^video\//.test(blob.type);
+      const el = document.createElement(isVideo ? 'video' : 'audio');
+      mediaUrl = URL.createObjectURL(blob);
+      el.src = mediaUrl; el.preload = 'auto'; el.playsInline = true;
+      el.preservesPitch = true; el.webkitPreservesPitch = true;   // slow down, same pitch
+      if(isVideo){ el.muted = false; host.querySelector('#sgMedia').appendChild(el); }
+      media = el;
+      // the slider becomes speed (50–100 %), the guide melody is the original itself
+      const tr = host.querySelector('#sgTempo');
+      if(tr){ tr.min = 50; tr.max = 100; tr.value = 100; host.querySelector('#sgBpm').textContent = '100%'; }
+      const gb = host.querySelector('#sgGuide'); if(gb) gb.style.display = 'none';
+      host.querySelector('#sgLoop').style.display = '';
+      const dt = host.querySelector('#sgDemo'); if(dt) dt.textContent = isVideo ? '▶ Watch' : '👂 Listen';
+    }
+    function curBeat(){
+      const run = timed || demo;
+      if(run) return nowBeat(run);
+      return notes[Math.min(idx, notes.length - 1)] ? notes[Math.min(idx, notes.length - 1)].t : 0;
+    }
+    // 🔁: tap = loop starts here, tap = ends here, tap = clear
+    function setLoop(){
+      const b = host.querySelector('#sgLoop');
+      if(abStage === 0){ loopAB = { from: Math.floor(curBeat()), to: null }; abStage = 1; b.textContent = '🔁 A…'; b.classList.add('sel'); }
+      else if(abStage === 1){
+        const to = Math.ceil(curBeat());
+        if(to <= loopAB.from + 1){ return; }
+        loopAB.to = to; abStage = 2; b.textContent = '🔁 A–B';
+      } else { loopAB = null; abStage = 0; b.textContent = '🔁'; b.classList.remove('sel'); }
+    }
+    // tap the note strip: jump there (playing) or move the next step there (step mode)
+    function seekTo(e){
+      if(!take) return;
+      const beat = (e.offsetX + camX - 70) / ppb();
+      const run = timed || demo;
+      if(run && run.media){
+        run.media.currentTime = Math.max(0, MC.beatToSec(take, beat - 0.5));
+        notes.forEach((n, i) => { if(n.t >= beat - 0.5) judged.delete(i); });
+      } else if(!run){
+        const i = notes.findIndex(n => n.t >= beat - 0.25);
+        if(i >= 0){ idx = i; progress(); target(); animateTo(); }
+      }
     }
 
     function sizeCanvas(){
@@ -248,6 +315,7 @@
       }
       cancelAnimationFrame(raf); raf = 0;
       clearTimeout(finishT); finishT = 0;
+      if(media){ try{ media.pause(); }catch(e){} }
       const kb = d.getKb(); kb && kb.setTarget(null);
     }
 
@@ -332,13 +400,37 @@
     // ── Clock: Listen and Play along both scroll with the music ─────────
     // Notes move right→left at tempo; the dotted line is "now". Everything
     // is scheduled on the AudioContext clock, the screen just follows it.
-    function nowBeat(run){ run = run || timed || demo; return run ? (d.audio().currentTime - run.t0) / (60 / run.bpm) : 0; }
+    function nowBeat(run){
+      run = run || timed || demo;
+      if(!run) return 0;
+      if(run.media) return MC.secToBeat(take, run.media.currentTime);   // the recording is the clock
+      return (d.audio().currentTime - run.t0) / (60 / run.bpm);
+    }
+    // keep a loop going; returns true when it jumped
+    function keepLoop(run, beat){
+      if(!run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
+      run.media.currentTime = Math.max(0, MC.beatToSec(take, loopAB.from - 0.5));
+      notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to) judged.delete(i); });
+      return true;
+    }
+    function playMedia(fromBeat){
+      media.playbackRate = rate;
+      media.currentTime = Math.max(0, MC.beatToSec(take, fromBeat));
+      const p = media.play();
+      // the browser can refuse (autoplay rules, interrupted audio session):
+      // don't sit there saying "Stop" over silence — reset and say so
+      if(p && p.catch) p.catch(() => {
+        startMode('wait');
+        const b = host.querySelector('#sgDemo'); if(b){ b.textContent = '▶ Tap again'; }
+      });
+    }
 
     function startDemo(){
       stopAll(); stopSing();               // the mic would hear the demo through the speaker
       const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.4;
-      demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1 };
-      notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
+      demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1, media };
+      if(media) playMedia(loopAB ? loopAB.from - 0.5 : -1);                 // her original video/song
+      else notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
       const len = MC.takeLength({ notes });
       const run = demo;
       const tick = () => {
@@ -349,9 +441,10 @@
           run.last = i; idx = i; progress();
           const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
         }
+        if(keepLoop(run, beat)) run.last = -1;
         camX = xOf(Math.max(-1, beat)) - camLead();
         draw(beat);
-        if(beat > len + 0.5){ stopAll(); startMode('wait'); return; }
+        if(beat > len + 0.5 || (run.media && run.media.ended)){ stopAll(); startMode('wait'); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -364,15 +457,21 @@
       const bar = (take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4);
       const t0 = ac.currentTime + 0.3 + bar * spb;           // one-bar count-in
       const bus = ac.createGain(); bus.connect(ac.destination);
-      for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
-      timed = { t0, bpm, running: true, stop: false, bus, tag: 'play' + (++runSeq), W };
-      // the "music": melody softly underneath so she hears what to play
-      if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
+      timed = { t0, bpm, running: true, stop: false, bus, tag: 'play' + (++runSeq), W, media };
+      if(media){
+        // the original IS the music; its own intro is the count-in
+        playMedia((loopAB ? loopAB.from : (notes[0] ? notes[0].t : 0)) - bar);
+      } else {
+        for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
+        // the "music": melody softly underneath so she hears what to play
+        if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
+      }
       const len = MC.takeLength({ notes });
       const run = timed;
       const tick = () => {
         if(run.stop) return;
         const beat = nowBeat(run);
+        keepLoop(run, beat);
         notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
         const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
@@ -382,7 +481,7 @@
         if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
         draw(beat);
-        if(beat > len + 0.6){ run.running = false; finish(); return; }
+        if((beat > len + 0.6 || (run.media && run.media.ended)) && !(loopAB && loopAB.to != null)){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -600,6 +699,7 @@
       refresh(){ if(take) open(take); else renderShelf(); },
       onKey,
       get open(){ return !!take; },
+      get media(){ return media; },                 // the original recording (tests, Studio)
       openTake: open,
     };
   }

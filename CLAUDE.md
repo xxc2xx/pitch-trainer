@@ -23,7 +23,11 @@ that sets a global, loaded before the inline script:
   staff (Bloom/Grow); 👂 Listen and 🎵 Play along scroll on the audio clock
   (per-level timing windows, Sprout never scored down), 👆 Step by step
   (wait mode), 🎤 Sing it, stickers. Computer keys (G=C4…) work in Keys and
-  Songs through `kb.press/release`.
+  Songs through `kb.press/release`. Imported songs with an original
+  recording use it as the clock (`media.currentTime` → `MC.secToBeat`):
+  ▶ Watch/👂 Listen plays her video/MP3 with notes in sync, speed 50–100 %
+  (`preservesPitch`), 🔁 A–B loop, tap the strip to seek. A refused
+  `play()` resets to step mode ("▶ Tap again") rather than a dead Stop.
 - `sound.js` → `Sound`: instrument voices. Sampled via smplr (lazy from
   jsDelivr): Steinway grand (ONE velocity layer, ~5.8 MB — all five are
   ~20 MB; velocities are clamped into it or notes go silent), CP80 e-piano,

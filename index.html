@@ -1084,7 +1084,9 @@
   // Listen mode follows the voice: keep the sung octave in view.
   function setOctave(o){
     currentOctave=Math.max(1,Math.min(7,o));
-    if(kb){ kb.scrollTo(12*(currentOctave+1)); kb.scrollTo(12*(currentOctave+1)+11); }
+    // start the view at this octave's C — two endpoint scrolls fought each
+    // other on narrow views and pushed C–E off-screen (Codex P2)
+    if(kb) kb.startAt(12*(currentOctave+1));
   }
   updateKeyLabels(); pianoW=pianoHost.clientWidth;
 
