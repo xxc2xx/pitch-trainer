@@ -24,5 +24,46 @@ ok(songs.length === 6, '6 built-in songs');
 songs.forEach(s => ok(s.notes.length > 5 && s.notes.every(n => n.m >= 60 && n.m <= 72), `song "${s.title}" parses, stays in C4–C5 (Sprout range)`));
 ok(['sprout','bloom','grow'].every(k => C.LEVELS[k].range[0] < C.LEVELS[k].range[1]), 'levels defined');
 
+// ── Song sync ─────────────────────────────────────────────────────────
+const song = C.makeTake({ bpm: 120, notes: [], sync: { offsetSec: 1.5 } });
+ok(Math.abs(C.beatToSec(song, 4) - 3.5) < 1e-9 && Math.abs(C.secToBeat(song, 3.5) - 4) < 1e-9, 'beat↔sec, constant tempo + offset');
+const drift = C.makeTake({ bpm: 100, notes: [], sync: { beatTimes: [0.5, 1.1, 1.6, 2.2, 2.9] } });
+ok([0, 0.5, 1.7, 3.25, 4].every(b => Math.abs(C.secToBeat(drift, C.beatToSec(drift, b)) - b) < 1e-9), 'beat↔sec round-trip through a drifting beat map');
+ok(C.makeTake({ sync: { offsetSec: 2 }, tag: 'class' }).sync.offsetSec === 2, 'Song fields survive makeTake');
+const onsets = []; for(let i = 0; i < 24; i++) onsets.push(0.37 + i * 60 / 96 * (i % 3 === 2 ? 1 : 1));
+ok(Math.abs(C.estimateTempo(onsets) - 96) <= 1, 'estimateTempo finds 96 BPM from onsets: ' + C.estimateTempo(onsets));
+
+// ── Song files ────────────────────────────────────────────────────────
+const SF = require('../songfile.js');
+const tw = C.builtinTakes().find(t => t.id === 'b_twinkle');
+const mid = SF.parseMidi(SF.writeMidi(tw).buffer);
+ok(mid.notes.length === tw.notes.length && mid.notes.every((n, i) => n.m === tw.notes[i].m && Math.abs(n.t - tw.notes[i].t) < 1e-6) && mid.bpm === tw.bpm,
+   'MIDI write → parse round-trip (Twinkle, ' + mid.notes.length + ' notes, ' + mid.bpm + ' bpm)');
+// two-track file: bass + melody → picks the melody
+const bass = { ...C.makeTake({ bpm: 96, notes: tw.notes.map(n => ({ ...n, m: n.m - 24 })) }), trackName: 'Bass' };
+const w1 = SF.writeMidi(tw), w2 = SF.writeMidi(bass);
+const trk = b => b.slice(14);                                  // strip header, keep MTrk chunk
+const two = new Uint8Array([...w1.slice(0, 10), 0, 2, ...w1.slice(12, 14), ...trk(w2), ...trk(w1)]);
+ok(SF.parseMidi(two.buffer).notes[0].m === tw.notes[0].m, 'multi-track MIDI picks the melody, not the bass');
+
+const { DOMParser } = require('/private/tmp/claude-502/-Users-xxc2xx-Downloads/03a0fafa-2fb8-40b0-9151-9cefee84f51e/scratchpad/bp/node_modules/@xmldom/xmldom');
+const xml = `<?xml version="1.0"?><score-partwise version="3.1"><work><work-title>Test Tune</work-title></work>
+<part-list><score-part id="P1"><part-name>Melody</part-name></score-part></part-list>
+<part id="P1"><measure number="1"><attributes><divisions>2</divisions><key><fifths>1</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time></attributes>
+<direction><sound tempo="88"/></direction>
+<note><pitch><step>G</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<note><chord/><pitch><step>B</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice></note>
+<note><rest/><duration>1</duration><voice>1</voice></note>
+<note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch><duration>1</duration><voice>1</voice></note>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><voice>1</voice><tie type="start"/></note>
+<backup><duration>6</duration></backup>
+<note><pitch><step>C</step><octave>3</octave></pitch><duration>6</duration><voice>2</voice></note>
+</measure><measure number="2">
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><tie type="stop"/></note>
+</measure></part></score-partwise>`;
+const mx = SF.parseMusicXML(new DOMParser().parseFromString(xml, 'application/xml'));
+ok(mx.title === 'Test Tune' && mx.bpm === 88 && mx.key === 'G' && mx.timeSig[0] === 3, 'MusicXML header: title, tempo, key, time');
+ok(C.toTokens(mx) === 'G4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord skipped, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
+
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);

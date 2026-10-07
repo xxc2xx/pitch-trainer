@@ -122,6 +122,9 @@
     .pb-btn:disabled{opacity:.3;cursor:default;}
     #pbRec.on{background:#e94560;color:#fff;animation:recblink 1s infinite;}
     #soundBadge{font-size:.68rem;color:#7a7aa8;min-width:0;}
+    #midiBtn{border:1px solid #2c2c5a;background:#12112a;font-size:.72rem;}
+    #midiBtn.on{border-color:#2e7d32;background:#16301c;color:#a5e6b0;}
+    #midiBtn.na{display:none;}
     #soundBadge:empty{display:none;}
     @keyframes recblink{50%{opacity:.6}}
     #recToast{align-items:center;justify-content:center;gap:8px;font-size:.75rem;color:#9a9ad0;padding:0 0 6px;}
@@ -575,6 +578,7 @@
         <button class="pb-btn" id="pbZoomIn"  title="Bigger keys">＋</button>
       </div>
       <span id="soundBadge" title="Instrument sound"></span>
+      <button class="pb-btn" id="midiBtn" title="Connect her keyboard (USB / Bluetooth MIDI)">🎹 Keyboard</button>
       <div class="pb-group" id="pbRecGroup">
         <button class="pb-btn" id="pbRec" title="Record a tune — it becomes a song">⏺</button>
       </div>
@@ -601,6 +605,9 @@
   <script src="songs.js"></script>
   <script src="hear.js"></script>
   <script src="sound.js"></script>
+  <script src="midi.js"></script>
+  <script src="songfile.js"></script>
+  <script src="addsong.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -951,7 +958,35 @@
     click:(ac,when,accent,dest)=>scheduleMetroClick(ac,when,accent,dest),
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
+    addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
   });
+
+  // ── Her keyboard (midi.js) ────────────────────────────────────────────
+  // MIDI notes go through the on-screen keyboard exactly like a tap: the key
+  // lights, the sampled piano plays and holds, Songs hears it, ⏺ records it.
+  // Outside Keys/Songs she can still just play.
+  const midiBtn=document.getElementById('midiBtn');
+  Midi.onStatus(st=>{
+    midiBtn.classList.toggle('na',st.state==='unsupported');
+    midiBtn.classList.toggle('on',st.state==='connected');
+    midiBtn.textContent=st.state==='connected'?'🎹 '+(st.names[0]||'Keyboard').slice(0,18)
+                      :st.state==='waiting'?'🎹 Plug in…'
+                      :st.state==='denied'?'🎹 Not allowed':'🎹 Keyboard';
+    midiBtn.title=st.state==='waiting'?'No keyboard found — plug in USB, or pair Bluetooth in Audio MIDI Setup'
+                 :st.state==='unsupported'?'Use Chrome on the computer for a real keyboard':'Her keyboard';
+  });
+  midiBtn.addEventListener('click',()=>{ ensureKbCtx(); Midi.connect(); });
+  Midi.onNote((m,vel,isOn)=>{
+    const ac=ensureKbCtx();
+    if(currentMode==='keys'||currentMode==='songs'){
+      if(isOn){ if(kb) kb.scrollTo(m); kb?kb.press(m):onPianoDown(m); }
+      else { kb?kb.release(m):onPianoUp(m); }
+    } else {
+      Sound.use(ac); Sound.setInstrument(currentInstrument==='drum'?'piano':currentInstrument);
+      isOn?Sound.noteOn(m,vel):Sound.noteOff(m);
+    }
+  });
+  Midi.autoConnect();
 
   // ── Hear: sing a song / audio file → Take (hear.js) ──────────────────
   // Live: the Listen display keeps working while it records. File: offline

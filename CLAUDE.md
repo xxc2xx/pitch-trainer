@@ -30,6 +30,17 @@ that sets a global, loaded before the inline script:
   GM soundfonts for guitar/bass/strings. Synth fallback until loaded or
   offline. `noteOn`/`noteOff` = press-and-hold sustain; `schedule`/`cancel`
   by tag for Songs. Safari gets .m4a (smplr skips ogg there).
+- `midi.js` → `Midi`: her physical keyboard via Web MIDI (Chrome/Edge/
+  Firefox — NOT Safari/iPad). Notes route through `kb.press/release`, so a
+  MIDI key = a tap (sound, song, recorder). Sustain pedal, velocity-0
+  note-off, drum channel ignored, range learned (`musicEco_kbRange`).
+- `songfile.js` → `SongFile`: exact imports — MIDI (own SMF reader, melody
+  track picked by name or highest busy track) and uncompressed MusicXML
+  (voice 1, ties, chords skipped). `writeMidi` for tests/export.
+- `addsong.js` → `AddSong`: ➕ Add a song — video/audio file, capture a
+  Chrome tab's audio (`getDisplayMedia`, desktop Chrome), MIDI/MusicXML,
+  sing it. Audio sources keep the original blob + `sync.offsetSec` for the
+  synced player; tempo from `MC.estimateTempo` (onset grid fit).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.

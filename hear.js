@@ -172,7 +172,9 @@
     const seen = new Map(); notes.forEach(n => { const k = n.t + ':' + n.m; if(!seen.has(k) || seen.get(k).d < n.d) seen.set(k, n); });
     notes = [...seen.values()];
     const snapped = o.snap === false ? { notes, key:'C' } : snapToKey(o.normalise === false ? notes : normaliseOctave(notes));
-    return MC.makeTake({ title: o.title || 'My song', source: o.source || 'sing', bpm, key: snapped.key, notes: snapped.notes });
+    // sync: beat 0 = the first note, `offsetSec` into the original recording
+    return MC.makeTake({ title: o.title || 'My song', source: o.source || 'sing', bpm, key: snapped.key, notes: snapped.notes,
+                         sync: { offsetSec: t0, kind: o.kind || 'audio', audioId: o.audioId || null } });
   }
 
   async function singRecorder(o){
@@ -222,6 +224,7 @@
   async function transcribeBlob(blob, o){
     o = o || {};
     const prog = o.onProgress || (() => {});
+    // the sung path normalises to a child's octave; recordings keep theirs
     prog(0.02, 'Loading the listening model…');
     const [{ mod, model }, audio] = await Promise.all([loadBasicPitch(), toMono22k(blob)]);
     const frames = [], onsets = [], contours = [];
@@ -236,7 +239,10 @@
     prog(1, 'Done');
     // melody line for the follow engine; keep poly only when asked
     const line = o.poly ? raw : MC.skyline(raw.map(n => ({ ...n, t: n.on }))).map(n => ({ m:n.m, on:n.on, off:n.off, v:n.v }));
-    return secondsToTake(line, { snap:false, ...o, source: o.source || 'audio-file', grid: o.grid || 0.25 });
+    if(!line.length) throw new Error('No notes heard in that recording');
+    // tempo from the onsets unless the caller knows it (Beat Hive passes djBpm)
+    const bpm = o.bpm || MC.estimateTempo(line.map(n => n.on));
+    return secondsToTake(line, { snap:false, ...o, bpm, source: o.source || 'audio-file', grid: o.grid || 0.25 });
   }
 
   window.Hear = { pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato };

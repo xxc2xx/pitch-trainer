@@ -42,6 +42,7 @@
     text-align:center;transition:transform .1s,border-color .15s;position:relative;}
   .sg-card:active{transform:scale(.96);}
   .sg-card .ic{font-size:2rem;line-height:1;}
+  .sg-card.sg-add{border-style:dashed;border-color:#4a4a8a;background:#121230;}
   .sg-card .st{font-size:.68rem;color:#ffd54f;min-height:1em;}
   .sg-card .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;max-width:100%;}
   .sg-card .dots i{width:7px;height:7px;border-radius:50%;}
@@ -133,7 +134,7 @@
       const dots = MC.skyline(t.notes).slice(0, 14).map(n => `<i style="background:${MC.colorOf(n.m)}"></i>`).join('');
       return `<div class="sg-card" data-id="${esc(t.id)}">
         ${deletable ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}
-        <span class="ic">${t.icon || (t.source === 'sing' ? '🎤' : t.source === 'piano' ? '🎹' : '🎵')}</span>
+        <span class="ic">${t.icon || ({ sing:'🎤', piano:'🎹', video:'🎬', 'audio-file':'🎵', 'midi-file':'📄', musicxml:'📄', 'beat-hive':'🥁' }[t.source] || '🎵')}</span>
         <span>${esc(t.title)}</span><span class="dots">${dots}</span>
         <span class="st">${st ? '⭐'.repeat(Math.min(st, 5)) + (st > 5 ? '+' : '') : ''}</span></div>`;
     }
@@ -145,16 +146,18 @@
       try{ mine = await MC.store.listTakes(); }catch(e){}
       shelfTakes = new Map([...builtin, ...mine].map(t => [t.id, t]));
       const fromClass = mine.filter(t => t.tag === 'class'), own = mine.filter(t => t.tag !== 'class');
+      const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
+        <span class="st" style="color:#8a8ab8">video · music · MIDI</span></div>` : '';
+      // her songs lead; the built-ins are just a starter set
       host.innerHTML = `<div class="sg-shelf">
         <h3>🎒 From class</h3>
-        ${fromClass.length ? `<div class="sg-grid">${fromClass.map(t => card(t, true)).join('')}</div>`
-          : '<div class="sg-empty">Record the song your teacher played (🎹 Keys → ⏺, or 🎤 sing it) and it shows up here.</div>'}
-        <h3>⭐ Songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
-        <h3>🎹 My songs</h3>
-        ${own.length ? `<div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>`
-          : '<div class="sg-empty">Nothing yet — play a tune in 🎹 Keys with ⏺ on.</div>'}
+        <div class="sg-grid">${addCard}${fromClass.map(t => card(t, true)).join('')}</div>
+        ${own.length ? `<h3>🎹 My songs</h3><div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>` : ''}
+        <h3>⭐ Starter songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
       </div>`;
-      host.querySelectorAll('.sg-card').forEach(el => el.addEventListener('click', async e => {
+      const add = host.querySelector('#sgAdd');
+      if(add) add.onclick = () => d.addSong(t => open(t));
+      host.querySelectorAll('.sg-card[data-id]').forEach(el => el.addEventListener('click', async e => {
         const t = shelfTakes.get(el.dataset.id); if(!t) return;
         if(e.target.dataset.del){
           e.stopPropagation();
