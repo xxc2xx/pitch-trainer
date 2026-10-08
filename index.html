@@ -608,6 +608,7 @@
   <script src="midi.js"></script>
   <script src="songfile.js"></script>
   <script src="addsong.js"></script>
+  <script src="studio.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -901,7 +902,8 @@
     const go=()=>playKeyNote(bare,MC.midiToFreq(m),oct);
     if(ac.state==='running') go();
     else ac.resume().then(go).catch(()=>{});
-    if(currentMode==='songs') songs.onKey(m);
+    // ✏️ Fix notes open: the key fixes the selected note instead of playing the song
+    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else songs.onKey(m); }
     if(pianoRec) pianoRec.push({m,on:performance.now(),off:null});
   }
   function onPianoUp(m){
@@ -959,6 +961,7 @@
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
     addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
+    range:()=>Midi.range,
   });
 
   // ── Her keyboard (midi.js) ────────────────────────────────────────────

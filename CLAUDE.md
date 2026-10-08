@@ -50,6 +50,12 @@ that sets a global, loaded before the inline script:
   Gradio upload → call → SSE, same protocol as OMR). Address stored in
   `musicEco_analyzerUrl`; `MC.songFromAnalysis` maps seconds → beats on the
   returned beat map and adds `parts.chords` (shown above the notes).
+- `studio.js` → `Studio`: ✏️ Fix notes — piano roll over the original's
+  loudness envelope; tap a note then press the right key (screen or MIDI)
+  to fix it by ear; nudge/length/split/delete, double-tap adds, undo,
+  practice part (`section`), 🪄 Easy (drop slivers, merge splits, fit to
+  her learned range). Starter songs save as "(my version)" copies. Pointer
+  maths use clientX − rect (offsetX proved unreliable).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.
