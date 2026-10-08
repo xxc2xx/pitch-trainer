@@ -348,7 +348,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 11c1ddf</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 110667f</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -602,15 +602,15 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=11c1ddf"></script>
-  <script src="piano.js?v=11c1ddf"></script>
-  <script src="songs.js?v=11c1ddf"></script>
-  <script src="hear.js?v=11c1ddf"></script>
-  <script src="sound.js?v=11c1ddf"></script>
-  <script src="midi.js?v=11c1ddf"></script>
-  <script src="songfile.js?v=11c1ddf"></script>
-  <script src="addsong.js?v=11c1ddf"></script>
-  <script src="studio.js?v=11c1ddf"></script>
+  <script src="music-core.js?v=110667f"></script>
+  <script src="piano.js?v=110667f"></script>
+  <script src="songs.js?v=110667f"></script>
+  <script src="hear.js?v=110667f"></script>
+  <script src="sound.js?v=110667f"></script>
+  <script src="midi.js?v=110667f"></script>
+  <script src="songfile.js?v=110667f"></script>
+  <script src="addsong.js?v=110667f"></script>
+  <script src="studio.js?v=110667f"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -868,6 +868,7 @@
   }
   function updateKeyLabels(){
     const cfg=pianoCfg();
+    if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
       kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp});
     } else kb.update(cfg);
@@ -2491,6 +2492,7 @@
 
   function setMode(mode){
     if(isRunning) stop();
+    Sound.allOff();                    // a key held while switching would never get its note-off
     if(isPlaying) stopPlay();
     if(currentMode==='flow' && mode!=='flow') stopMetroLoop();
     if(currentMode==='dj' && mode!=='dj') stopDj();
