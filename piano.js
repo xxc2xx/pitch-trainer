@@ -51,6 +51,8 @@
   .pv2-b.target{background:color-mix(in srgb,var(--c) 75%,#1c1b33);}
   @keyframes pv2pulse{0%,100%{box-shadow:inset 0 0 0 3px var(--c),0 0 8px var(--c);}
     50%{box-shadow:inset 0 0 0 5px var(--c),0 0 26px var(--c);}}
+  .pv2-k.dad{outline:3px dashed #7ec8ff;outline-offset:-5px;}
+  .pv2-w.dad{background:color-mix(in srgb,#7ec8ff 28%,#f6f2e8);}
   .pv2-k.flash{animation:pv2flash .45s ease-out;}
   @keyframes pv2flash{0%{box-shadow:0 0 0 0 var(--c),0 0 30px #fff;}100%{box-shadow:0 0 0 0 transparent;}}
   .pv2-k.wobble{animation:pv2wob .3s ease;}
@@ -87,7 +89,7 @@
     const keyEls = new Map();       // m → [el per row]
     const active = new Map();       // pointerId → m
     const downCount = new Map();    // m → number of pointers holding it
-    let target = null;
+    let target = null, dad = [];
     const touched = new Set();      // keys whose inline style a caller set via keys()
 
     function build(){
@@ -130,6 +132,7 @@
       wirePointers(rowsEl);
       setStart(whites[Math.max(0, (wIndex.get(snapWhite(o.start, +1)) ?? 0))] ?? lo, false);
       if(target != null) setTarget(target);
+      dad.forEach(m => (keyEls.get(m) || []).forEach(el => el.classList.add('dad')));
     }
 
     function renderKeys(track){
@@ -292,6 +295,12 @@
       keys: m => { const els = keyEls.get(m) || []; if(els.length) touched.add(m); return els; },
       press, release,
       flash: m => mark(m, 'flash', 450),
+      // 👨‍👧 Dad's keys: dashed outlines on the chord tones for his part
+      setDad(ms){
+        dad.forEach(m => (keyEls.get(m) || []).forEach(el => el.classList.remove('dad')));
+        dad = ms || [];
+        dad.forEach(m => (keyEls.get(m) || []).forEach(el => el.classList.add('dad')));
+      },
       wobble: m => mark(m, 'wobble', 300),
       clearMarks(){
         touched.forEach(m => (keyEls.get(m) || []).forEach(el => { el.style.background = ''; el.style.boxShadow = ''; }));

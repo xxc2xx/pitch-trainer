@@ -130,6 +130,8 @@
     let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
     // Imported songs carry their original recording: it becomes the clock.
     let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0, partOnly = false;
+    // 👨‍👧 Together: her MIDI keyboard plays the tune; the screen is Dad's chords
+    let together = false, dadChords = [], dadAt = null;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -146,6 +148,7 @@
     }
     let shelfTakes = new Map();
     async function renderShelf(){
+      if(together){ together = false; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       const builtin = MC.builtinTakes();
       let mine = [];
@@ -186,6 +189,7 @@
       partOnly = !!(t.section && t.section.to != null);
       if(partOnly){ const part = notes.filter(n => n.t >= t.section.from - 1e-6 && n.t < t.section.to); if(part.length) notes = part; else partOnly = false; }
       // Sprout starts a little slower — rhythm is new
+      if(together){ together = false; dadChords = []; dadAt = undefined; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
       mode = 'wait';
       d.onOpen && d.onOpen({ ...t, notes });
@@ -197,6 +201,7 @@
             <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">🎵 Play along</button>
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
+            <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
@@ -230,6 +235,7 @@
       host.querySelector('#sgLoop').onclick = setLoop;
       const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
       const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
+      host.querySelector('#sgTogether').onclick = () => setTogether(!together);
       host.querySelector('#sgBetter').onclick = betterNotes;
       host.querySelector('#sgAnGo').onclick = () => {
         const u = host.querySelector('#sgAnUrl').value.trim();
@@ -323,6 +329,26 @@
       });
     }
 
+    function setTogether(on){
+      together = on;
+      const b = host.querySelector('#sgTogether'); if(b) b.classList.toggle('sel', on);
+      if(on){
+        const given = take.parts && take.parts.chords && take.parts.chords.length ? take.parts.chords : null;
+        dadChords = given
+          ? given.map(c => ({ ...c, ms: c.ms || MC.chordTones(c.root, c.minor) }))
+          : MC.autoChords({ ...take, notes });           // no chords in the song: harmonise the tune
+      } else { dadChords = []; }
+      dadAt = undefined;
+      d.onTogether && d.onTogether(on);
+      updateDad(curBeat()); draw();
+    }
+    function updateDad(beat){
+      const kb = d.getKb(); if(!kb) return;
+      const c = together ? MC.chordAt(dadChords, beat) : null;
+      if(c === dadAt) return;
+      dadAt = c; kb.setDad(c ? c.ms : []);
+    }
+
     function curBeat(){
       const run = timed || demo;
       if(run) return nowBeat(run);
@@ -404,6 +430,7 @@
     function target(){
       const kb = d.getKb(); if(!kb) return;
       kb.setTarget(idx < notes.length ? notes[idx].m : null);
+      if(together && notes[idx]) updateDad(notes[idx].t);
     }
     function progress(){ if(progEl) progEl.style.width = (notes.length ? idx / notes.length * 100 : 0) + '%'; }
 
@@ -512,6 +539,7 @@
         if(run.stop) return;
         const beat = nowBeat(run);
         let i = -1; notes.forEach((n, k) => { if(n.t <= beat + 1e-3) i = k; });
+        updateDad(beat);
         if(i !== run.last && i >= 0){
           run.last = i; idx = i; progress();
           const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
@@ -547,6 +575,7 @@
         if(run.stop) return;
         const beat = nowBeat(run);
         keepLoop(run, beat);
+        updateDad(beat);
         notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
         const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
@@ -630,12 +659,14 @@
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
       if(level.see === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
-      const chords = take && take.parts && take.parts.chords;
+      const chords = together ? dadChords : (take && take.parts && take.parts.chords);
       if(chords && chords.length){
         g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
         chords.forEach(c => {
           const x = xOf(c.t) - camX; if(x < 44 || x > W) return;
-          g.fillStyle = 'rgba(255,213,79,.9)'; g.fillText(c.label, x, 13);
+          const now = together && c === dadAt;
+          g.fillStyle = now ? '#7ec8ff' : 'rgba(255,213,79,.9)';
+          g.fillText((now ? '👨 ' : '') + c.label, x, 13);
         });
       }
     }
@@ -783,7 +814,8 @@
       refresh(){ if(take) open(take); else renderShelf(); },
       onKey,
       get open(){ return !!take; },
-      get media(){ return media; },                 // the original recording (tests, Studio)
+      get media(){ return media; },
+      get together(){ return together; },                 // the original recording (tests, Studio)
       openTake: open,
     };
   }

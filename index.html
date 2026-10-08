@@ -847,18 +847,19 @@
 
   function pianoCfg(){
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
-    const range=listen?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:level.range;
+    const wide=listen||(togetherWide&&currentMode==='songs');   // Listen, or Dad's register in Together
+    const range=wide?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:level.range;
     // keys narrower than ~30px are too small for a finger
     const fit=Math.max(7,Math.floor((pianoHost.clientWidth||360)/30));
-    const view=level.id==='sprout'&&!listen?8:Math.min(zoomView||level.view,fit);
+    const view=level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
     const two=twoRow&&level.id!=='sprout'&&!listen;
-    pianoHost.classList.toggle('sprout',level.id==='sprout'&&!listen);
+    pianoHost.classList.toggle('sprout',level.id==='sprout'&&!wide);
     pianoHost.classList.toggle('two',two);
     return {
       range, view, twoRow:two,
       labels:isDrum?'none':(labelOverride||level.labels),
       colorAmt:level.colorAmt,
-      minimap:listen||level.minimap,
+      minimap:wide||level.minimap,
       levelClass:level.id,
       labelFn:isDrum?(m=>{const b=NOTE_BARE[m%12];return DRUM_LABELS[b]||b;}):null,
     };
@@ -896,8 +897,13 @@
     else if(st.state==='ready'){ b.textContent='✓ '+SOUND_NAME[st.id]; setTimeout(()=>{ if(b.textContent.startsWith('✓')) b.textContent=''; },2500); }
     else b.textContent='';
   });
+  // 👨‍👧 Together: MIDI (her keyboard) plays the song; the screen / computer
+  // keys are Dad's — his own instrument, never scored, never move the song.
+  let inputFromMidi=false, togetherWide=false;
+  const isDadInput=()=>currentMode==='songs'&&songs.together&&!inputFromMidi&&!(window.Studio&&Studio.active);
   function onPianoDown(m){
     if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(isDadInput()){ const ac=ensureKbCtx(); Sound.use(ac); Sound.noteOnAs('parent',m,85); return; }
     const ac=ensureKbCtx(), bare=NOTE_BARE[m%12], oct=MC.octaveOf(m);
     const go=()=>playKeyNote(bare,MC.midiToFreq(m),oct);
     if(ac.state==='running') go();
@@ -908,6 +914,7 @@
   }
   function onPianoUp(m){
     if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(isDadInput()){ Sound.noteOffAs('parent',m); return; }
     ensureKbCtx();
     if(currentInstrument!=='drum') Sound.noteOff(m);
     if(pianoRec) for(let i=pianoRec.length-1;i>=0;i--)
@@ -962,6 +969,13 @@
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
     addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
     range:()=>Midi.range,
+    onTogether:on=>{
+      togetherWide=on; updateKeyLabels();
+      if(on){
+        kb.startAt(48);                            // Dad's left hand from C3
+        if(!Midi.connected) document.getElementById('soundBadge').textContent='👨‍👧 connect her keyboard (🎹) — the screen is Dad’s';
+      }
+    },
   });
 
   // ── Her keyboard (midi.js) ────────────────────────────────────────────
@@ -988,8 +1002,11 @@
     }
     const ac=ensureKbCtx();
     if(currentMode==='keys'||currentMode==='songs'){
-      if(isOn){ if(kb) kb.scrollTo(m); kb?kb.press(m):onPianoDown(m); }
-      else { kb?kb.release(m):onPianoUp(m); }
+      inputFromMidi=true;                          // her keyboard — never Dad's part
+      try{
+        if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); kb?kb.press(m):onPianoDown(m); }
+        else { kb?kb.release(m):onPianoUp(m); }
+      } finally { inputFromMidi=false; }
     } else {
       Sound.use(ac); Sound.setInstrument(currentInstrument==='drum'?'piano':currentInstrument);
       isOn?Sound.noteOn(m,vel):Sound.noteOff(m);

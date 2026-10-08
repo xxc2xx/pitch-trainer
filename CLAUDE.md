@@ -56,6 +56,10 @@ that sets a global, loaded before the inline script:
   practice part (`section`), 🪄 Easy (drop slivers, merge splits, fit to
   her learned range). Starter songs save as "(my version)" copies. Pointer
   maths use clientX − rect (offsetX proved unreliable).
+- 👨‍👧 Together (Song page): MIDI = her (song, scored); screen/computer keys
+  = Dad (`Sound.noteOnAs('parent')`, e-piano, never scored). Dad's part =
+  song's `parts.chords` or `MC.autoChords` (I/IV/V/vi per bar); current
+  chord's tones outlined (`kb.setDad`), keyboard widens to C3–C6.
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.

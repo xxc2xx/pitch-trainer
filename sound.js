@@ -77,8 +77,8 @@
     bass:    { parts: [[1,.7],[2,.25]],                     sus: .4,  decay: .8,  rel: .2,  type: 'triangle' },
     strings: { parts: [[1,.4],[2,.25],[3,.15]],             sus: .8,  decay: .2,  rel: .5,  type: 'sawtooth', attack: .12 },
   };
-  function synthVoice(m, when, vel, dest){
-    const T = TIMBRE[current] || TIMBRE.piano, f = 440 * Math.pow(2, (m - 69) / 12);
+  function synthVoice(m, when, vel, dest, id){
+    const T = TIMBRE[id || current] || TIMBRE.piano, f = 440 * Math.pow(2, (m - 69) / 12);
     const out = ctx.createGain(), lp = ctx.createBiquadFilter();
     lp.type = 'lowpass'; lp.frequency.value = Math.min(f * 8, 12000);
     out.connect(lp); lp.connect(dest || ctx.destination);
@@ -99,11 +99,12 @@
     };
   }
 
-  function play(m, when, vel, tag, quiet){
-    const i = (quiet && soft[current]) || inst[current];
+  function play(m, when, vel, tag, quiet, id){
+    id = id || current;
+    const i = (quiet && soft[id]) || inst[id];
     if(i){
       // piano: keep velocity inside the loaded layer, or the note is silent
-      const v = current === 'piano' ? Math.max(MF[0], Math.min(MF[1], vel)) : vel;
+      const v = id === 'piano' ? Math.max(MF[0], Math.min(MF[1], vel)) : vel;
       const s = i.start({ note: m, velocity: v, time: when, stopId: tag || undefined });
       return at => { try{ s({ time: at }); }catch(e){} };
     }
@@ -112,8 +113,11 @@
       if(!tagBus.has(tag)){ const b = ctx.createGain(); b.connect(ctx.destination); tagBus.set(tag, b); }
       dest = tagBus.get(tag);
     }
-    return synthVoice(m, when, quiet ? vel * 0.5 : vel, dest);
+    return synthVoice(m, when, quiet ? vel * 0.5 : vel, dest, id);
   }
+  // 👨‍👧 Together: Dad's voice plays at the same time as hers, own instrument
+  let parentId = 'epiano';
+  const heldAs = new Map();                 // 'voice:m' → stop fn
   const tagBus = new Map();
 
   const Sound = {
@@ -154,6 +158,19 @@
       const b = tagBus.get(tag); if(b){ try{ b.disconnect(); }catch(e){} tagBus.delete(tag); }
     },
     onStatus(fn){ statusFn = fn || (() => {}); },
+    setParentInstrument(id){ if(DEFS[id]){ parentId = id; if(ctx) load(id); } },
+    get parentInstrument(){ return parentId; },
+    noteOnAs(voice, m, vel){
+      if(!ctx) return;
+      const id = voice === 'parent' ? parentId : current;
+      if(voice === 'parent') load(parentId);
+      Sound.noteOffAs(voice, m);
+      heldAs.set(voice + ':' + m, play(m, ctx.currentTime, vel || 85, null, false, id));
+    },
+    noteOffAs(voice, m){
+      const k = voice + ':' + m, s = heldAs.get(k);
+      if(s){ heldAs.delete(k); s(ctx.currentTime); }
+    },
   };
   window.Sound = Sound;
 })();
