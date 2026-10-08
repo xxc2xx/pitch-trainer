@@ -228,13 +228,15 @@
       const used = new Set();
       evs.filter(e => e.a < b1 && e.b > b0).forEach(e => {
         const a = Math.max(e.a, b0), b = Math.min(e.b, b1);
-        chords.forEach((c, ci) => {                       // chord symbol where it starts (or first event after)
+        // chord symbols that start inside this event: placed before it, with an
+        // <offset> when the change falls mid-note (a held note under a new chord)
+        chords.forEach((c, ci) => {
           const ct = Math.round(c.t * 4);
-          if(!used.has(ci) && ct >= b0 && ct < b1 && ct <= a){
-            used.add(ci); c._done = true;
-            const [st, al] = spell[((c.root % 12) + 12) % 12];
-            body += `<harmony><root><root-step>${st}</root-step>${al ? `<root-alter>${al}</root-alter>` : ''}</root><kind>${c.minor ? 'minor' : 'major'}</kind></harmony>`;
-          }
+          if(used.has(ci) || ct < a || ct >= b) return;
+          used.add(ci);
+          const [st, al] = spell[((c.root % 12) + 12) % 12];
+          body += `<harmony><root><root-step>${st}</root-step>${al ? `<root-alter>${al}</root-alter>` : ''}</root><kind>${c.minor ? 'minor' : 'major'}</kind>` +
+                  (ct > a ? `<offset>${ct - a}</offset>` : '') + `</harmony>`;
         });
         const ps = pieces(b - a);
         ps.forEach((p, pi) => {
@@ -247,7 +249,6 @@
                   (tieStart || tieStop ? `<notations>${tieStop ? '<tied type="stop"/>' : ''}${tieStart ? '<tied type="start"/>' : ''}</notations>` : '') + `</note>`;
         });
       });
-      chords.forEach(c => { delete c._done; });
       body += '</measure>';
     }
     return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>

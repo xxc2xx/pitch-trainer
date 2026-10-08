@@ -96,6 +96,10 @@ if(DOMParser){
   const withCh = { ...tw, parts: { chords: C.autoChords(tw) } };
   const xml = SF.writeMusicXML(withCh);
   ok((xml.match(/<harmony>/g) || []).length === withCh.parts.chords.length, 'chord symbols exported: ' + (xml.match(/<harmony>/g) || []).length);
+  // a chord change in the middle of a held note keeps its time via <offset>
+  const held = C.makeTake({ title: 'held', bpm: 90, notes: [{ m: 60, t: 0, d: 4 }], parts: { chords: [{ t: 0, d: 2, root: 0, minor: false, label: 'C' }, { t: 2, d: 2, root: 7, minor: false, label: 'G' }] } });
+  const hx = SF.writeMusicXML(held);
+  ok(/<root-step>G<\/root-step><\/root><kind>major<\/kind><offset>8<\/offset>/.test(hx) && (hx.match(/<harmony>/g) || []).length === 2, 'mid-note chord change exported with <offset> (beat 2 = 8 sixteenths)');
 }
 const midCh = SF.parseMidi(SF.writeMidi({ ...tw, parts: { chords: C.autoChords(tw) } }, { chords: true }).buffer);
 ok(C.toTokens(midCh) === C.toTokens(tw), 'MIDI export with a chords track still reads back the melody');
