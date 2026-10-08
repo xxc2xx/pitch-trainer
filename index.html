@@ -866,6 +866,7 @@
   }
   function updateKeyLabels(){
     const cfg=pianoCfg();
+    if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
       kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp});
     } else kb.update(cfg);
@@ -2489,6 +2490,7 @@
 
   function setMode(mode){
     if(isRunning) stop();
+    Sound.allOff();                    // a key held while switching would never get its note-off
     if(isPlaying) stopPlay();
     if(currentMode==='flow' && mode!=='flow') stopMetroLoop();
     if(currentMode==='dj' && mode!=='dj') stopDj();

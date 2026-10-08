@@ -142,7 +142,11 @@
       const s = held.get(m);
       if(s){ held.delete(m); s(ctx.currentTime); }
     },
-    allOff(){ held.forEach(s => s(ctx.currentTime)); held.clear(); },
+    allOff(){
+      if(!ctx) return;
+      held.forEach(s => s(ctx.currentTime)); held.clear();
+      heldAs.forEach(s => s(ctx.currentTime)); heldAs.clear();
+    },
     schedule(m, when, dur, o){
       if(!ctx) return;
       o = o || {};
