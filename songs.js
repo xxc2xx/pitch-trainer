@@ -202,6 +202,7 @@
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>
+            <button class="sg-btn" id="sgJam" title="Open this song on Beat Hive's pads, at its tempo">🥁 Jam</button>
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
@@ -236,6 +237,8 @@
       const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
       const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
       host.querySelector('#sgTogether').onclick = () => setTogether(!together);
+      // same origin → Beat Hive reads this song from the shared library
+      host.querySelector('#sgJam').onclick = () => { stopAll(); window.open('../beat-hive/?song=' + encodeURIComponent(t.id), '_blank'); };
       host.querySelector('#sgBetter').onclick = betterNotes;
       host.querySelector('#sgAnGo').onclick = () => {
         const u = host.querySelector('#sgAnUrl').value.trim();

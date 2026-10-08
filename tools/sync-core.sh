@@ -4,4 +4,4 @@
 set -e
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${1:-$HERE/../beat-hive}"
-for f in music-core.js hear.js; do cp "$HERE/$f" "$DEST/$f"; echo "synced $f → $DEST"; done
+for f in music-core.js hear.js midi.js; do cp "$HERE/$f" "$DEST/$f"; echo "synced $f → $DEST"; done
