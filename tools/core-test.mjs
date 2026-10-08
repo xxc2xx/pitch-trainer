@@ -33,6 +33,14 @@ ok(C.makeTake({ sync: { offsetSec: 2 }, tag: 'class' }).sync.offsetSec === 2, 'S
 const onsets = []; for(let i = 0; i < 24; i++) onsets.push(0.37 + i * 60 / 96 * (i % 3 === 2 ? 1 : 1));
 ok(Math.abs(C.estimateTempo(onsets) - 96) <= 1, 'estimateTempo finds 96 BPM from onsets: ' + C.estimateTempo(onsets));
 
+// analyzer JSON (seconds) → song on its beat map
+const res = { bpm: 100, key: 'C', beatTimes: Array.from({ length: 40 }, (_, i) => 0.1 + i * 0.6),
+  melody: [{ m: 60, on: 1.31, off: 1.85 }, { m: 67, on: 2.49, off: 3.0 }], chords: [{ t: 1.3, d: 2.4, label: 'C', root: 0, minor: false }] };
+const an = C.songFromAnalysis(C.makeTake({ title: 'x', sync: { audioId: 'a1', kind: 'video' } }), res);
+ok(an.notes[0].t === 2 && an.notes[1].t === 4 && an.parts.chords[0].t === 2 && an.parts.chords[0].d === 4 && an.sync.audioId === 'a1' && an.sync.beatTimes.length === 40,
+   'songFromAnalysis: seconds → beats on the beat map, chords in beats, sync kept');
+ok(Math.abs(C.beatToSec(an, an.notes[0].t) - 1.3) < 1e-9, 'analyzed note plays back at its audio time');
+
 // ── Song files ────────────────────────────────────────────────────────
 const SF = require('../songfile.js');
 const tw = C.builtinTakes().find(t => t.id === 'b_twinkle');

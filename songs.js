@@ -194,9 +194,13 @@
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
+            <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
+        <div id="sgAnRow" class="sg-ctrl" style="display:none">
+          <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
+          <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
         <div class="sg-prog"><i id="sgProg"></i></div>
         <div id="sgMedia" class="sg-media"></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
@@ -217,6 +221,14 @@
         else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
       };
       host.querySelector('#sgLoop').onclick = setLoop;
+      host.querySelector('#sgBetter').onclick = betterNotes;
+      host.querySelector('#sgAnGo').onclick = () => {
+        const u = host.querySelector('#sgAnUrl').value.trim();
+        if(!/^https:\/\//.test(u) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(u)) { host.querySelector('#sgAnUrl').style.borderColor = '#e94560'; return; }
+        try{ localStorage.setItem(AN_KEY, u); }catch(e){}
+        host.querySelector('#sgAnRow').style.display = 'none';
+        betterNotes();
+      };
       canvas.onclick = seekTo;
       sizeCanvas(); pulse(true);
       startMode('wait');
@@ -247,8 +259,36 @@
       if(tr){ tr.min = 50; tr.max = 100; tr.value = 100; host.querySelector('#sgBpm').textContent = '100%'; }
       const gb = host.querySelector('#sgGuide'); if(gb) gb.style.display = 'none';
       host.querySelector('#sgLoop').style.display = '';
+      if(window.Hear && Hear.analyzeRemote) host.querySelector('#sgBetter').style.display = '';
+      if(t.analyzed){ const bb = host.querySelector('#sgBetter'); bb.textContent = '✨ Analyzed'; bb.title = 'Analyzed by the song analyzer — tap to run again'; }
       const dt = host.querySelector('#sgDemo'); if(dt) dt.textContent = isVideo ? '▶ Watch' : '👂 Listen';
     }
+    // ✨ Better notes: full-band separation + melody + beats + chords on the
+    // user's own HF Space (~/song-analyzer). On-device notes stay if it fails.
+    const AN_KEY = 'musicEco_analyzerUrl';
+    async function betterNotes(){
+      const t = take, b = host.querySelector('#sgBetter');
+      let url = ''; try{ url = localStorage.getItem(AN_KEY) || ''; }catch(e){}
+      if(!url){ host.querySelector('#sgAnRow').style.display = 'flex'; host.querySelector('#sgAnUrl').focus(); return; }
+      const id = t.sync && (t.sync.audioId || t.audioId);
+      let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
+      if(!blob){ b.textContent = '✨ No recording'; return; }
+      stopAll();
+      const label = { preparing: '✨ Preparing…', uploading: '✨ Uploading…', queued: '✨ Analyzing… (up to a minute)' };
+      b.disabled = true; b.textContent = label.preparing;
+      try{
+        const res = await Hear.analyzeRemote(url, blob, { onPhase: ph => { if(take === t) b.textContent = label[ph] || b.textContent; } });
+        const better = MC.songFromAnalysis(t, res);
+        if(better.notes.length < 4) throw new Error('the analyzer found no clear tune');
+        await MC.store.saveTake(better);
+        if(take === t) open(better);
+      }catch(e){
+        b.disabled = false; b.textContent = '✨ Try again'; b.title = 'Last try: ' + e.message;
+        if(/address|https/.test(e.message)) { try{ localStorage.removeItem(AN_KEY); }catch(_){} }
+        console.warn('[songs] analyzer:', e.message);
+      }
+    }
+
     function curBeat(){
       const run = timed || demo;
       if(run) return nowBeat(run);
@@ -555,6 +595,14 @@
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
       if(level.see === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
+      const chords = take && take.parts && take.parts.chords;
+      if(chords && chords.length){
+        g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
+        chords.forEach(c => {
+          const x = xOf(c.t) - camX; if(x < 44 || x > W) return;
+          g.fillStyle = 'rgba(255,213,79,.9)'; g.fillText(c.label, x, 13);
+        });
+      }
     }
 
     function shapePath(g, shape, x, y, r){

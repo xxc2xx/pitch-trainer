@@ -109,6 +109,7 @@
       section: o.section || null,   // { from, to } in beats — practice loop
       range:   o.range || null,     // [lo, hi] fitted to her keyboard
       tag:     o.tag || null,
+      analyzed: !!o.analyzed,       // notes came from the song analyzer (✨)
       icon:    o.icon || null,
     };
   }
@@ -135,6 +136,25 @@
     }
     return (sec - (s.offsetSec || 0)) * (song.bpm || 90) / 60;
   }
+  // Song analyzer result (seconds, see ~/song-analyzer) → this song on its
+  // real beat map: melody + chords in beats, sync.beatTimes from the beats.
+  function songFromAnalysis(song, res, grid){
+    const bt = (res.beatTimes || []).slice();
+    if(bt.length < 4) throw new Error('Analysis found too few beats');
+    const probe = { bpm: res.bpm, sync: { beatTimes: bt } };
+    const toB = sec => secToBeat(probe, sec);
+    let notes = (res.melody || []).map(n => ({ m: n.m, t: toB(n.on), d: Math.max(0.1, toB(n.off) - toB(n.on)), v: n.v == null ? 0.8 : Math.min(1, n.v) }));
+    notes = quantize(notes, grid || 0.25);
+    const seen = new Map();                      // quantize can stack two notes on one onset
+    notes.forEach(n => { const k = n.t; if(!seen.has(k) || seen.get(k).m < n.m) seen.set(k, n); });
+    notes = [...seen.values()].sort((a, b) => a.t - b.t);
+    const chords = (res.chords || []).map(c => ({ t: Math.round(toB(c.t) * 4) / 4, d: Math.max(0.25, Math.round((toB(c.t + c.d) - toB(c.t)) * 4) / 4),
+                                                  label: c.label, root: c.root, minor: !!c.minor }));
+    return makeTake({ ...song, notes, bpm: Math.round(res.bpm) || song.bpm, key: (res.key || song.key || 'C').replace(/m$/, ''),
+      sync: { ...(song.sync || {}), beatTimes: bt, offsetSec: bt[0] },
+      parts: { ...(song.parts || {}), chords }, analyzed: true });
+  }
+
   // Tempo from note onsets (seconds): the 8th-note grid, anchored on the
   // first onset, that the onsets fit best. Folded into 70–150 BPM.
   function estimateTempo(onsets){
@@ -272,7 +292,7 @@
     pc, octaveOf, midiToFreq, freqToMidiFloat, midiName, midiOf,
     colorOf, isBlack, shapeOf, label,
     LEVELS, getLevel, setLevel,
-    makeTake, takeLength, skyline, quantize, beatToSec, secToBeat, estimateTempo,
+    makeTake, takeLength, skyline, quantize, beatToSec, secToBeat, estimateTempo, songFromAnalysis,
     parseTokens, fromTokens, toTokens,
     BUILTIN, builtinTakes,
     store,

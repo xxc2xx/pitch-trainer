@@ -45,6 +45,11 @@ that sets a global, loaded before the inline script:
   Chrome tab's audio (`getDisplayMedia`, desktop Chrome), MIDI/MusicXML,
   sing it. Audio sources keep the original blob + `sync.offsetSec` for the
   synced player; tempo from `MC.estimateTempo` (onset grid fit).
+- ✨ Better notes (Song page, songs with a recording): `Hear.analyzeRemote`
+  → user's HF Space `~/song-analyzer` (Demucs → melody, beats, chords, key;
+  Gradio upload → call → SSE, same protocol as OMR). Address stored in
+  `musicEco_analyzerUrl`; `MC.songFromAnalysis` maps seconds → beats on the
+  returned beat map and adds `parts.chords` (shown above the notes).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.
