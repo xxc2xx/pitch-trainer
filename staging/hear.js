@@ -221,12 +221,21 @@
       if(p && p.then) p.then(res, rej);
     });
   }
+  // Older Safari: prefixed constructor, and startRendering() reports through
+  // oncomplete instead of returning a promise.
+  function offline(ch, len, sr){ const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext; return new OAC(ch, len, sr); }
+  function render(off){
+    return new Promise((res, rej) => {
+      off.oncomplete = e => res(e.renderedBuffer);
+      try{ const p = off.startRendering(); if(p && p.then) p.then(res, rej); }catch(e){ rej(e); }
+    });
+  }
   async function toMono22k(blob){
     const buf = await decode(await blob.arrayBuffer());
     const len = Math.ceil(buf.duration * 22050);
-    const off = new OfflineAudioContext(1, len, 22050);
-    const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
-    return off.startRendering();
+    const off = offline(1, len, 22050);
+    const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start(0);
+    return render(off);
   }
   async function transcribeBlob(blob, o){
     o = o || {};
@@ -287,10 +296,9 @@
     if(blob.size < 40e6 && !/^video\//.test(blob.type)) return new File([blob], 'song.' + ((blob.type.split('/')[1] || 'mp3').split(';')[0]), { type: blob.type });
     const buf = await decode(await blob.arrayBuffer());
     const sr = 32000, len = Math.min(Math.ceil(buf.duration * sr), sr * 360);
-    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;   // older Safari is prefixed
-    const off = new OAC(1, len, sr), src = off.createBufferSource();
-    src.buffer = buf; src.connect(off.destination); src.start();
-    const x = (await off.startRendering()).getChannelData(0);
+    const off = offline(1, len, sr), src = off.createBufferSource();
+    src.buffer = buf; src.connect(off.destination); src.start(0);
+    const x = (await render(off)).getChannelData(0);
     const ab = new ArrayBuffer(44 + x.length * 2), v = new DataView(ab);
     const w = (o, str) => { for(let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
     w(0,'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true);
