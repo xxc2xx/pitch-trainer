@@ -2,7 +2,8 @@
 # Build a staging copy of a repo's feature branch into staging/ on main,
 # served by GitHub Pages at https://xxc2xx.github.io/<repo>/staging/.
 # Live files at the repo root are not touched. Commits locally; push is a
-# separate, deliberate step (git -C <worktree> push origin main).
+# separate, deliberate step: git -C <worktree> push origin HEAD:main
+# (the worktree is a detached HEAD, so plain `push origin main` does nothing).
 #
 #   tools/stage.sh <repo-dir> <branch> <files...>
 set -e

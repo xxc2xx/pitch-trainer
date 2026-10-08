@@ -980,6 +980,12 @@
   });
   midiBtn.addEventListener('click',()=>{ ensureKbCtx(); Midi.connect(); });
   Midi.onNote((m,vel,isOn)=>{
+    // a context made outside a tap stays suspended — ask for one tap instead (Codex P1)
+    if(!kbCtx||kbCtx.state!=='running'){
+      if(kbCtx) kbCtx.resume().catch(()=>{});
+      if(!kbCtx||kbCtx.state!=='running'){ document.getElementById('soundBadge').textContent='🔇 tap the screen once to hear her keyboard'; }
+      if(!kbCtx) return;
+    }
     const ac=ensureKbCtx();
     if(currentMode==='keys'||currentMode==='songs'){
       if(isOn){ if(kb) kb.scrollTo(m); kb?kb.press(m):onPianoDown(m); }

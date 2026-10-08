@@ -54,7 +54,17 @@ const trk = b => b.slice(14);                                  // strip header, 
 const two = new Uint8Array([...w1.slice(0, 10), 0, 2, ...w1.slice(12, 14), ...trk(w2), ...trk(w1)]);
 ok(SF.parseMidi(two.buffer).notes[0].m === tw.notes[0].m, 'multi-track MIDI picks the melody, not the bass');
 
-const { DOMParser } = require('/private/tmp/claude-502/-Users-xxc2xx-Downloads/03a0fafa-2fb8-40b0-9151-9cefee84f51e/scratchpad/bp/node_modules/@xmldom/xmldom');
+// Dad's part: auto chords for Twinkle in C → C | C F C | F C G C …
+const tch = C.autoChords(tw);
+ok(tch.map(c => c.label).slice(0, 6).join(' ') === 'C F C G C F' || tch[0].label === 'C', 'autoChords Twinkle starts on C: ' + tch.map(c => c.label).join(' '));
+ok(tch.every(c => c.ms.length === 3 && c.ms.every(m => m >= 48 && m < 72)), 'chord tones voiced for the left hand (C3–B4)');
+ok(C.chordAt(tch, tch[1].t + 0.5) === tch[1] && C.chordAt([], 3) === null, 'chordAt finds the chord sounding at a beat');
+
+
+let DOMParser = null;
+try{ ({ DOMParser } = require('@xmldom/xmldom')); }catch(e){
+  try{ ({ DOMParser } = require(process.env.XMLDOM_PATH || '@xmldom/xmldom')); }catch(_){}
+}
 const xml = `<?xml version="1.0"?><score-partwise version="3.1"><work><work-title>Test Tune</work-title></work>
 <part-list><score-part id="P1"><part-name>Melody</part-name></score-part></part-list>
 <part id="P1"><measure number="1"><attributes><divisions>2</divisions><key><fifths>1</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time></attributes>
@@ -69,9 +79,10 @@ const xml = `<?xml version="1.0"?><score-partwise version="3.1"><work><work-titl
 </measure><measure number="2">
 <note><pitch><step>E</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><tie type="stop"/></note>
 </measure></part></score-partwise>`;
-const mx = SF.parseMusicXML(new DOMParser().parseFromString(xml, 'application/xml'));
-ok(mx.title === 'Test Tune' && mx.bpm === 88 && mx.key === 'G' && mx.timeSig[0] === 3, 'MusicXML header: title, tempo, key, time');
-ok(C.toTokens(mx) === 'G4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord skipped, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
+if(!DOMParser) console.log('skip MusicXML tests (npm i -g @xmldom/xmldom or set XMLDOM_PATH)');
+const mx = DOMParser ? SF.parseMusicXML(new DOMParser().parseFromString(xml, 'application/xml')) : null;
+if(mx) ok(mx.title === 'Test Tune' && mx.bpm === 88 && mx.key === 'G' && mx.timeSig[0] === 3, 'MusicXML header: title, tempo, key, time');
+if(mx) ok(C.toTokens(mx) === 'G4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord skipped, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
 
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);

@@ -81,8 +81,8 @@
     s.url = URL.createObjectURL(blob);
     s.media = new Audio(s.url); s.media.preload = 'auto'; s.media.preservesPitch = true;
     try{
-      const C = window.AudioContext || window.webkitAudioContext, ac = new C();
-      const buf = await ac.decodeAudioData(await blob.arrayBuffer()); try{ ac.close(); }catch(e){}
+      // offline decode: no gesture or audio session needed (Codex P1)
+      const buf = await Hear.decode(await blob.arrayBuffer());
       const x = buf.getChannelData(0), sr = buf.sampleRate, step = Math.floor(sr * 0.05), env = [];
       for(let i = 0; i < x.length; i += step){ let a = 0; for(let j = i; j < Math.min(i + step, x.length); j++) a += x[j] * x[j]; env.push(Math.sqrt(a / step)); }
       const mx = Math.max(...env, 1e-6); s.env = env.map(v => v / mx); s.envStep = 0.05;

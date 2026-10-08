@@ -118,6 +118,8 @@
   // gets most of a beat either side; Grow is closer to a real rhythm game.
   const WINDOWS = { sprout:[0.3, 0.6, 0.8], bloom:[0.15, 0.35, 0.5], grow:[0.12, 0.3, 0.45] };
 
+  const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
+
   function create(d){
     injectCSS();
     const host = d.host;
@@ -127,7 +129,7 @@
     let finishT = 0;                       // pending completion — cancelled on leave
     let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
     // Imported songs carry their original recording: it becomes the clock.
-    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0;
+    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0, partOnly = false;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -180,6 +182,9 @@
       take = t;
       const level = d.getLevel();
       notes = fitToRange(MC.skyline(t.notes), level.range);
+      // practice part set in ✏️ Fix notes: practise just that bit
+      partOnly = !!(t.section && t.section.to != null);
+      if(partOnly){ const part = notes.filter(n => n.t >= t.section.from - 1e-6 && n.t < t.section.to); if(part.length) notes = part; else partOnly = false; }
       // Sprout starts a little slower — rhythm is new
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
       mode = 'wait';
@@ -202,6 +207,7 @@
         <div id="sgAnRow" class="sg-ctrl" style="display:none">
           <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
           <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
+        ${partOnly ? `<div class="sg-ctrl" style="font-size:.75rem;color:#ffd54f">⟦ Practice part: bars ${Math.floor(t.section.from / bpbOf(t)) + 1}–${Math.ceil(t.section.to / bpbOf(t))} ⟧ <button class="sg-btn" id="sgWhole">Whole song</button></div>` : ''}
         <div class="sg-prog"><i id="sgProg"></i></div>
         <div id="sgMedia" class="sg-media"></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
@@ -222,6 +228,7 @@
         else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
       };
       host.querySelector('#sgLoop').onclick = setLoop;
+      const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
       const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
       host.querySelector('#sgBetter').onclick = betterNotes;
       host.querySelector('#sgAnGo').onclick = () => {
@@ -261,6 +268,10 @@
       if(tr){ tr.min = 50; tr.max = 100; tr.value = 100; host.querySelector('#sgBpm').textContent = '100%'; }
       const gb = host.querySelector('#sgGuide'); if(gb) gb.style.display = 'none';
       host.querySelector('#sgLoop').style.display = '';
+      if(partOnly){                                         // the saved part loops on the recording
+        loopAB = { from: t.section.from, to: t.section.to }; abStage = 2;
+        const lb = host.querySelector('#sgLoop'); lb.textContent = '🔁 Part'; lb.classList.add('sel');
+      }
       if(window.Hear && Hear.analyzeRemote) host.querySelector('#sgBetter').style.display = '';
       if(t.analyzed){ const bb = host.querySelector('#sgBetter'); bb.textContent = '✨ Analyzed'; bb.title = 'Analyzed by the song analyzer — tap to run again'; }
       const dt = host.querySelector('#sgDemo'); if(dt) dt.textContent = isVideo ? '▶ Watch' : '👂 Listen';
