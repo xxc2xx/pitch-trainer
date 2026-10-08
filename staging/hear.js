@@ -172,7 +172,9 @@
     const seen = new Map(); notes.forEach(n => { const k = n.t + ':' + n.m; if(!seen.has(k) || seen.get(k).d < n.d) seen.set(k, n); });
     notes = [...seen.values()];
     const snapped = o.snap === false ? { notes, key:'C' } : snapToKey(o.normalise === false ? notes : normaliseOctave(notes));
-    return MC.makeTake({ title: o.title || 'My song', source: o.source || 'sing', bpm, key: snapped.key, notes: snapped.notes });
+    // sync: beat 0 = the first note, `offsetSec` into the original recording
+    return MC.makeTake({ title: o.title || 'My song', source: o.source || 'sing', bpm, key: snapped.key, notes: snapped.notes,
+                         sync: { offsetSec: t0, kind: o.kind || 'audio', audioId: o.audioId || null } });
   }
 
   async function singRecorder(o){
@@ -222,6 +224,7 @@
   async function transcribeBlob(blob, o){
     o = o || {};
     const prog = o.onProgress || (() => {});
+    // the sung path normalises to a child's octave; recordings keep theirs
     prog(0.02, 'Loading the listening model…');
     const [{ mod, model }, audio] = await Promise.all([loadBasicPitch(), toMono22k(blob)]);
     const frames = [], onsets = [], contours = [];
@@ -236,8 +239,70 @@
     prog(1, 'Done');
     // melody line for the follow engine; keep poly only when asked
     const line = o.poly ? raw : MC.skyline(raw.map(n => ({ ...n, t: n.on }))).map(n => ({ m:n.m, on:n.on, off:n.off, v:n.v }));
-    return secondsToTake(line, { snap:false, ...o, source: o.source || 'audio-file', grid: o.grid || 0.25 });
+    if(!line.length) throw new Error('No notes heard in that recording');
+    // tempo from the onsets unless the caller knows it (Beat Hive passes djBpm)
+    const bpm = o.bpm || MC.estimateTempo(line.map(n => n.on));
+    return secondsToTake(line, { snap:false, ...o, bpm, source: o.source || 'audio-file', grid: o.grid || 0.25 });
   }
 
-  window.Hear = { pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato };
+  // ── Remote analysis (~/song-analyzer HF Space, Gradio API) ────────────
+  // Same protocol the OMR client uses: upload → call → read the SSE result.
+  async function gradioCall(base, api, file, o){
+    o = o || {};
+    base = String(base || '').replace(/\/$/, '');
+    if(!/^https:\/\//.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)) throw new Error('Analyzer address must start with https://');
+    const ctrl = new AbortController(), timer = setTimeout(() => ctrl.abort(), o.timeoutMs || 360000);
+    try{
+      const fd = new FormData(); fd.append('files', file, file.name || 'song.wav');
+      const up = await fetch(`${base}/gradio_api/upload?upload_id=${Math.random().toString(36).slice(2)}`, { method: 'POST', body: fd, signal: ctrl.signal });
+      if(!up.ok) throw new Error(`upload ${up.status}`);
+      const path = (await up.json())[0];
+      o.onPhase && o.onPhase('queued');
+      const call = await fetch(`${base}/gradio_api/call/${api}`, { method: 'POST', signal: ctrl.signal,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ data: [{ path, meta: { _type: 'gradio.FileData' } }] }) });
+      if(!call.ok) throw new Error(`call ${call.status}`);
+      const { event_id } = await call.json();
+      const sse = await fetch(`${base}/gradio_api/call/${api}/${event_id}`, { signal: ctrl.signal });
+      const text = await sse.text();                 // stream ends after complete/error
+      const blocks = text.split(/\n\n+/);
+      for(const b of blocks){
+        const ev = (b.match(/^event:\s*(\S+)/m) || [])[1], data = (b.match(/^data:\s*([\s\S]*)$/m) || [])[1];
+        if(ev === 'error') throw new Error('analyzer error' + (data && data !== 'null' ? ': ' + data.slice(0, 160) : ' (GPU quota or crash — try later)'));
+        if(ev === 'complete'){ const arr = JSON.parse(data); return arr[0]; }
+      }
+      throw new Error('analyzer returned no result');
+    } catch(e){ if(e.name === 'AbortError') throw new Error('analyzer timed out'); throw e; }
+    finally{ clearTimeout(timer); }
+  }
+  // Big videos: send only the sound, as a compact mono WAV.
+  async function audioForUpload(blob){
+    if(blob.size < 40e6 && !/^video\//.test(blob.type)) return new File([blob], 'song.' + ((blob.type.split('/')[1] || 'mp3').split(';')[0]), { type: blob.type });
+    const C = window.AudioContext || window.webkitAudioContext, ac = new C();
+    let buf; try{ buf = await ac.decodeAudioData(await blob.arrayBuffer()); } finally{ try{ ac.close(); }catch(e){} }
+    const sr = 32000, len = Math.min(Math.ceil(buf.duration * sr), sr * 360);
+    const off = new OfflineAudioContext(1, len, sr), src = off.createBufferSource();
+    src.buffer = buf; src.connect(off.destination); src.start();
+    const x = (await off.startRendering()).getChannelData(0);
+    const ab = new ArrayBuffer(44 + x.length * 2), v = new DataView(ab);
+    const w = (o, str) => { for(let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4, 36 + x.length * 2, true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true);
+    v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+    v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40, x.length * 2, true);
+    for(let i = 0; i < x.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+    return new File([ab], 'song.wav', { type: 'audio/wav' });
+  }
+  async function analyzeRemote(base, blob, o){
+    o = o || {};
+    o.onPhase && o.onPhase('preparing');
+    const file = await audioForUpload(blob);
+    o.onPhase && o.onPhase('uploading');
+    const txt = await gradioCall(base, 'analyze', file, o);
+    const res = typeof txt === 'string' ? JSON.parse(txt) : txt;
+    if(res.error) throw new Error(res.error);
+    return res;
+  }
+
+  window.Hear = { pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
+                  gradioCall, analyzeRemote };
 })();

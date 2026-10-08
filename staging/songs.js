@@ -42,6 +42,7 @@
     text-align:center;transition:transform .1s,border-color .15s;position:relative;}
   .sg-card:active{transform:scale(.96);}
   .sg-card .ic{font-size:2rem;line-height:1;}
+  .sg-card.sg-add{border-style:dashed;border-color:#4a4a8a;background:#121230;}
   .sg-card .st{font-size:.68rem;color:#ffd54f;min-height:1em;}
   .sg-card .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;max-width:100%;}
   .sg-card .dots i{width:7px;height:7px;border-radius:50%;}
@@ -59,6 +60,8 @@
     font-size:.8rem;font-weight:700;cursor:pointer;}
   .sg-btn.sel{background:#3a3a7a;color:#fff;border-color:#6a6ad0;}
   .sg-btn.go{background:#e94560;border-color:#e94560;color:#fff;}
+  .sg-media video{display:block;max-height:28vh;max-width:100%;margin:0 auto;border-radius:10px;background:#000;}
+  @media(orientation:landscape) and (max-height:500px){.sg-media video{max-height:22vh;}}
   .sg-canvas{width:100%;display:block;border-radius:12px;background:#06050f;border:1px solid #14142c;touch-action:pan-y;}
   .sg-ctrl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
   .sg-ctrl label{font-size:.72rem;color:#7a7aa8;display:flex;gap:4px;align-items:center;}
@@ -123,6 +126,8 @@
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
     let finishT = 0;                       // pending completion — cancelled on leave
     let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
+    // Imported songs carry their original recording: it becomes the clock.
+    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -133,28 +138,30 @@
       const dots = MC.skyline(t.notes).slice(0, 14).map(n => `<i style="background:${MC.colorOf(n.m)}"></i>`).join('');
       return `<div class="sg-card" data-id="${esc(t.id)}">
         ${deletable ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}
-        <span class="ic">${t.icon || (t.source === 'sing' ? '🎤' : t.source === 'piano' ? '🎹' : '🎵')}</span>
+        <span class="ic">${t.icon || ({ sing:'🎤', piano:'🎹', video:'🎬', 'audio-file':'🎵', 'midi-file':'📄', musicxml:'📄', 'beat-hive':'🥁' }[t.source] || '🎵')}</span>
         <span>${esc(t.title)}</span><span class="dots">${dots}</span>
         <span class="st">${st ? '⭐'.repeat(Math.min(st, 5)) + (st > 5 ? '+' : '') : ''}</span></div>`;
     }
     let shelfTakes = new Map();
     async function renderShelf(){
-      stopAll(); pulse(false); stopSing(); take = null; d.onClose && d.onClose();
+      stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       const builtin = MC.builtinTakes();
       let mine = [];
       try{ mine = await MC.store.listTakes(); }catch(e){}
       shelfTakes = new Map([...builtin, ...mine].map(t => [t.id, t]));
       const fromClass = mine.filter(t => t.tag === 'class'), own = mine.filter(t => t.tag !== 'class');
+      const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
+        <span class="st" style="color:#8a8ab8">video · music · MIDI</span></div>` : '';
+      // her songs lead; the built-ins are just a starter set
       host.innerHTML = `<div class="sg-shelf">
         <h3>🎒 From class</h3>
-        ${fromClass.length ? `<div class="sg-grid">${fromClass.map(t => card(t, true)).join('')}</div>`
-          : '<div class="sg-empty">Record the song your teacher played (🎹 Keys → ⏺, or 🎤 sing it) and it shows up here.</div>'}
-        <h3>⭐ Songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
-        <h3>🎹 My songs</h3>
-        ${own.length ? `<div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>`
-          : '<div class="sg-empty">Nothing yet — play a tune in 🎹 Keys with ⏺ on.</div>'}
+        <div class="sg-grid">${addCard}${fromClass.map(t => card(t, true)).join('')}</div>
+        ${own.length ? `<h3>🎹 My songs</h3><div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>` : ''}
+        <h3>⭐ Starter songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
       </div>`;
-      host.querySelectorAll('.sg-card').forEach(el => el.addEventListener('click', async e => {
+      const add = host.querySelector('#sgAdd');
+      if(add) add.onclick = () => d.addSong(t => open(t));
+      host.querySelectorAll('.sg-card[data-id]').forEach(el => el.addEventListener('click', async e => {
         const t = shelfTakes.get(el.dataset.id); if(!t) return;
         if(e.target.dataset.del){
           e.stopPropagation();
@@ -186,10 +193,16 @@
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
+            <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
+            <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
+        <div id="sgAnRow" class="sg-ctrl" style="display:none">
+          <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
+          <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
         <div class="sg-prog"><i id="sgProg"></i></div>
+        <div id="sgMedia" class="sg-media"></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
       canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d');
       progEl = host.querySelector('#sgProg');
@@ -203,9 +216,106 @@
       const gb = host.querySelector('#sgGuide');
       gb.onclick = () => { guideOn = !guideOn; gb.classList.toggle('sel', guideOn); gb.textContent = guideOn ? '🔈' : '🔇'; };
       const tr = host.querySelector('#sgTempo');
-      if(tr) tr.oninput = () => { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; };
+      if(tr) tr.oninput = () => {
+        if(media){ rate = +tr.value / 100; media.playbackRate = rate; host.querySelector('#sgBpm').textContent = tr.value + '%'; }
+        else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
+      };
+      host.querySelector('#sgLoop').onclick = setLoop;
+      host.querySelector('#sgBetter').onclick = betterNotes;
+      host.querySelector('#sgAnGo').onclick = () => {
+        const u = host.querySelector('#sgAnUrl').value.trim();
+        if(!/^https:\/\//.test(u) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(u)) { host.querySelector('#sgAnUrl').style.borderColor = '#e94560'; return; }
+        try{ localStorage.setItem(AN_KEY, u); }catch(e){}
+        host.querySelector('#sgAnRow').style.display = 'none';
+        betterNotes();
+      };
+      canvas.onclick = seekTo;
       sizeCanvas(); pulse(true);
       startMode('wait');
+      loadMedia(t);
+    }
+
+    // ── Original recording (video / audio) ──────────────────────────────
+    function dropMedia(){
+      if(media){ try{ media.pause(); }catch(e){} media.removeAttribute('src'); media = null; }
+      if(mediaUrl){ URL.revokeObjectURL(mediaUrl); mediaUrl = null; }
+      loopAB = null; abStage = 0; rate = 1;
+    }
+    async function loadMedia(t){
+      dropMedia();
+      const id = t.sync && (t.sync.audioId || t.audioId);
+      if(!id) return;
+      let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
+      if(!blob || take !== t) return;                       // gone, or user moved on
+      const isVideo = t.sync.kind === 'video' || /^video\//.test(blob.type);
+      const el = document.createElement(isVideo ? 'video' : 'audio');
+      mediaUrl = URL.createObjectURL(blob);
+      el.src = mediaUrl; el.preload = 'auto'; el.playsInline = true;
+      el.preservesPitch = true; el.webkitPreservesPitch = true;   // slow down, same pitch
+      if(isVideo){ el.muted = false; host.querySelector('#sgMedia').appendChild(el); }
+      media = el;
+      // the slider becomes speed (50–100 %), the guide melody is the original itself
+      const tr = host.querySelector('#sgTempo');
+      if(tr){ tr.min = 50; tr.max = 100; tr.value = 100; host.querySelector('#sgBpm').textContent = '100%'; }
+      const gb = host.querySelector('#sgGuide'); if(gb) gb.style.display = 'none';
+      host.querySelector('#sgLoop').style.display = '';
+      if(window.Hear && Hear.analyzeRemote) host.querySelector('#sgBetter').style.display = '';
+      if(t.analyzed){ const bb = host.querySelector('#sgBetter'); bb.textContent = '✨ Analyzed'; bb.title = 'Analyzed by the song analyzer — tap to run again'; }
+      const dt = host.querySelector('#sgDemo'); if(dt) dt.textContent = isVideo ? '▶ Watch' : '👂 Listen';
+    }
+    // ✨ Better notes: full-band separation + melody + beats + chords on the
+    // user's own HF Space (~/song-analyzer). On-device notes stay if it fails.
+    const AN_KEY = 'musicEco_analyzerUrl';
+    async function betterNotes(){
+      const t = take, b = host.querySelector('#sgBetter');
+      let url = ''; try{ url = localStorage.getItem(AN_KEY) || ''; }catch(e){}
+      if(!url){ host.querySelector('#sgAnRow').style.display = 'flex'; host.querySelector('#sgAnUrl').focus(); return; }
+      const id = t.sync && (t.sync.audioId || t.audioId);
+      let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
+      if(!blob){ b.textContent = '✨ No recording'; return; }
+      stopAll();
+      const label = { preparing: '✨ Preparing…', uploading: '✨ Uploading…', queued: '✨ Analyzing… (up to a minute)' };
+      b.disabled = true; b.textContent = label.preparing;
+      try{
+        const res = await Hear.analyzeRemote(url, blob, { onPhase: ph => { if(take === t) b.textContent = label[ph] || b.textContent; } });
+        const better = MC.songFromAnalysis(t, res);
+        if(better.notes.length < 4) throw new Error('the analyzer found no clear tune');
+        await MC.store.saveTake(better);
+        if(take === t) open(better);
+      }catch(e){
+        b.disabled = false; b.textContent = '✨ Try again'; b.title = 'Last try: ' + e.message;
+        if(/address|https/.test(e.message)) { try{ localStorage.removeItem(AN_KEY); }catch(_){} }
+        console.warn('[songs] analyzer:', e.message);
+      }
+    }
+
+    function curBeat(){
+      const run = timed || demo;
+      if(run) return nowBeat(run);
+      return notes[Math.min(idx, notes.length - 1)] ? notes[Math.min(idx, notes.length - 1)].t : 0;
+    }
+    // 🔁: tap = loop starts here, tap = ends here, tap = clear
+    function setLoop(){
+      const b = host.querySelector('#sgLoop');
+      if(abStage === 0){ loopAB = { from: Math.floor(curBeat()), to: null }; abStage = 1; b.textContent = '🔁 A…'; b.classList.add('sel'); }
+      else if(abStage === 1){
+        const to = Math.ceil(curBeat());
+        if(to <= loopAB.from + 1){ return; }
+        loopAB.to = to; abStage = 2; b.textContent = '🔁 A–B';
+      } else { loopAB = null; abStage = 0; b.textContent = '🔁'; b.classList.remove('sel'); }
+    }
+    // tap the note strip: jump there (playing) or move the next step there (step mode)
+    function seekTo(e){
+      if(!take) return;
+      const beat = (e.offsetX + camX - 70) / ppb();
+      const run = timed || demo;
+      if(run && run.media){
+        run.media.currentTime = Math.max(0, MC.beatToSec(take, beat - 0.5));
+        notes.forEach((n, i) => { if(n.t >= beat - 0.5) judged.delete(i); });
+      } else if(!run){
+        const i = notes.findIndex(n => n.t >= beat - 0.25);
+        if(i >= 0){ idx = i; progress(); target(); animateTo(); }
+      }
     }
 
     function sizeCanvas(){
@@ -245,6 +355,7 @@
       }
       cancelAnimationFrame(raf); raf = 0;
       clearTimeout(finishT); finishT = 0;
+      if(media){ try{ media.pause(); }catch(e){} }
       const kb = d.getKb(); kb && kb.setTarget(null);
     }
 
@@ -329,13 +440,37 @@
     // ── Clock: Listen and Play along both scroll with the music ─────────
     // Notes move right→left at tempo; the dotted line is "now". Everything
     // is scheduled on the AudioContext clock, the screen just follows it.
-    function nowBeat(run){ run = run || timed || demo; return run ? (d.audio().currentTime - run.t0) / (60 / run.bpm) : 0; }
+    function nowBeat(run){
+      run = run || timed || demo;
+      if(!run) return 0;
+      if(run.media) return MC.secToBeat(take, run.media.currentTime);   // the recording is the clock
+      return (d.audio().currentTime - run.t0) / (60 / run.bpm);
+    }
+    // keep a loop going; returns true when it jumped
+    function keepLoop(run, beat){
+      if(!run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
+      run.media.currentTime = Math.max(0, MC.beatToSec(take, loopAB.from - 0.5));
+      notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to) judged.delete(i); });
+      return true;
+    }
+    function playMedia(fromBeat){
+      media.playbackRate = rate;
+      media.currentTime = Math.max(0, MC.beatToSec(take, fromBeat));
+      const p = media.play();
+      // the browser can refuse (autoplay rules, interrupted audio session):
+      // don't sit there saying "Stop" over silence — reset and say so
+      if(p && p.catch) p.catch(() => {
+        startMode('wait');
+        const b = host.querySelector('#sgDemo'); if(b){ b.textContent = '▶ Tap again'; }
+      });
+    }
 
     function startDemo(){
       stopAll(); stopSing();               // the mic would hear the demo through the speaker
       const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.4;
-      demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1 };
-      notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
+      demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1, media };
+      if(media) playMedia(loopAB ? loopAB.from - 0.5 : -1);                 // her original video/song
+      else notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
       const len = MC.takeLength({ notes });
       const run = demo;
       const tick = () => {
@@ -346,9 +481,10 @@
           run.last = i; idx = i; progress();
           const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
         }
+        if(keepLoop(run, beat)) run.last = -1;
         camX = xOf(Math.max(-1, beat)) - camLead();
         draw(beat);
-        if(beat > len + 0.5){ stopAll(); startMode('wait'); return; }
+        if(beat > len + 0.5 || (run.media && run.media.ended)){ stopAll(); startMode('wait'); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -361,15 +497,21 @@
       const bar = (take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4);
       const t0 = ac.currentTime + 0.3 + bar * spb;           // one-bar count-in
       const bus = ac.createGain(); bus.connect(ac.destination);
-      for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
-      timed = { t0, bpm, running: true, stop: false, bus, tag: 'play' + (++runSeq), W };
-      // the "music": melody softly underneath so she hears what to play
-      if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
+      timed = { t0, bpm, running: true, stop: false, bus, tag: 'play' + (++runSeq), W, media };
+      if(media){
+        // the original IS the music; its own intro is the count-in
+        playMedia((loopAB ? loopAB.from : (notes[0] ? notes[0].t : 0)) - bar);
+      } else {
+        for(let b = 0; b < bar; b++) d.click(ac, t0 - (bar - b) * spb, b === 0, bus);
+        // the "music": melody softly underneath so she hears what to play
+        if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
+      }
       const len = MC.takeLength({ notes });
       const run = timed;
       const tick = () => {
         if(run.stop) return;
         const beat = nowBeat(run);
+        keepLoop(run, beat);
         notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
         const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
@@ -379,7 +521,7 @@
         if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
         draw(beat);
-        if(beat > len + 0.6){ run.running = false; finish(); return; }
+        if((beat > len + 0.6 || (run.media && run.media.ended)) && !(loopAB && loopAB.to != null)){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -453,6 +595,14 @@
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
       if(level.see === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
+      const chords = take && take.parts && take.parts.chords;
+      if(chords && chords.length){
+        g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
+        chords.forEach(c => {
+          const x = xOf(c.t) - camX; if(x < 44 || x > W) return;
+          g.fillStyle = 'rgba(255,213,79,.9)'; g.fillText(c.label, x, 13);
+        });
+      }
     }
 
     function shapePath(g, shape, x, y, r){
@@ -597,6 +747,7 @@
       refresh(){ if(take) open(take); else renderShelf(); },
       onKey,
       get open(){ return !!take; },
+      get media(){ return media; },                 // the original recording (tests, Studio)
       openTake: open,
     };
   }
