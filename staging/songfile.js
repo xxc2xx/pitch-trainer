@@ -144,7 +144,8 @@
   }
 
   // ── Writer (for tests, and later "export MIDI") ───────────────────────
-  function writeMidi(take){
+  function writeMidi(take, opts){
+    opts = opts || {};
     const ppq = 480, bytes = [];
     const push = (...b) => bytes.push(...b);
     const vlq = v => { const out = [v & 0x7f]; while((v >>= 7)) out.unshift((v & 0x7f) | 0x80); return out; };
@@ -164,12 +165,100 @@
     evs.forEach(e => { trk.push(...vlq(e.tick - last), e.on ? 0x90 : 0x80, e.m, e.v); last = e.tick; });
     trk.push(0, 0xff, 0x2f, 0);
     const u32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
-    push(0x4d,0x54,0x68,0x64, ...u32(6), 0,0, 0,1, (ppq >> 8) & 255, ppq & 255);
-    push(0x4d,0x54,0x72,0x6b, ...u32(trk.length), ...trk);
+    // optional second track: the chords as block chords (Dad's part / accompaniment)
+    const chords = opts.chords && take.parts && take.parts.chords && take.parts.chords.length ? take.parts.chords : null;
+    const trks = [trk];
+    if(chords){
+      const c2 = [], ev = [];
+      const cn = 'Chords'; c2.push(0, 0xff, 0x03, cn.length, ...Array.from(cn).map(c => c.charCodeAt(0)));
+      chords.forEach(c => {
+        const ms = c.ms || [48 + c.root, 48 + c.root + (c.minor ? 3 : 4), 48 + c.root + 7];
+        ms.forEach(m => { ev.push({ tick: Math.round(c.t * ppq), on: true, m }); ev.push({ tick: Math.round((c.t + c.d) * ppq) - 1, on: false, m }); });
+      });
+      ev.sort((a, b) => a.tick - b.tick || (a.on - b.on));
+      let last2 = 0;
+      ev.forEach(e => { c2.push(...vlq(Math.max(0, e.tick - last2)), e.on ? 0x91 : 0x81, e.m, e.on ? 70 : 0); last2 = Math.max(last2, e.tick); });
+      c2.push(0, 0xff, 0x2f, 0);
+      trks.push(c2);
+    }
+    push(0x4d,0x54,0x68,0x64, ...u32(6), 0, trks.length > 1 ? 1 : 0, 0, trks.length, (ppq >> 8) & 255, ppq & 255);
+    trks.forEach(t => push(0x4d,0x54,0x72,0x6b, ...u32(t.length), ...t));
     return new Uint8Array(bytes);
   }
 
-  const SongFile = { parseMidi, parseMusicXML, writeMidi };
+  // ── MusicXML writer — open in MuseScore to print a proper score ───────
+  // Melody on one treble staff, split into bars (ties across barlines), rests
+  // in the gaps, the song's key/time/tempo, chord symbols from parts.chords.
+  // Grid: 16th notes (divisions = 4).
+  const KEY_FIFTHS = { C:0, G:1, D:2, A:3, E:4, B:5, 'F#':6, 'C#':7, F:-1, Bb:-2, Eb:-3, Ab:-4, Db:-5, Gb:-6, Cb:-7 };
+  const STEPS_SHARP = [['C',0],['C',1],['D',0],['D',1],['E',0],['F',0],['F',1],['G',0],['G',1],['A',0],['A',1],['B',0]];
+  const STEPS_FLAT  = [['C',0],['D',-1],['D',0],['E',-1],['E',0],['F',0],['G',-1],['G',0],['A',-1],['A',0],['B',-1],['B',0]];
+  // 16th-note lengths that are a single written note (with dots)
+  const WRITABLE = [[16,'whole',0],[12,'half',1],[8,'half',0],[6,'quarter',1],[4,'quarter',0],[3,'eighth',1],[2,'eighth',0],[1,'16th',0]];
+  function pieces(len){                                  // split a length into writable notes
+    const out = []; let left = len;
+    while(left > 0){ const w = WRITABLE.find(x => x[0] <= left); out.push(w); left -= w[0]; }
+    return out;
+  }
+  function writeMusicXML(song){
+    const x = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+    const ts = song.timeSig || [4, 4], bar16 = ts[0] * 16 / ts[1];
+    const keyName = String(song.key || 'C').replace(/m$/, '');
+    const fifths = KEY_FIFTHS[keyName] != null ? KEY_FIFTHS[keyName] : 0;
+    const spell = fifths < 0 ? STEPS_FLAT : STEPS_SHARP;
+    // melody on the 16th grid, one line, no overlaps
+    const line = MC.skyline(song.notes || []).map(n => ({ m: n.m, a: Math.max(0, Math.round(n.t * 4)), b: Math.max(Math.round(n.t * 4) + 1, Math.round((n.t + n.d) * 4)) }));
+    line.forEach((n, i) => { if(line[i + 1] && n.b > line[i + 1].a) n.b = Math.max(n.a + 1, line[i + 1].a); });
+    const chords = (song.parts && song.parts.chords) || [];
+    const end = Math.max(line.length ? line[line.length - 1].b : bar16, ...chords.map(c => Math.round((c.t + c.d) * 4)));
+    const nBars = Math.max(1, Math.ceil(end / bar16));
+    // events: notes and rests filling every bar
+    const evs = []; let pos = 0;
+    line.forEach(n => { if(n.a > pos) evs.push({ a: pos, b: n.a, rest: true }); evs.push(n); pos = n.b; });
+    if(pos < nBars * bar16) evs.push({ a: pos, b: nBars * bar16, rest: true });
+    let body = '';
+    for(let bi = 0; bi < nBars; bi++){
+      const b0 = bi * bar16, b1 = b0 + bar16;
+      body += `<measure number="${bi + 1}">`;
+      if(bi === 0){
+        body += `<attributes><divisions>4</divisions><key><fifths>${fifths}</fifths></key>` +
+                `<time><beats>${ts[0]}</beats><beat-type>${ts[1]}</beat-type></time><clef><sign>G</sign><line>2</line></clef></attributes>` +
+                `<direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${Math.round(song.bpm || 90)}</per-minute></metronome></direction-type><sound tempo="${Math.round(song.bpm || 90)}"/></direction>`;
+      }
+      const used = new Set();
+      evs.filter(e => e.a < b1 && e.b > b0).forEach(e => {
+        const a = Math.max(e.a, b0), b = Math.min(e.b, b1);
+        chords.forEach((c, ci) => {                       // chord symbol where it starts (or first event after)
+          const ct = Math.round(c.t * 4);
+          if(!used.has(ci) && ct >= b0 && ct < b1 && ct <= a){
+            used.add(ci); c._done = true;
+            const [st, al] = spell[((c.root % 12) + 12) % 12];
+            body += `<harmony><root><root-step>${st}</root-step>${al ? `<root-alter>${al}</root-alter>` : ''}</root><kind>${c.minor ? 'minor' : 'major'}</kind></harmony>`;
+          }
+        });
+        const ps = pieces(b - a);
+        ps.forEach((p, pi) => {
+          if(e.rest){ body += `<note><rest/><duration>${p[0]}</duration><voice>1</voice><type>${p[1]}</type>${p[2] ? '<dot/>' : ''}</note>`; return; }
+          const [st, al] = spell[MC.pc(e.m)], oct = MC.octaveOf(e.m) + (st === 'C' && al < 0 ? 1 : 0) - (st === 'B' && al > 0 ? 1 : 0);
+          const tieStart = pi < ps.length - 1 || b < e.b, tieStop = pi > 0 || a > e.a;
+          body += `<note><pitch><step>${st}</step>${al ? `<alter>${al}</alter>` : ''}<octave>${oct}</octave></pitch>` +
+                  `<duration>${p[0]}</duration>${tieStop ? '<tie type="stop"/>' : ''}${tieStart ? '<tie type="start"/>' : ''}` +
+                  `<voice>1</voice><type>${p[1]}</type>${p[2] ? '<dot/>' : ''}` +
+                  (tieStart || tieStop ? `<notations>${tieStop ? '<tied type="stop"/>' : ''}${tieStart ? '<tied type="start"/>' : ''}</notations>` : '') + `</note>`;
+        });
+      });
+      chords.forEach(c => { delete c._done; });
+      body += '</measure>';
+    }
+    return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.1 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="3.1"><work><work-title>${x(song.title || 'Song')}</work-title></work>
+<identification><encoding><software>Pitch Trainer</software></encoding></identification>
+<part-list><score-part id="P1"><part-name>Melody</part-name></score-part></part-list>
+<part id="P1">${body}</part></score-partwise>`;
+  }
+
+  const SongFile = { parseMidi, parseMusicXML, writeMidi, writeMusicXML };
   if(typeof module !== 'undefined' && module.exports) module.exports = SongFile;
   else root.SongFile = SongFile;
 })(typeof window !== 'undefined' ? window : globalThis);
