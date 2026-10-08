@@ -76,8 +76,8 @@
     </div>`;
     document.body.appendChild(ov);
     const $ = id => ov.querySelector('#' + id);
-    let busy = false, cleanup = null;
-    const close = () => { if(cleanup) cleanup(); ov.remove(); };
+    let busy = false, cleanup = null, closed = false;
+    const close = () => { closed = true; if(cleanup) cleanup(); ov.remove(); };
     $('asClose').onclick = close;
 
     const work = (msg, frac) => {
@@ -93,6 +93,7 @@
     const title = fallback => ($('asTitle').value.trim() || fallback || 'My song').slice(0, 40);
 
     async function save(song, blob, kind){
+      if(closed) return;                       // sheet closed while working — drop it
       if(song.notes.length < 2) return fail('Didn’t find a tune in that — try a clearer part of the song.');
       song.title = ($('asTitle').value.trim() || song.title || 'My song').slice(0, 40);
       if($('asClass').checked) song.tag = 'class';

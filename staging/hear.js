@@ -210,12 +210,19 @@
                                  .catch(e => { _bp = null; throw e; });
     return _bp;
   }
+  // Decoding needs no live AudioContext: an OfflineAudioContext works outside
+  // a user gesture (iOS leaves late-created live contexts suspended) and
+  // never touches the device's audio session.
+  function decode(arrayBuffer){
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const oc = new OAC(1, 1, 44100);
+    return new Promise((res, rej) => {
+      const p = oc.decodeAudioData(arrayBuffer, res, rej);     // callback form for older Safari
+      if(p && p.then) p.then(res, rej);
+    });
+  }
   async function toMono22k(blob){
-    const C = window.AudioContext || window.webkitAudioContext;
-    const ac = new C();
-    let buf;
-    try{ buf = await ac.decodeAudioData(await blob.arrayBuffer()); }
-    finally{ try{ ac.close(); }catch(e){} }          // a corrupt file must not leak the context
+    const buf = await decode(await blob.arrayBuffer());
     const len = Math.ceil(buf.duration * 22050);
     const off = new OfflineAudioContext(1, len, 22050);
     const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
@@ -278,8 +285,7 @@
   // Big videos: send only the sound, as a compact mono WAV.
   async function audioForUpload(blob){
     if(blob.size < 40e6 && !/^video\//.test(blob.type)) return new File([blob], 'song.' + ((blob.type.split('/')[1] || 'mp3').split(';')[0]), { type: blob.type });
-    const C = window.AudioContext || window.webkitAudioContext, ac = new C();
-    let buf; try{ buf = await ac.decodeAudioData(await blob.arrayBuffer()); } finally{ try{ ac.close(); }catch(e){} }
+    const buf = await decode(await blob.arrayBuffer());
     const sr = 32000, len = Math.min(Math.ceil(buf.duration * sr), sr * 360);
     const off = new OfflineAudioContext(1, len, sr), src = off.createBufferSource();
     src.buffer = buf; src.connect(off.destination); src.start();
@@ -303,6 +309,6 @@
     return res;
   }
 
-  window.Hear = { pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
+  window.Hear = { decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
                   gradioCall, analyzeRemote };
 })();

@@ -155,6 +155,47 @@
       parts: { ...(song.parts || {}), chords }, analyzed: true });
   }
 
+  // Dad's part when the song has no chords: per bar, the I / IV / V / vi
+  // chord of the song's key that covers the most melody (weighted by
+  // duration, downbeat counts double). Voiced around C3–B3 for the left hand.
+  const KEY_PC = { C:0, 'C#':1, Db:1, D:2, Eb:3, 'D#':3, E:4, F:5, 'F#':6, Gb:6, G:7, Ab:8, 'G#':8, A:9, Bb:10, 'A#':10, B:11, Cb:11 };
+  function chordTones(root, minor, base){
+    base = base == null ? 48 : base;                 // C3
+    const r = base + ((root % 12) + 12) % 12;
+    return [r, r + (minor ? 3 : 4), r + 7];
+  }
+  function autoChords(song){
+    const k = KEY_PC[String(song.key || 'C').replace(/m$/, '')] || 0;
+    const cands = [[0, false, 'I'], [5, false, 'IV'], [7, false, 'V'], [9, true, 'vi']];
+    const bpb = song.timeSig ? song.timeSig[0] * 4 / song.timeSig[1] : 4;
+    const notes = song.notes || [], end = takeLength(song);
+    const out = [];
+    for(let b0 = Math.floor((notes[0] ? notes[0].t : 0) / bpb) * bpb; b0 < end; b0 += bpb){
+      const inBar = notes.filter(n => n.t < b0 + bpb && n.t + n.d > b0);
+      if(!inBar.length){ continue; }
+      let best = cands[0], bestSc = -1;
+      cands.forEach((c, ci) => {
+        const pcs = [0, c[1] ? 3 : 4, 7].map(x => (k + c[0] + x) % 12);
+        let sc = 0;
+        inBar.forEach(n => {
+          const w = Math.min(n.t + n.d, b0 + bpb) - Math.max(n.t, b0);
+          sc += pcs.includes(pc(n.m)) ? w * (Math.abs(n.t - b0) < 1e-6 ? 2 : 1) : 0;
+        });
+        sc -= ci * 0.01;                            // ties → simpler chord (I before IV before V)
+        if(sc > bestSc){ bestSc = sc; best = c; }
+      });
+      const root = (k + best[0]) % 12;
+      const prev = out[out.length - 1];
+      if(prev && prev.root === root && prev.minor === best[1] && Math.abs(prev.t + prev.d - b0) < 1e-6){ prev.d += bpb; continue; }
+      out.push({ t: b0, d: bpb, root, minor: best[1], label: NOTE_NAMES[root].replace('#', '♯') + (best[1] ? 'm' : '') });
+    }
+    return out.map(c => ({ ...c, ms: chordTones(c.root, c.minor) }));
+  }
+  function chordAt(chords, beat){
+    let cur = null; (chords || []).forEach(c => { if(c.t <= beat + 1e-6) cur = c; });
+    return cur && beat < cur.t + cur.d + 1e-6 ? cur : null;
+  }
+
   // Tempo from note onsets (seconds): the 8th-note grid, anchored on the
   // first onset, that the onsets fit best. Folded into 70–150 BPM.
   function estimateTempo(onsets){
@@ -293,6 +334,7 @@
     colorOf, isBlack, shapeOf, label,
     LEVELS, getLevel, setLevel,
     makeTake, takeLength, skyline, quantize, beatToSec, secToBeat, estimateTempo, songFromAnalysis,
+    autoChords, chordAt, chordTones,
     parseTokens, fromTokens, toTokens,
     BUILTIN, builtinTakes,
     store,

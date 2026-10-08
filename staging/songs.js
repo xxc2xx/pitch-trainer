@@ -118,6 +118,8 @@
   // gets most of a beat either side; Grow is closer to a real rhythm game.
   const WINDOWS = { sprout:[0.3, 0.6, 0.8], bloom:[0.15, 0.35, 0.5], grow:[0.12, 0.3, 0.45] };
 
+  const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
+
   function create(d){
     injectCSS();
     const host = d.host;
@@ -127,7 +129,9 @@
     let finishT = 0;                       // pending completion — cancelled on leave
     let guideOn = true, runSeq = 0;        // guide = the melody plays along softly
     // Imported songs carry their original recording: it becomes the clock.
-    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0;
+    let media = null, mediaUrl = null, rate = 1, loopAB = null, abStage = 0, partOnly = false;
+    // 👨‍👧 Together: her MIDI keyboard plays the tune; the screen is Dad's chords
+    let together = false, dadChords = [], dadAt = null;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
@@ -144,6 +148,7 @@
     }
     let shelfTakes = new Map();
     async function renderShelf(){
+      if(together){ together = false; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       const builtin = MC.builtinTakes();
       let mine = [];
@@ -180,7 +185,11 @@
       take = t;
       const level = d.getLevel();
       notes = fitToRange(MC.skyline(t.notes), level.range);
+      // practice part set in ✏️ Fix notes: practise just that bit
+      partOnly = !!(t.section && t.section.to != null);
+      if(partOnly){ const part = notes.filter(n => n.t >= t.section.from - 1e-6 && n.t < t.section.to); if(part.length) notes = part; else partOnly = false; }
       // Sprout starts a little slower — rhythm is new
+      if(together){ together = false; dadChords = []; dadAt = undefined; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
       mode = 'wait';
       d.onOpen && d.onOpen({ ...t, notes });
@@ -192,6 +201,8 @@
             <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">🎵 Play along</button>
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
+            <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>
+            <button class="sg-btn" id="sgJam" title="Open this song on Beat Hive's pads, at its tempo">🥁 Jam</button>
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
@@ -202,6 +213,7 @@
         <div id="sgAnRow" class="sg-ctrl" style="display:none">
           <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
           <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
+        ${partOnly ? `<div class="sg-ctrl" style="font-size:.75rem;color:#ffd54f">⟦ Practice part: bars ${Math.floor(t.section.from / bpbOf(t)) + 1}–${Math.ceil(t.section.to / bpbOf(t))} ⟧ <button class="sg-btn" id="sgWhole">Whole song</button></div>` : ''}
         <div class="sg-prog"><i id="sgProg"></i></div>
         <div id="sgMedia" class="sg-media"></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
@@ -222,7 +234,11 @@
         else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
       };
       host.querySelector('#sgLoop').onclick = setLoop;
+      const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
       const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
+      host.querySelector('#sgTogether').onclick = () => setTogether(!together);
+      // same origin → Beat Hive reads this song from the shared library
+      host.querySelector('#sgJam').onclick = () => { stopAll(); window.open('../beat-hive/?song=' + encodeURIComponent(t.id), '_blank'); };
       host.querySelector('#sgBetter').onclick = betterNotes;
       host.querySelector('#sgAnGo').onclick = () => {
         const u = host.querySelector('#sgAnUrl').value.trim();
@@ -261,6 +277,10 @@
       if(tr){ tr.min = 50; tr.max = 100; tr.value = 100; host.querySelector('#sgBpm').textContent = '100%'; }
       const gb = host.querySelector('#sgGuide'); if(gb) gb.style.display = 'none';
       host.querySelector('#sgLoop').style.display = '';
+      if(partOnly){                                         // the saved part loops on the recording
+        loopAB = { from: t.section.from, to: t.section.to }; abStage = 2;
+        const lb = host.querySelector('#sgLoop'); lb.textContent = '🔁 Part'; lb.classList.add('sel');
+      }
       if(window.Hear && Hear.analyzeRemote) host.querySelector('#sgBetter').style.display = '';
       if(t.analyzed){ const bb = host.querySelector('#sgBetter'); bb.textContent = '✨ Analyzed'; bb.title = 'Analyzed by the song analyzer — tap to run again'; }
       const dt = host.querySelector('#sgDemo'); if(dt) dt.textContent = isVideo ? '▶ Watch' : '👂 Listen';
@@ -310,6 +330,26 @@
         },
         onClose: () => open(t),
       });
+    }
+
+    function setTogether(on){
+      together = on;
+      const b = host.querySelector('#sgTogether'); if(b) b.classList.toggle('sel', on);
+      if(on){
+        const given = take.parts && take.parts.chords && take.parts.chords.length ? take.parts.chords : null;
+        dadChords = given
+          ? given.map(c => ({ ...c, ms: c.ms || MC.chordTones(c.root, c.minor) }))
+          : MC.autoChords({ ...take, notes });           // no chords in the song: harmonise the tune
+      } else { dadChords = []; }
+      dadAt = undefined;
+      d.onTogether && d.onTogether(on);
+      updateDad(curBeat()); draw();
+    }
+    function updateDad(beat){
+      const kb = d.getKb(); if(!kb) return;
+      const c = together ? MC.chordAt(dadChords, beat) : null;
+      if(c === dadAt) return;
+      dadAt = c; kb.setDad(c ? c.ms : []);
     }
 
     function curBeat(){
@@ -393,6 +433,7 @@
     function target(){
       const kb = d.getKb(); if(!kb) return;
       kb.setTarget(idx < notes.length ? notes[idx].m : null);
+      if(together && notes[idx]) updateDad(notes[idx].t);
     }
     function progress(){ if(progEl) progEl.style.width = (notes.length ? idx / notes.length * 100 : 0) + '%'; }
 
@@ -501,6 +542,7 @@
         if(run.stop) return;
         const beat = nowBeat(run);
         let i = -1; notes.forEach((n, k) => { if(n.t <= beat + 1e-3) i = k; });
+        updateDad(beat);
         if(i !== run.last && i >= 0){
           run.last = i; idx = i; progress();
           const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
@@ -536,6 +578,7 @@
         if(run.stop) return;
         const beat = nowBeat(run);
         keepLoop(run, beat);
+        updateDad(beat);
         notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
         const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
@@ -619,12 +662,14 @@
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
       if(level.see === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
-      const chords = take && take.parts && take.parts.chords;
+      const chords = together ? dadChords : (take && take.parts && take.parts.chords);
       if(chords && chords.length){
         g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
         chords.forEach(c => {
           const x = xOf(c.t) - camX; if(x < 44 || x > W) return;
-          g.fillStyle = 'rgba(255,213,79,.9)'; g.fillText(c.label, x, 13);
+          const now = together && c === dadAt;
+          g.fillStyle = now ? '#7ec8ff' : 'rgba(255,213,79,.9)';
+          g.fillText((now ? '👨 ' : '') + c.label, x, 13);
         });
       }
     }
@@ -772,7 +817,8 @@
       refresh(){ if(take) open(take); else renderShelf(); },
       onKey,
       get open(){ return !!take; },
-      get media(){ return media; },                 // the original recording (tests, Studio)
+      get media(){ return media; },
+      get together(){ return together; },                 // the original recording (tests, Studio)
       openTake: open,
     };
   }

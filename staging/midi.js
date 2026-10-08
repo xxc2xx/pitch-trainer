@@ -24,7 +24,8 @@
   const sounding = new Set(), held = new Set();
   let range = (() => { try{ const r = JSON.parse(localStorage.getItem(RANGE_KEY)); return Array.isArray(r) ? r : null; }catch(e){ return null; } })();
 
-  function names(){ return access ? [...access.inputs.values()].map(i => i.name || 'MIDI keyboard') : []; }
+  // Chrome can keep an unplugged port in `inputs` with state 'disconnected'
+  function names(){ return access ? [...access.inputs.values()].filter(i => i.state !== 'disconnected').map(i => i.name || 'MIDI keyboard') : []; }
   function report(state){ try{ statusFn({ state: state || (names().length ? 'connected' : 'waiting'), names: names() }); }catch(e){} }
 
   function learn(m){
@@ -55,6 +56,8 @@
   function attach(){
     if(!access) return;
     access.inputs.forEach(inp => { inp.onmidimessage = message; });
+    // unplugged mid-note: nothing will ever send its note-off — release now
+    if(!names().length){ pedal = false; held.clear(); sounding.forEach(m => noteFn(m, 0, false)); sounding.clear(); }
     report();
   }
 
