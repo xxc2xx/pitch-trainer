@@ -1,5 +1,5 @@
-const CACHE = 'staging-pitch-v20';
-const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js', './sound.js', './midi.js', './songfile.js', './addsong.js',
+const CACHE = 'staging-pitch-v21';
+const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js', './sound.js', './midi.js', './songfile.js', './addsong.js', './studio.js',
                 './music-core.js', './piano.js'];
 
 self.addEventListener('install', e => {

@@ -196,6 +196,7 @@
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
+            ${window.Studio ? '<button class="sg-btn" id="sgEdit" title="Fix wrong notes, set the practice part">✏️ Fix</button>' : ''}
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
         <div id="sgAnRow" class="sg-ctrl" style="display:none">
@@ -221,6 +222,7 @@
         else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
       };
       host.querySelector('#sgLoop').onclick = setLoop;
+      const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
       host.querySelector('#sgBetter').onclick = betterNotes;
       host.querySelector('#sgAnGo').onclick = () => {
         const u = host.querySelector('#sgAnUrl').value.trim();
@@ -289,6 +291,27 @@
       }
     }
 
+    // ✏️ Fix notes (studio.js) takes over this panel; the keyboard stays below
+    function openStudio(){
+      const t = take;
+      stopAll(); stopSing(); pulse(false); dropMedia();
+      d.onClose && d.onClose();
+      Studio.open(host, t, {
+        audio: d.audio,
+        playNote: (m, when, dur, o) => d.playNote(d.audio(), m, when, dur, o),
+        cancelNotes: d.cancelNotes,
+        range: d.range,
+        onSave: async edited => {
+          // a starter song is saved as her own copy; the built-in stays as is
+          if(edited.source === 'builtin') edited = MC.makeTake({ ...edited, id: null, createdAt: Date.now(),
+            source: 'edited', title: edited.title + ' (my version)' });
+          try{ await MC.store.saveTake(edited); }catch(e){}
+          open(edited);
+        },
+        onClose: () => open(t),
+      });
+    }
+
     function curBeat(){
       const run = timed || demo;
       if(run) return nowBeat(run);
@@ -307,7 +330,8 @@
     // tap the note strip: jump there (playing) or move the next step there (step mode)
     function seekTo(e){
       if(!take) return;
-      const beat = (e.offsetX + camX - 70) / ppb();
+      const x = e.clientX - canvas.getBoundingClientRect().left;   // offsetX is unreliable
+      const beat = (x + camX - 70) / ppb();
       const run = timed || demo;
       if(run && run.media){
         run.media.currentTime = Math.max(0, MC.beatToSec(take, beat - 0.5));
@@ -742,6 +766,7 @@
       show(){ host.style.display = 'flex'; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
       hide(){
         stopAll(); pulse(false); stopSing(); host.style.display = 'none';
+        if(window.Studio) Studio.pause();
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
       refresh(){ if(take) open(take); else renderShelf(); },

@@ -348,7 +348,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 7cc5747</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 4dbabfe</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -602,14 +602,15 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=7cc5747"></script>
-  <script src="piano.js?v=7cc5747"></script>
-  <script src="songs.js?v=7cc5747"></script>
-  <script src="hear.js?v=7cc5747"></script>
-  <script src="sound.js?v=7cc5747"></script>
-  <script src="midi.js?v=7cc5747"></script>
-  <script src="songfile.js?v=7cc5747"></script>
-  <script src="addsong.js?v=7cc5747"></script>
+  <script src="music-core.js?v=4dbabfe"></script>
+  <script src="piano.js?v=4dbabfe"></script>
+  <script src="songs.js?v=4dbabfe"></script>
+  <script src="hear.js?v=4dbabfe"></script>
+  <script src="sound.js?v=4dbabfe"></script>
+  <script src="midi.js?v=4dbabfe"></script>
+  <script src="songfile.js?v=4dbabfe"></script>
+  <script src="addsong.js?v=4dbabfe"></script>
+  <script src="studio.js?v=4dbabfe"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -903,7 +904,8 @@
     const go=()=>playKeyNote(bare,MC.midiToFreq(m),oct);
     if(ac.state==='running') go();
     else ac.resume().then(go).catch(()=>{});
-    if(currentMode==='songs') songs.onKey(m);
+    // ✏️ Fix notes open: the key fixes the selected note instead of playing the song
+    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else songs.onKey(m); }
     if(pianoRec) pianoRec.push({m,on:performance.now(),off:null});
   }
   function onPianoUp(m){
@@ -961,6 +963,7 @@
     avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
     addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
+    range:()=>Midi.range,
   });
 
   // ── Her keyboard (midi.js) ────────────────────────────────────────────
