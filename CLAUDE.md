@@ -60,6 +60,14 @@ that sets a global, loaded before the inline script:
   = Dad (`Sound.noteOnAs('parent')`, e-piano, never scored). Dad's part =
   song's `parts.chords` or `MC.autoChords` (I/IV/V/vi per bar); current
   chord's tones outlined (`kb.setDad`), keyboard widens to C3–C6.
+- 📄 Export (Song page): `SongFile.writeMusicXML` (bars, ties across
+  barlines, rests, key/time/tempo, chord symbols; validated against the
+  W3C MusicXML 3.1 XSD) and `writeMidi(song,{chords:true})` (melody +
+  chords tracks). Print from MuseScore. Round-trip tests in core-test.
+- `sw.js`: HTML/JS revalidated every load (`cache:'no-cache'`; navigations
+  refetched by URL) — Pages' 10-min HTTP cache served stale modules in
+  testing. Cache name prefix `pt-`; only own caches are cleaned (Beat Hive
+  shares the origin, prefix `bh-`).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files.

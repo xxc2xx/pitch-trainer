@@ -210,6 +210,7 @@
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>
             <button class="sg-btn" id="sgJam" title="Open this song on Beat Hive's pads, at its tempo">🥁 Jam</button>
+            ${window.SongFile && SongFile.writeMusicXML ? '<button class="sg-btn" id="sgExport" title="Save as sheet music (MusicXML → print from MuseScore) or MIDI">📄 Export</button>' : ''}
             <button class="sg-btn sel" id="sgGuide" title="Melody plays along in Play along">🔈</button>
             <button class="sg-btn" id="sgLoop" title="Loop a part: tap at the start, tap at the end, tap again to clear" style="display:none">🔁</button>
             <button class="sg-btn" id="sgBetter" title="Send the recording to your song analyzer for cleaner notes + chords" style="display:none">✨ Better notes</button>
@@ -217,6 +218,10 @@
             ${window.Studio ? '<button class="sg-btn" id="sgEdit" title="Fix wrong notes, set the practice part">✏️ Fix</button>' : ''}
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
           </div></div>
+        <div id="sgExRow" class="sg-ctrl" style="display:none">
+          <button class="sg-btn" id="sgExXml" title="Open in MuseScore (free) to print the score">🎼 Sheet music (.musicxml)</button>
+          <button class="sg-btn" id="sgExMid">🎹 MIDI (.mid)</button>
+          <span style="font-size:.72rem;color:#8a8ab8">Print it from <b>MuseScore</b> (free): File → Open → Print / Export PDF</span></div>
         <div id="sgAnRow" class="sg-ctrl" style="display:none">
           <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
           <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
@@ -244,6 +249,12 @@
       const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
       const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
       host.querySelector('#sgTogether').onclick = () => setTogether(!together);
+      const xb = host.querySelector('#sgExport');
+      if(xb){
+        xb.onclick = () => { const r = host.querySelector('#sgExRow'); r.style.display = r.style.display === 'none' ? 'flex' : 'none'; };
+        host.querySelector('#sgExXml').onclick = () => exportSong(t, 'xml');
+        host.querySelector('#sgExMid').onclick = () => exportSong(t, 'mid');
+      }
       // same origin → Beat Hive reads this song from the shared library
       host.querySelector('#sgJam').onclick = () => { stopAll(); window.open('../beat-hive/?song=' + encodeURIComponent(t.id), '_blank'); };
       host.querySelector('#sgBetter').onclick = betterNotes;
@@ -337,6 +348,21 @@
         },
         onClose: () => open(t),
       });
+    }
+
+    // 📄 Export: the whole song as written (not the practice part, not
+    // transposed for a level), with chord symbols — analyzer's, else suggested
+    function exportSong(t, kind){
+      const song = { ...t, parts: { ...(t.parts || {}),
+        chords: (t.parts && t.parts.chords && t.parts.chords.length) ? t.parts.chords : MC.autoChords(t) } };
+      const name = (t.title || 'song').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 40) || 'song';
+      const blob = kind === 'xml'
+        ? new Blob([SongFile.writeMusicXML(song)], { type: 'application/vnd.recordare.musicxml+xml' })
+        : new Blob([SongFile.writeMidi(song, { chords: true })], { type: 'audio/midi' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = name + (kind === 'xml' ? '.musicxml' : '.mid');
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     }
 
     function setTogether(on){

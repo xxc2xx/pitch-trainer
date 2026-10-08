@@ -84,5 +84,21 @@ const mx = DOMParser ? SF.parseMusicXML(new DOMParser().parseFromString(xml, 'ap
 if(mx) ok(mx.title === 'Test Tune' && mx.bpm === 88 && mx.key === 'G' && mx.timeSig[0] === 3, 'MusicXML header: title, tempo, key, time');
 if(mx) ok(C.toTokens(mx) === 'G4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord skipped, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
 
+// ── Export: MusicXML / MIDI round-trips ───────────────────────────────
+if(DOMParser){
+  const rt = song => SF.parseMusicXML(new DOMParser().parseFromString(SF.writeMusicXML(song), 'application/xml'));
+  for(const id of ['b_twinkle', 'b_row', 'b_bday', 'b_mary']){
+    const sg = C.builtinTakes().find(t => t.id === id), back = rt(sg);
+    ok(C.toTokens(back) === C.toTokens(sg), `MusicXML export round-trip: ${sg.title} (${sg.timeSig.join('/')}, key ${sg.key})`);
+  }
+  const tie = C.makeTake({ title: 'tie', bpm: 90, notes: [{ m: 60, t: 0, d: 1 }, { m: 64, t: 3, d: 2.5 }, { m: 67, t: 6, d: 0.5 }] });
+  ok(C.toTokens(rt(tie)) === C.toTokens(tie), 'note across a barline exports as tied notes and reads back as one: ' + C.toTokens(rt(tie)));
+  const withCh = { ...tw, parts: { chords: C.autoChords(tw) } };
+  const xml = SF.writeMusicXML(withCh);
+  ok((xml.match(/<harmony>/g) || []).length === withCh.parts.chords.length, 'chord symbols exported: ' + (xml.match(/<harmony>/g) || []).length);
+}
+const midCh = SF.parseMidi(SF.writeMidi({ ...tw, parts: { chords: C.autoChords(tw) } }, { chords: true }).buffer);
+ok(C.toTokens(midCh) === C.toTokens(tw), 'MIDI export with a chords track still reads back the melody');
+
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);
