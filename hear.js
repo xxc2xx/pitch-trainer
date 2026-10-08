@@ -287,7 +287,8 @@
     if(blob.size < 40e6 && !/^video\//.test(blob.type)) return new File([blob], 'song.' + ((blob.type.split('/')[1] || 'mp3').split(';')[0]), { type: blob.type });
     const buf = await decode(await blob.arrayBuffer());
     const sr = 32000, len = Math.min(Math.ceil(buf.duration * sr), sr * 360);
-    const off = new OfflineAudioContext(1, len, sr), src = off.createBufferSource();
+    const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;   // older Safari is prefixed
+    const off = new OAC(1, len, sr), src = off.createBufferSource();
     src.buffer = buf; src.connect(off.destination); src.start();
     const x = (await off.startRendering()).getChannelData(0);
     const ab = new ArrayBuffer(44 + x.length * 2), v = new DataView(ab);

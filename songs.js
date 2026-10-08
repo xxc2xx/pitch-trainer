@@ -187,7 +187,14 @@
       notes = fitToRange(MC.skyline(t.notes), level.range);
       // practice part set in ✏️ Fix notes: practise just that bit
       partOnly = !!(t.section && t.section.to != null);
-      if(partOnly){ const part = notes.filter(n => n.t >= t.section.from - 1e-6 && n.t < t.section.to); if(part.length) notes = part; else partOnly = false; }
+      if(partOnly){
+        const part = notes.filter(n => n.t >= t.section.from - 1e-6 && n.t < t.section.to);
+        if(!part.length) partOnly = false;
+        // no recording: the part starts at beat 0, so Play along doesn't sit
+        // through empty bars first. With a recording the clock IS the media,
+        // so beats stay absolute and the loop handles the part.
+        else notes = (t.sync && (t.sync.audioId || t.audioId)) ? part : part.map(n => ({ ...n, t: n.t - t.section.from }));
+      }
       // Sprout starts a little slower — rhythm is new
       if(together){ together = false; dadChords = []; dadAt = undefined; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
