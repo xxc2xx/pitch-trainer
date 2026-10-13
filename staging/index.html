@@ -348,7 +348,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 7d2f8c5</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING eaced47</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -602,15 +602,15 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=7d2f8c5"></script>
-  <script src="piano.js?v=7d2f8c5"></script>
-  <script src="songs.js?v=7d2f8c5"></script>
-  <script src="hear.js?v=7d2f8c5"></script>
-  <script src="sound.js?v=7d2f8c5"></script>
-  <script src="midi.js?v=7d2f8c5"></script>
-  <script src="songfile.js?v=7d2f8c5"></script>
-  <script src="addsong.js?v=7d2f8c5"></script>
-  <script src="studio.js?v=7d2f8c5"></script>
+  <script src="music-core.js?v=eaced47"></script>
+  <script src="piano.js?v=eaced47"></script>
+  <script src="songs.js?v=eaced47"></script>
+  <script src="hear.js?v=eaced47"></script>
+  <script src="sound.js?v=eaced47"></script>
+  <script src="midi.js?v=eaced47"></script>
+  <script src="songfile.js?v=eaced47"></script>
+  <script src="addsong.js?v=eaced47"></script>
+  <script src="studio.js?v=eaced47"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -866,11 +866,28 @@
       labelFn:isDrum?(m=>{const b=NOTE_BARE[m%12];return DRUM_LABELS[b]||b;}):null,
     };
   }
+  // ── Computer keyboard follows the slider ─────────────────────────────
+  // G is always the white key in the middle of what's on screen; A…' are the
+  // white keys around it, and W E R T Y U I O P [ the black keys between them.
+  // Slide or zoom the keyboard and the letters move with it (shown on keys).
+  const WHITE_KEYS=['a','s','d','f','g','h','j','k','l',';',"'"];
+  const BLACK_KEYS=['w','e','r','t','y','u','i','o','p','['];   // between white i and i+1
+  let KEY_MAP={};
+  function stepWhite(m,n){ let x=m; const d=n<0?-1:1; for(let i=0;i<Math.abs(n);i++){ do{ x+=d; }while(MC.isBlack(x)); } return x; }
+  function rebuildKeyMap(){
+    if(!kb) return;
+    const base=stepWhite(kb.center,-WHITE_KEYS.indexOf('g'));
+    const map={}, hints={};
+    WHITE_KEYS.forEach((k,i)=>{ const m=stepWhite(base,i); map[k]=m; hints[m]=k.toUpperCase(); });
+    BLACK_KEYS.forEach((k,i)=>{ const w=stepWhite(base,i); if(MC.isBlack(w+1)){ map[k]=w+1; hints[w+1]=k.toUpperCase(); } });
+    KEY_MAP=map; kb.setHints(hints);
+  }
   function updateKeyLabels(){
     const cfg=pianoCfg();
     if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
-      kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp});
+      kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp,onView:()=>rebuildKeyMap()});
+      rebuildKeyMap();
     } else kb.update(cfg);
     syncPianoBar();
   }
@@ -2533,7 +2550,7 @@
     if(isKeys&&isDrum) staffView.style.display='none';
     const hints={
       listen:'Tap Start, then sing any note',
-      keys:'Tap or slide across the keys · drag the strip to move',
+      keys:'Tap or slide across the keys · drag the strip to move · computer keys: G = middle',
       flow:'Tap Start, then play music or clap 🎵',
       play:'Paste notes below, tap ▶ Play',
       dj:'Tap pads, build a beat, or scratch!',
@@ -2571,35 +2588,21 @@
   startBtn.addEventListener('click',()=>isRunning?stop():start());
   document.querySelectorAll('.tab').forEach(t=>
     t.addEventListener('click',()=>setMode(t.dataset.mode)));
-  // ── MacBook keyboard shortcuts — G = C4 (middle), ASDFGHJKL;' white, QWERTY black ──
-  // White: A=F3 S=G3 D=A3 F=B3 G=C4 H=D4 J=E4 K=F4 L=G4 ;=A4 '=B4  Enter=C5
-  // Black: W=F#3 E=G#3 R=A#3  Y=C#4 U=D#4  O=F#4 P=G#4
-  const KEY_MAP={
-    a:{bare:'F',oct:3}, s:{bare:'G',oct:3}, d:{bare:'A',oct:3},
-    f:{bare:'B',oct:3}, g:{bare:'C',oct:4}, h:{bare:'D',oct:4},
-    j:{bare:'E',oct:4}, k:{bare:'F',oct:4}, l:{bare:'G',oct:4},
-    ';':{bare:'A',oct:4},"'":{bare:'B',oct:4},
-    w:{bare:'Fs',oct:3},e:{bare:'Gs',oct:3},r:{bare:'As',oct:3},
-    y:{bare:'Cs',oct:4},u:{bare:'Ds',oct:4},
-    o:{bare:'Fs',oct:4},p:{bare:'Gs',oct:4},
-    enter:{bare:'C',oct:5},
-  };
   const kbDown=new Map();   // physical key → midi it pressed (release the same note)
   document.addEventListener('keydown',e=>{
     if(currentMode!=='keys'&&currentMode!=='songs') return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-    const k=e.key==='Enter'?'enter':e.key.toLowerCase();
-    const entry=KEY_MAP[k];
-    if(!entry) return;
+    const k=e.key.toLowerCase();
+    const m=KEY_MAP[k];
+    if(m==null) return;
     e.preventDefault();
     if(document.activeElement&&document.activeElement!==document.body) document.activeElement.blur();
-    const m=MC.midiOf(entry.bare,entry.oct);
     kbDown.set(k,m);
     if(kb) kb.press(m); else onPianoDown(m);   // kb.press → onPianoDown (sound, song, record)
   });
   document.addEventListener('keyup',e=>{
-    const k=e.key==='Enter'?'enter':e.key.toLowerCase();
+    const k=e.key.toLowerCase();
     if(!kbDown.has(k)) return;
     const m=kbDown.get(k); kbDown.delete(k);
     if(kb) kb.release(m); else onPianoUp(m);

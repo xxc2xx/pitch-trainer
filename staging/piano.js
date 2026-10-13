@@ -57,6 +57,10 @@
   @keyframes pv2flash{0%{box-shadow:0 0 0 0 var(--c),0 0 30px #fff;}100%{box-shadow:0 0 0 0 transparent;}}
   .pv2-k.wobble{animation:pv2wob .3s ease;}
   @keyframes pv2wob{25%{transform:translateX(-3px);}75%{transform:translateX(3px);}}
+  .pv2-kbd{position:absolute;top:5px;left:50%;transform:translateX(-50%);font:700 10px/1 ui-monospace,Menlo,monospace;
+    color:rgba(0,0,0,.38);pointer-events:none;}
+  .pv2-b .pv2-kbd{color:rgba(255,255,255,.45);}
+  @media (hover:none){.pv2-kbd{display:none;}}           /* touch screens: no computer keyboard */
   .pv2-lbl{font-size:clamp(.5rem,1.6vw,.78rem);font-weight:800;color:rgba(0,0,0,.45);pointer-events:none;line-height:1;}
   .pv2-b .pv2-lbl{color:rgba(255,255,255,.55);font-size:clamp(.42rem,1.3vw,.62rem);}
   .pv2-shape{width:min(62%,30px);aspect-ratio:1;background:var(--c);pointer-events:none;
@@ -89,7 +93,7 @@
     const keyEls = new Map();       // m → [el per row]
     const active = new Map();       // pointerId → m
     const downCount = new Map();    // m → number of pointers holding it
-    let target = null, dad = [];
+    let target = null, dad = [], hints = {};
     const touched = new Set();      // keys whose inline style a caller set via keys()
 
     function build(){
@@ -132,6 +136,7 @@
       wirePointers(rowsEl);
       setStart(whites[Math.max(0, (wIndex.get(snapWhite(o.start, +1)) ?? 0))] ?? lo, false);
       if(target != null) setTarget(target);
+      paintHints();
       dad.forEach(m => (keyEls.get(m) || []).forEach(el => el.classList.add('dad')));
     }
 
@@ -189,6 +194,16 @@
         win.style.left = (startW / total * 100) + '%';
         win.style.width = (Math.min(spanWhites(), total) / total * 100) + '%';
       }
+      if(o.onView) o.onView(centerWhite());      // e.g. remap the computer keys
+    }
+    // the white key in the middle of the (bottom) visible row
+    function centerWhite(){ return whites[Math.min(whites.length - 1, startW + Math.floor(o.view / 2))]; }
+    function paintHints(){
+      keyEls.forEach((els, m) => els.forEach(el => {
+        let h = el.querySelector('.pv2-kbd');
+        if(hints[m]){ if(!h){ h = document.createElement('span'); h.className = 'pv2-kbd'; el.appendChild(h); } h.textContent = hints[m]; }
+        else if(h) h.remove();
+      }));
     }
 
     function wireMini(){
@@ -284,6 +299,9 @@
       },
       scrollTo, setTarget,
       startAt: m => setStart(m),
+      get center(){ return centerWhite(); },
+      // letters of the computer keys that play each note (m → 'G')
+      setHints(map){ hints = map || {}; paintHints(); },
       zoom(dir){
         const c = whites[startW + Math.floor(spanWhites() / 2)];
         o.view = Math.max(7, Math.min(36, o.view + dir * 7));
