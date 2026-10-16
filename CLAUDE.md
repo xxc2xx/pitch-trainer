@@ -70,7 +70,14 @@ that sets a global, loaded before the inline script:
   shares the origin, prefix `bh-`).
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
-  jsDelivr for audio files.
+  jsDelivr for audio files. Live pitch = `Hear.mpm` (McLeod NSDF; frames
+  under clarity 0.8 count as silence) → `Hear.pitchTracker` (5-frame
+  median, octave-slip fold, note hysteresis ±0.7 semitone / 3 frames) so
+  the 🎤 Listen note doesn't flicker on a wobbly child's voice.
+- Computer keys (Keys/Songs): mapped by `e.code` (works with a Chinese
+  input source / non-US layout). G = middle visible white key; the map
+  follows user slides/zoom only — `onView(c,{auto})` auto-scrolls (song
+  target, her MIDI key, Listen) leave the letters where they are.
 
 **beat-hive carries vendored copies of `music-core.js` and `hear.js`.**
 Edit here, then `tools/sync-core.sh`; beat-hive's `tools/qc.js` fails on

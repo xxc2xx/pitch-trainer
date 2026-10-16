@@ -104,5 +104,45 @@ if(DOMParser){
 const midCh = SF.parseMidi(SF.writeMidi({ ...tw, parts: { chords: C.autoChords(tw) } }, { chords: true }).buffer);
 ok(C.toTokens(midCh) === C.toTokens(tw), 'MIDI export with a chords track still reads back the melody');
 
+// ── Live pitch (hear.js): McLeod detector + steady-note tracker ──────────
+{
+  const vm = require('vm'), fs = require('fs');
+  const win = { MusicCore: C };
+  vm.runInNewContext(fs.readFileSync(new URL('../hear.js', import.meta.url), 'utf8'), { window: win, performance, console });
+  const H = win.Hear, SR = 48000;
+  // a child-like voice: fundamental + strong 2nd/3rd harmonics, light noise
+  let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5);
+  const voice = (f, n = 2048, noise = 0.02) => Float32Array.from({ length: n }, (_, i) => {
+    const t = i / SR; return 0.3 * Math.sin(2 * Math.PI * f * t) + 0.25 * Math.sin(4 * Math.PI * f * t) + 0.12 * Math.sin(6 * Math.PI * f * t) + noise * rnd();
+  });
+  const errs = [196, 262, 330, 440, 523, 698, 880].map(f => { const r = H.mpm(voice(f), SR); return r ? Math.abs(1200 * Math.log2(r.freq / f)) : 999; });
+  ok(errs.every(e => e < 10), 'mpm: G3…A5 with harmonics within 10 cents: ' + errs.map(e => e.toFixed(1)).join(' '));
+  ok(H.mpm(voice(330), SR).clarity > 0.9, 'mpm: a clean note is high clarity');
+  const noise = Float32Array.from({ length: 2048 }, () => 0.2 * rnd());
+  const nr = H.mpm(noise, SR);
+  ok(!nr || nr.clarity < 0.8, 'mpm: noise is low clarity (' + (nr ? nr.clarity.toFixed(2) : 'null') + ')');
+  ok(H.mpm(new Float32Array(2048), SR) === null, 'mpm: silence → null');
+
+  // wobbly E4 (±45 cents vibrato) + an octave-slip frame + a dropout → stays E4
+  const tr = H.pitchTracker(), f = m => 440 * Math.pow(2, (m - 69) / 12);
+  const shown = [];
+  for(let i = 0; i < 40; i++){
+    let m = 64 + 0.45 * Math.sin(i / 2);
+    let fr = f(m);
+    if(i === 15) fr /= 2;            // detector slipped an octave
+    if(i === 22) fr = null;          // one dropped frame
+    const p = tr.push(fr); if(p) shown.push(p.note);
+  }
+  ok(shown.length >= 36 && shown.every(n => n === 64), 'tracker: wobbly E4 with an octave slip + a dropout shows only E4 (' + [...new Set(shown)].join() + ')');
+  // a real move to G4 is followed within a few frames
+  let moved = -1;
+  for(let i = 0; i < 10; i++){ const p = tr.push(f(67)); if(p && p.note === 67 && moved < 0) moved = i; }
+  ok(moved >= 0 && moved <= 4, 'tracker: real change E4→G4 shown after ' + moved + ' frames');
+  for(let i = 0; i < 10; i++) tr.push(null);
+  ok(tr.push(null) === null, 'tracker: long silence clears the note');
+  const t0 = H.pitchTracker({ gap: 0 }); t0.push(f(60)); t0.push(f(60));
+  ok(t0.push(null) === null, 'tracker gap 0: silence reported at once (recorder splits repeated notes)');
+}
+
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);

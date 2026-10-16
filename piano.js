@@ -179,7 +179,9 @@
     }
 
     function spanWhites(){ return o.view * rows.length; }
-    function setStart(m, animate){
+    // auto = the app scrolled to show a note (song target, her MIDI key), not
+    // a person sliding/zooming — listeners can ignore those (computer keys)
+    function setStart(m, animate, auto){
       const maxStart = Math.max(0, whites.length - spanWhites());
       startW = Math.max(0, Math.min(maxStart, wIndex.get(snapWhite(m, +1)) ?? 0));
       const total = whites.length;
@@ -194,7 +196,7 @@
         win.style.left = (startW / total * 100) + '%';
         win.style.width = (Math.min(spanWhites(), total) / total * 100) + '%';
       }
-      if(o.onView) o.onView(centerWhite());      // e.g. remap the computer keys
+      if(o.onView) o.onView(centerWhite(), { auto: !!auto });   // e.g. remap the computer keys
     }
     // the white key in the middle of the (bottom) visible row
     function centerWhite(){ return whites[Math.min(whites.length - 1, startW + Math.floor(o.view / 2))]; }
@@ -271,7 +273,7 @@
       if(m < lo || m > hi) return;
       if(!force && isVisible(m)) return;
       const i = wIndex.get(snapWhite(m, -1));
-      setStart(whites[Math.max(0, i - Math.floor(spanWhites() / 2) + 1)]);
+      setStart(whites[Math.max(0, i - Math.floor(spanWhites() / 2) + 1)], undefined, !force);
     }
     function setTarget(m){
       if(target != null) (keyEls.get(target) || []).forEach(el => el.classList.remove('target'));

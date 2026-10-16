@@ -3,8 +3,14 @@
 
    Hear.pitchStream({ detectPitch, onPitch })      → { stop() }
        Live mic pitch, ~33 fps. onPitch(midiFloat|null, freq|null).
-       detectPitch is the app's own autocorrelation detector (index.html),
-       passed in so there is exactly one detector to tune.
+       detectPitch is the app's detector (index.html, built on Hear.mpm),
+       passed in so there is exactly one detector to tune. Frames go through
+       Hear.pitchTracker (median + octave-slip fold) first.
+
+   Hear.mpm(buf, sampleRate)  → { freq, clarity } | null   McLeod pitch, one frame
+   Hear.pitchTracker()        → { push(freq|null) → { mf, note, cents } | null }
+       Steady note for the Listen display: hysteresis so a wobbly voice
+       doesn't flicker between neighbouring notes.
 
    Hear.singRecorder({ detectPitch, onPitch })     → { stop() → Promise<{take, blob}> }
        Same stream, plus note segmentation and the raw audio (for a later,
@@ -53,22 +59,99 @@
     try{ m.ac.close(); }catch(e){}
   }
 
+  // ── Pitch detection (McLeod / NSDF) ───────────────────────────────────
+  // One mic frame → { freq, clarity } or null when it's too quiet.
+  // clarity 0..1: a held sung/played note is ≥ 0.9, breath/consonants/room
+  // noise well below — callers drop frames under ~0.8 instead of showing a
+  // random note. Picks the FIRST strong peak, which avoids most octave-low
+  // errors that plain autocorrelation makes on a child's bright voice.
+  function mpm(buf, sr, o){
+    o = o || {};
+    const n = buf.length, fMin = o.fMin || 60, fMax = o.fMax || 1600;
+    let rms = 0; for(let i = 0; i < n; i++) rms += buf[i] * buf[i];
+    if(Math.sqrt(rms / n) < (o.minRms || 0.004)) return null;
+    const minL = Math.max(2, Math.floor(sr / fMax)), maxL = Math.min(Math.ceil(sr / fMin), n >> 1);
+    const nsdf = new Float32Array(maxL + 2);
+    for(let lag = 0; lag <= maxL + 1; lag++){
+      let r = 0, m = 0;
+      for(let i = 0, e = n - lag; i < e; i++){ const a = buf[i], b = buf[i + lag]; r += a * b; m += a * a + b * b; }
+      nsdf[lag] = m > 0 ? 2 * r / m : 0;
+    }
+    // key maxima: the highest point of each positive lobe after the first
+    // negative zero crossing
+    const peaks = [];
+    let lag = 1; while(lag <= maxL && nsdf[lag] > 0) lag++;
+    while(lag <= maxL){
+      while(lag <= maxL && nsdf[lag] <= 0) lag++;
+      let best = -1;
+      while(lag <= maxL && nsdf[lag] > 0){ if(best < 0 || nsdf[lag] > nsdf[best]) best = lag; lag++; }
+      if(best >= minL) peaks.push(best);
+    }
+    if(!peaks.length) return null;
+    const top = Math.max(...peaks.map(p => nsdf[p]));
+    const pk = peaks.find(p => nsdf[p] >= 0.9 * top);
+    const a = nsdf[pk - 1], b = nsdf[pk], c = nsdf[pk + 1], d = a - 2 * b + c;
+    const shift = d !== 0 ? 0.5 * (a - c) / d : 0;
+    const freq = sr / (pk + shift);
+    return freq >= fMin && freq <= fMax ? { freq, clarity: Math.min(1, b - 0.25 * (a - c) * shift) } : null;
+  }
+
+  // ── Steady note from a wobbly voice ───────────────────────────────────
+  // push(freq | null) once per frame (~30 ms) → { mf, note, cents } | null
+  //   mf    median of the last few frames (midi float), octave slips folded
+  //   note  the note shown: it only changes when the voice is clearly on a
+  //         new note (> HYST semitones away for HOLD frames), so a child
+  //         wobbling ±40 cents around E stays "E" instead of flickering E/F
+  //   cents distance of mf from note
+  // Short gaps (a consonant, one bad frame) keep the note; longer silence
+  // returns null.
+  function pitchTracker(o){
+    o = o || {};
+    const WIN = o.win || 5, HYST = o.hyst || 0.7, HOLD = o.hold || 3, GAP = o.gap ?? 6;
+    let hist = [], note = null, cand = null, candN = 0, gap = 0, last = null;
+    const median = a => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+    return {
+      push(freq){
+        if(!freq){
+          if(++gap > GAP){ hist = []; note = null; cand = null; candN = 0; last = null; }
+          return last && gap <= GAP ? last : null;
+        }
+        gap = 0;
+        let m = MC.freqToMidiFloat(freq);
+        if(hist.length){
+          const ref = median(hist), k = Math.round((m - ref) / 12);
+          if(k !== 0 && Math.abs(m - 12 * k - ref) < 1) m -= 12 * k;   // octave slip
+        }
+        hist.push(m); if(hist.length > WIN) hist.shift();
+        const mf = median(hist), r = Math.round(mf);
+        if(note == null || Math.abs(mf - note) > HYST){
+          if(r === cand) candN++; else { cand = r; candN = 1; }
+          // first note of a phrase: show it as soon as it's stable once
+          if(candN >= (note == null ? 2 : HOLD)){ note = r; cand = null; candN = 0; }
+        } else { cand = null; candN = 0; }
+        if(note == null) return null;
+        last = { mf, note, cents: Math.round((mf - note) * 100) };
+        return last;
+      },
+      reset(){ hist = []; note = null; cand = null; candN = 0; gap = 0; last = null; },
+    };
+  }
+
   function pitchLoop(mic, detectPitch, onFrame){
     const buf = new Float32Array(mic.an.fftSize);
-    let smoothed = null, alive = true;
+    // gap 0: silence is reported at once — the recorder splits repeated
+    // notes ("twin-kle") on those short gaps
+    const tr = pitchTracker({ gap: 0 });
+    let alive = true;
     const iv = setInterval(() => {
       if(!alive) return;
       mic.an.getFloatTimeDomainData(buf);
       const raw = detectPitch(buf, mic.ac.sampleRate);
-      if(raw && raw > 60 && raw < 1600){
-        // same octave-jump guard + log smoothing as the Listen loop
-        if(!smoothed) smoothed = raw;
-        else {
-          const r = raw / smoothed, adj = r > 1.7 ? raw / 2 : r < 0.6 ? raw * 2 : raw;
-          smoothed = Math.exp(0.55 * Math.log(smoothed) + 0.45 * Math.log(adj));
-        }
-        onFrame(MC.freqToMidiFloat(smoothed), smoothed);
-      } else { smoothed = null; onFrame(null, null); }
+      const p = tr.push(raw && raw > 60 && raw < 1600 ? raw : null);
+      // the median line (not the held note): Sing it / the recorder do their
+      // own note decisions and want the real pitch, just without spikes
+      if(p) onFrame(p.mf, MC.midiToFreq(p.mf));
+      else onFrame(null, null);
     }, 30);
     return () => { alive = false; clearInterval(iv); };
   }
@@ -318,6 +401,6 @@
     return res;
   }
 
-  window.Hear = { decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
+  window.Hear = { mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
                   gradioCall, analyzeRemote };
 })();
