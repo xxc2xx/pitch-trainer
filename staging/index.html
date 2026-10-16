@@ -348,7 +348,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING eaced47</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 2712adc</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -602,15 +602,15 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=eaced47"></script>
-  <script src="piano.js?v=eaced47"></script>
-  <script src="songs.js?v=eaced47"></script>
-  <script src="hear.js?v=eaced47"></script>
-  <script src="sound.js?v=eaced47"></script>
-  <script src="midi.js?v=eaced47"></script>
-  <script src="songfile.js?v=eaced47"></script>
-  <script src="addsong.js?v=eaced47"></script>
-  <script src="studio.js?v=eaced47"></script>
+  <script src="music-core.js?v=2712adc"></script>
+  <script src="piano.js?v=2712adc"></script>
+  <script src="songs.js?v=2712adc"></script>
+  <script src="hear.js?v=2712adc"></script>
+  <script src="sound.js?v=2712adc"></script>
+  <script src="midi.js?v=2712adc"></script>
+  <script src="songfile.js?v=2712adc"></script>
+  <script src="addsong.js?v=2712adc"></script>
+  <script src="studio.js?v=2712adc"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -870,23 +870,28 @@
   // G is always the white key in the middle of what's on screen; A…' are the
   // white keys around it, and W E R T Y U I O P [ the black keys between them.
   // Slide or zoom the keyboard and the letters move with it (shown on keys).
-  const WHITE_KEYS=['a','s','d','f','g','h','j','k','l',';',"'"];
-  const BLACK_KEYS=['w','e','r','t','y','u','i','o','p','['];   // between white i and i+1
+  // They stay put when the app scrolls by itself (song notes, her MIDI keys,
+  // Listen following the voice) so G doesn't change under your finger.
+  // Physical key codes, not e.key: works with a Chinese input source or a
+  // non-US layout active, where e.key is 'Process' or another character.
+  const WHITE_KEYS=['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote'];
+  const BLACK_KEYS=['KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft'];   // between white i and i+1
+  const KEY_LETTER=c=>({Semicolon:';',Quote:"'",BracketLeft:'['}[c]||c.slice(3));
   let KEY_MAP={};
   function stepWhite(m,n){ let x=m; const d=n<0?-1:1; for(let i=0;i<Math.abs(n);i++){ do{ x+=d; }while(MC.isBlack(x)); } return x; }
   function rebuildKeyMap(){
     if(!kb) return;
-    const base=stepWhite(kb.center,-WHITE_KEYS.indexOf('g'));
+    const base=stepWhite(kb.center,-WHITE_KEYS.indexOf('KeyG'));
     const map={}, hints={};
-    WHITE_KEYS.forEach((k,i)=>{ const m=stepWhite(base,i); map[k]=m; hints[m]=k.toUpperCase(); });
-    BLACK_KEYS.forEach((k,i)=>{ const w=stepWhite(base,i); if(MC.isBlack(w+1)){ map[k]=w+1; hints[w+1]=k.toUpperCase(); } });
+    WHITE_KEYS.forEach((k,i)=>{ const m=stepWhite(base,i); map[k]=m; hints[m]=KEY_LETTER(k); });
+    BLACK_KEYS.forEach((k,i)=>{ const w=stepWhite(base,i); if(MC.isBlack(w+1)){ map[k]=w+1; hints[w+1]=KEY_LETTER(k); } });
     KEY_MAP=map; kb.setHints(hints);
   }
   function updateKeyLabels(){
     const cfg=pianoCfg();
     if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
-      kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp,onView:()=>rebuildKeyMap()});
+      kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp,onView:(c,v)=>{ if(!v||!v.auto) rebuildKeyMap(); }});
       rebuildKeyMap();
     } else kb.update(cfg);
     syncPianoBar();
@@ -1039,15 +1044,7 @@
   // basic-pitch transcription, model fetched on first use.
   let singRec=null;
   const singRecBtn=document.getElementById('singRecBtn');
-  function showSung(m,f){
-    if(f==null){ clearPiano(); updateDisplay(null); updateStaff(null); return; }
-    const info=freqToInfo(f);
-    if(info.octave!==currentOctave) setOctave(info.octave);
-    clearPiano();
-    const mm=MC.midiOf(info.bareKey,info.octave);
-    glowKey(mm,info.mainInt); glowKey(mm+(info.cents>=0?1:-1),info.adjInt*0.65);
-    updateDisplay(info,f); updateStaff(info);
-  }
+  function showSung(m,f){ showPitch(listenTracker.push(f)); }
   async function saveHeardTake(take,blob,prefix){
     if(take.notes.length<2){ showRecToast('Didn’t catch the notes — try singing a little louder',false); return; }
     let n=1; try{ n=(await MC.store.listTakes()).filter(t=>t.source===take.source).length+1; }catch(e){}
@@ -1120,19 +1117,6 @@
       bareKey:NOTE_BARE[idx],adjBare:NOTE_BARE[adjIdx],
       octave,cents,step,rangeLabel:rl[Math.min(6,Math.max(1,octave))]||'High',
       mainInt:1-Math.abs(cents)/100,adjInt:Math.abs(cents)/100};
-  }
-  function freqToInfo(freq){
-    const s=12*Math.log2(freq/261.63),r=Math.round(s);
-    return buildInfo(((r%12)+12)%12,4+Math.floor(r/12),Math.round((s-r)*100));
-  }
-
-  // ── Octave control ────────────────────────────────────────────────────
-  // Listen mode follows the voice: keep the sung octave in view.
-  function setOctave(o){
-    currentOctave=Math.max(1,Math.min(7,o));
-    // start the view at this octave's C — two endpoint scrolls fought each
-    // other on narrow views and pushed C–E off-screen (Codex P2)
-    if(kb) kb.startAt(12*(currentOctave+1));
   }
   updateKeyLabels(); pianoW=pianoHost.clientWidth;
 
@@ -2283,38 +2267,19 @@
   }
 
   // ── Pitch detection ───────────────────────────────────────────────────
+  // McLeod pitch (hear.js); frames that aren't clearly one note (breath,
+  // consonants, room noise) count as silence instead of a random note
   function detectPitch(buf,sr){
-    const n=buf.length; let rms=0;
-    for(let i=0;i<n;i++) rms+=buf[i]*buf[i];
-    if(Math.sqrt(rms/n)<0.004) return null;
-    const minL=Math.floor(sr/2000),maxL=Math.min(Math.ceil(sr/60),n-1);
-    const ac=new Float32Array(maxL+1);
-    for(let lag=minL;lag<=maxL;lag++){
-      let s=0; for(let i=0;i<n-lag;i++) s+=buf[i]*buf[i+lag]; ac[lag]=s;
-    }
-    let d=minL; while(d<maxL&&ac[d]>ac[d+1]) d++;
-    let best=d; for(let i=d+1;i<=maxL;i++) if(ac[i]>ac[best]) best=i;
-    if(ac[best]<=0) return null;
-    let lag=best;
-    if(best>minL&&best<maxL){
-      const a=ac[best-1],b=ac[best],c=ac[best+1],dn=2*(a-2*b+c);
-      if(dn!==0) lag=best-(a-c)/dn;
-    }
-    return sr/lag;
+    const r=Hear.mpm(buf,sr);
+    return r&&r.clarity>=0.8?r.freq:null;
   }
 
   // ── Main audio loop ───────────────────────────────────────────────────
   let audioCtx,analyser,mediaStream;
-  let rafId,isRunning=false,smoothedFreq=null,silentCount=0,lastProcTime=0;
-  let pendingKey=null,pendingCount=0,confirmedKey=null;
-  const SILENCE_HOLD=3,CONFIRM=1;
-
-  function debounceKey(raw){
-    if(!raw){pendingKey=confirmedKey=null;pendingCount=0;return null;}
-    if(raw===confirmedKey){pendingKey=null;pendingCount=0;return raw;}
-    if(raw===pendingKey){if(++pendingCount>=CONFIRM){confirmedKey=raw;return raw;}return confirmedKey;}
-    pendingKey=raw;pendingCount=1;return confirmedKey;
-  }
+  let rafId,isRunning=false,lastProcTime=0;
+  // steady note: median of recent frames + hysteresis, so a wobbly voice
+  // stays on one note instead of flickering to its neighbours
+  const listenTracker=Hear.pitchTracker();
 
   function loop(ts){
     if(!isRunning) return;
@@ -2333,32 +2298,24 @@
     lastProcTime=ts;
     const buf=new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(buf);
-    const raw=detectPitch(buf,audioCtx.sampleRate);
-
-    if(raw){
-      silentCount=0;
-      if(!smoothedFreq) smoothedFreq=raw;
-      else {
-        const ratio=raw/smoothedFreq;
-        const adj=ratio>1.7?raw/2:ratio<0.6?raw*2:raw;
-        smoothedFreq=Math.exp(0.55*Math.log(smoothedFreq)+0.45*Math.log(adj));
-      }
-      const info=freqToInfo(smoothedFreq);
-      const key=debounceKey(info.bareKey);
-      if(key){
-        if(info.octave!==currentOctave) setOctave(info.octave);
-        clearPiano();
-        const mMain=MC.midiOf(info.bareKey,info.octave);
-        glowKey(mMain,info.mainInt);
-        glowKey(mMain+(info.cents>=0?1:-1),info.adjInt*0.65);
-        updateDisplay(info,smoothedFreq);
-        updateStaff(info);
-      }
+    showPitch(listenTracker.push(detectPitch(buf,audioCtx.sampleRate)));
+  }
+  // one steady note (Hear.pitchTracker) → note card, staff and glowing key
+  function showPitch(p){
+    if(p){
+      const m=p.note, freq=MC.midiToFreq(p.mf), r=m-60;
+      const info=buildInfo(((r%12)+12)%12,4+Math.floor(r/12),Math.max(-50,Math.min(50,p.cents)));
+      currentOctave=Math.max(1,Math.min(7,info.octave));
+      // follow the voice only when the note leaves the screen — no jumping
+      // back and forth between octaves around B/C
+      if(kb) kb.scrollTo(m);
+      clearPiano();
+      glowKey(m,info.mainInt);
+      glowKey(m+(info.cents>=0?1:-1),info.adjInt*0.65);
+      updateDisplay(info,freq);
+      updateStaff(info);
     } else {
-      if(++silentCount>SILENCE_HOLD){
-        smoothedFreq=null;debounceKey(null);
-        clearPiano();updateDisplay(null);updateStaff(null);
-      }
+      clearPiano();updateDisplay(null);updateStaff(null);
     }
   }
 
@@ -2372,8 +2329,7 @@
       analyser=audioCtx.createAnalyser();
       analyser.fftSize=2048; analyser.smoothingTimeConstant=0;
       src.connect(analyser);
-      smoothedFreq=null;silentCount=0;lastProcTime=0;
-      pendingKey=null;pendingCount=0;confirmedKey=null;
+      listenTracker.reset();lastProcTime=0;
 
       if(currentMode==='flow'){
         resetMetro();
@@ -2406,7 +2362,7 @@
     if(countdownTimer){clearInterval(countdownTimer);countdownTimer=null;}
     mediaStream?.getTracks().forEach(t=>t.stop());
     audioCtx?.close();
-    smoothedFreq=null;
+    listenTracker.reset();
     clearPiano();updateDisplay(null);
     if(currentMode!=='flow') updateStaff(null);
     startBtn.textContent='🎤 Start'; startBtn.className='btn btn-start';
@@ -2593,7 +2549,7 @@
     if(currentMode!=='keys'&&currentMode!=='songs') return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
-    const k=e.key.toLowerCase();
+    const k=e.code;
     const m=KEY_MAP[k];
     if(m==null) return;
     e.preventDefault();
@@ -2602,7 +2558,7 @@
     if(kb) kb.press(m); else onPianoDown(m);   // kb.press → onPianoDown (sound, song, record)
   });
   document.addEventListener('keyup',e=>{
-    const k=e.key.toLowerCase();
+    const k=e.code;
     if(!kbDown.has(k)) return;
     const m=kbDown.get(k); kbDown.delete(k);
     if(kb) kb.release(m); else onPianoUp(m);
