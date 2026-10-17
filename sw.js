@@ -1,4 +1,4 @@
-const CACHE = 'pt-v29';
+const CACHE = 'pt-v30';
 // Both apps live on xxc2xx.github.io and share Cache Storage: only ever
 // delete OUR caches (same prefix) plus the old shared 'pitch-vN' names both
 // apps used before they had their own prefixes.
@@ -37,10 +37,11 @@ self.addEventListener('fetch', e => {
       url.pathname.endsWith('/') || url.pathname === '') {
     e.respondWith(
       fetch(e.request.mode === 'navigate' ? e.request.url : e.request, { cache: 'no-cache' }).then(r => {
-        // keep the latest page + modules as the offline copy
-        if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request.mode === 'navigate' ? e.request.url : e.request, copy)); }
+        // keep the latest modules as the offline copy — never the HTML: an
+        // old cached page booting newer scripts is worse than no offline page
+        if (r.ok && url.pathname.endsWith('.js')) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
         return r;
-      }).catch(() => caches.match(e.request.mode === 'navigate' ? e.request.url : e.request, { ignoreSearch: true }))
+      }).catch(() => caches.match(e.request, { ignoreSearch: true }))
     );
     return;
   }
