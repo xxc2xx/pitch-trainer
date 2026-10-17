@@ -51,8 +51,10 @@
         else if(type === 0x90 || type === 0x80){
           const m = d.getUint8(p++), v = d.getUint8(p++);
           const k = ch * 128 + m;
-          if(type === 0x90 && v > 0){ open.set(k, { m, v, tick, ch }); }
-          else if(open.has(k)){ const o = open.get(k); open.delete(k); notes.push({ m, ch, v: o.v, t0: o.tick, t1: tick }); }
+          // a queue per key: layered/legato files re-strike a pitch before
+          // its note-off — first on pairs with first off (Codex P2)
+          if(type === 0x90 && v > 0){ if(!open.has(k)) open.set(k, []); open.get(k).push({ m, v, tick, ch }); }
+          else if(open.has(k) && open.get(k).length){ const o = open.get(k).shift(); notes.push({ m, ch, v: o.v, t0: o.tick, t1: tick }); }
         }
         else if(type === 0xa0 || type === 0xb0 || type === 0xe0){ p += 2; }
         else if(type === 0xc0 || type === 0xd0){ p += 1; }

@@ -103,6 +103,12 @@ if(DOMParser){
 }
 const midCh = SF.parseMidi(SF.writeMidi({ ...tw, parts: { chords: C.autoChords(tw) } }, { chords: true }).buffer);
 ok(C.toTokens(midCh) === C.toTokens(tw), 'MIDI export with a chords track still reads back the melody');
+{ // same pitch re-struck before its note-off (layered/legato files): both notes kept
+  const ev = [0x00,0x90,60,80, 0x81,0x70,0x90,60,80, 0x81,0x70,0x80,60,0, 0x83,0x60,0x80,60,0, 0x00,0xff,0x2f,0x00];
+  const f = new Uint8Array([0x4d,0x54,0x68,0x64,0,0,0,6,0,0,0,1,0x01,0xe0, 0x4d,0x54,0x72,0x6b,0,0,0,ev.length, ...ev]);
+  const ov = SF.parseMidi(f.buffer).notes;
+  ok(ov.length === 2 && ov[0].t === 0 && ov[0].d === 1 && ov[1].t === 0.5 && ov[1].d === 1.5, 'MIDI import keeps overlapping same-pitch notes: ' + JSON.stringify(ov.map(n => [n.t, n.d])));
+}
 
 // ── Live pitch (hear.js): McLeod detector + steady-note tracker ──────────
 {
