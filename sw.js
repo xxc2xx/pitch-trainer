@@ -1,4 +1,4 @@
-const CACHE = 'pt-v27';
+const CACHE = 'pt-v28';
 // Both apps live on xxc2xx.github.io and share Cache Storage: only ever
 // delete OUR caches (same prefix) plus the old shared 'pitch-vN' names both
 // apps used before they had their own prefixes.

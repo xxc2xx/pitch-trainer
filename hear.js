@@ -65,13 +65,15 @@
   // noise well below — callers drop frames under ~0.8 instead of showing a
   // random note. Picks the FIRST strong peak, which avoids most octave-low
   // errors that plain autocorrelation makes on a child's bright voice.
+  let nsdfBuf = null;
   function mpm(buf, sr, o){
     o = o || {};
     const n = buf.length, fMin = o.fMin || 60, fMax = o.fMax || 1600;
     let rms = 0; for(let i = 0; i < n; i++) rms += buf[i] * buf[i];
     if(Math.sqrt(rms / n) < (o.minRms || 0.004)) return null;
     const minL = Math.max(2, Math.floor(sr / fMax)), maxL = Math.min(Math.ceil(sr / fMin), n >> 1);
-    const nsdf = new Float32Array(maxL + 2);
+    if(!nsdfBuf || nsdfBuf.length < maxL + 2) nsdfBuf = new Float32Array(maxL + 2);   // reused: ~33 calls/s
+    const nsdf = nsdfBuf;
     for(let lag = 0; lag <= maxL + 1; lag++){
       let r = 0, m = 0;
       for(let i = 0, e = n - lag; i < e; i++){ const a = buf[i], b = buf[i + lag]; r += a * b; m += a * a + b * b; }
@@ -88,7 +90,7 @@
       if(best >= minL) peaks.push(best);
     }
     if(!peaks.length) return null;
-    const top = Math.max(...peaks.map(p => nsdf[p]));
+    let top = 0; for(const p of peaks) if(nsdf[p] > top) top = nsdf[p];
     const pk = peaks.find(p => nsdf[p] >= 0.9 * top);
     const a = nsdf[pk - 1], b = nsdf[pk], c = nsdf[pk + 1], d = a - 2 * b + c;
     const shift = d !== 0 ? 0.5 * (a - c) / d : 0;
