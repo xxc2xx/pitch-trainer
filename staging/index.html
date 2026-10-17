@@ -348,7 +348,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 2712adc</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING e2914e9</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -602,15 +602,15 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=2712adc"></script>
-  <script src="piano.js?v=2712adc"></script>
-  <script src="songs.js?v=2712adc"></script>
-  <script src="hear.js?v=2712adc"></script>
-  <script src="sound.js?v=2712adc"></script>
-  <script src="midi.js?v=2712adc"></script>
-  <script src="songfile.js?v=2712adc"></script>
-  <script src="addsong.js?v=2712adc"></script>
-  <script src="studio.js?v=2712adc"></script>
+  <script src="music-core.js?v=e2914e9"></script>
+  <script src="piano.js?v=e2914e9"></script>
+  <script src="songs.js?v=e2914e9"></script>
+  <script src="hear.js?v=e2914e9"></script>
+  <script src="sound.js?v=e2914e9"></script>
+  <script src="midi.js?v=e2914e9"></script>
+  <script src="songfile.js?v=e2914e9"></script>
+  <script src="addsong.js?v=e2914e9"></script>
+  <script src="studio.js?v=e2914e9"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -874,9 +874,11 @@
   // Listen following the voice) so G doesn't change under your finger.
   // Physical key codes, not e.key: works with a Chinese input source or a
   // non-US layout active, where e.key is 'Process' or another character.
-  const WHITE_KEYS=['KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote'];
-  const BLACK_KEYS=['KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft'];   // between white i and i+1
-  const KEY_LETTER=c=>({Semicolon:';',Quote:"'",BracketLeft:'['}[c]||c.slice(3));
+  // Caps Lock and Return extend the white row one key each side (Q and ]
+  // are the black keys next to them): 13 white keys, almost two octaves.
+  const WHITE_KEYS=['CapsLock','KeyA','KeyS','KeyD','KeyF','KeyG','KeyH','KeyJ','KeyK','KeyL','Semicolon','Quote','Enter'];
+  const BLACK_KEYS=['KeyQ','KeyW','KeyE','KeyR','KeyT','KeyY','KeyU','KeyI','KeyO','KeyP','BracketLeft','BracketRight'];   // between white i and i+1
+  const KEY_LETTER=c=>({Semicolon:';',Quote:"'",BracketLeft:'[',BracketRight:']',CapsLock:'⇪',Enter:'⏎'}[c]||c.slice(3));
   let KEY_MAP={};
   function stepWhite(m,n){ let x=m; const d=n<0?-1:1; for(let i=0;i<Math.abs(n);i++){ do{ x+=d; }while(MC.isBlack(x)); } return x; }
   function rebuildKeyMap(){
@@ -1018,6 +1020,7 @@
                  :st.state==='unsupported'?'Use Chrome on the computer for a real keyboard':'Her keyboard';
   });
   midiBtn.addEventListener('click',()=>{ ensureKbCtx(); Midi.connect(); });
+  const midiOnKb=new Set();   // her keys currently held down on the on-screen piano
   Midi.onNote((m,vel,isOn)=>{
     // a context made outside a tap stays suspended — ask for one tap instead (Codex P1)
     if(!kbCtx||kbCtx.state!=='running'){
@@ -1026,11 +1029,13 @@
       if(!kbCtx) return;
     }
     const ac=ensureKbCtx();
-    if(currentMode==='keys'||currentMode==='songs'){
+    // a key pressed in Keys/Songs is released on the piano even if the tab
+    // changed while it was held — else its press count stays stuck (Codex P2)
+    if(currentMode==='keys'||currentMode==='songs'||(!isOn&&midiOnKb.has(m))){
       inputFromMidi=true;                          // her keyboard — never Dad's part
       try{
-        if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); kb?kb.press(m):onPianoDown(m); }
-        else { kb?kb.release(m):onPianoUp(m); }
+        if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); midiOnKb.add(m); kb?kb.press(m):onPianoDown(m); }
+        else { midiOnKb.delete(m); kb?kb.release(m):onPianoUp(m); }
       } finally { inputFromMidi=false; }
     } else {
       Sound.use(ac); Sound.setInstrument(currentInstrument==='drum'?'piano':currentInstrument);
@@ -2506,7 +2511,7 @@
     if(isKeys&&isDrum) staffView.style.display='none';
     const hints={
       listen:'Tap Start, then sing any note',
-      keys:'Tap or slide across the keys · drag the strip to move · computer keys: G = middle',
+      keys:'Tap or slide across the keys · drag the strip to move · computer keys ⇪ A…; \' ⏎ (G = middle)',
       flow:'Tap Start, then play music or clap 🎵',
       play:'Paste notes below, tap ▶ Play',
       dj:'Tap pads, build a beat, or scratch!',
@@ -2545,7 +2550,17 @@
   document.querySelectorAll('.tab').forEach(t=>
     t.addEventListener('click',()=>setMode(t.dataset.mode)));
   const kbDown=new Map();   // physical key → midi it pressed (release the same note)
+  // Caps Lock on a Mac sends keydown when it locks and keyup when it
+  // unlocks — one event per press — so each one is a short tap.
+  function capsTap(e){
+    if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const m=KEY_MAP.CapsLock; if(m==null) return;
+    if(kb){ kb.press(m); setTimeout(()=>kb.release(m),350); }
+    else { onPianoDown(m); setTimeout(()=>onPianoUp(m),350); }
+  }
   document.addEventListener('keydown',e=>{
+    if(e.code==='CapsLock'){ capsTap(e); return; }
     if(currentMode!=='keys'&&currentMode!=='songs') return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
@@ -2558,6 +2573,7 @@
     if(kb) kb.press(m); else onPianoDown(m);   // kb.press → onPianoDown (sound, song, record)
   });
   document.addEventListener('keyup',e=>{
+    if(e.code==='CapsLock'){ capsTap(e); return; }
     const k=e.code;
     if(!kbDown.has(k)) return;
     const m=kbDown.get(k); kbDown.delete(k);

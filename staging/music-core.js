@@ -70,7 +70,7 @@
     sprout: { id:'sprout', icon:'🌱', name:'Sprout', range:[60,72], view:8,
               labels:'color',   see:'lane',  follow:'wait',  colorAmt:1,
               minimap:false, zoom:false },
-    bloom:  { id:'bloom',  icon:'🌸', name:'Bloom',  range:[48,84], view:15,
+    bloom:  { id:'bloom',  icon:'🌸', name:'Bloom',  range:[24,96], view:15,   // C1–C7, slide to explore
               labels:'solfege', see:'staff', follow:'wait',  colorAmt:1,
               minimap:true,  zoom:true },
     grow:   { id:'grow',   icon:'🌳', name:'Grow',   range:[21,108], view:22,
