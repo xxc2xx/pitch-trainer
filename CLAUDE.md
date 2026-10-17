@@ -74,7 +74,7 @@ that sets a global, loaded before the inline script:
   under clarity 0.8 count as silence) → `Hear.pitchTracker` (5-frame
   median, octave-slip fold, note hysteresis ±0.7 semitone / 3 frames) so
   the 🎤 Listen note doesn't flicker on a wobbly child's voice.
-- Computer keys (Keys/Songs): mapped by `e.code` (works with a Chinese
+- Computer keys (Keys/Songs): ⇪ A–' ⏎ white, Q W–] black (Caps Lock = one event per press on Mac → a 350 ms tap); mapped by `e.code` (works with a Chinese
   input source / non-US layout). G = middle visible white key; the map
   follows user slides/zoom only — `onView(c,{auto})` auto-scrolls (song
   target, her MIDI key, Listen) leave the letters where they are.
