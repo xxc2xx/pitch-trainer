@@ -462,6 +462,8 @@
   <div id="notesView"></div>
 
   <div id="statsView">
+    <div id="progressHost"></div>
+    <h4 style="margin:10px 2px 0;font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:#8a8ab8">🥁 Beat history</h4>
     <div id="statsSummary"></div>
     <canvas id="statsCanvas" height="120"></canvas>
     <div id="statsSessionList"></div>
@@ -581,6 +583,7 @@
       </div>
       <span id="soundBadge" title="Instrument sound"></span>
       <button class="pb-btn" id="midiBtn" title="Connect her keyboard (USB / Bluetooth MIDI)">🎹 Keyboard</button>
+      <button class="pb-btn" id="pbParent" title="Grown-ups: hold for progress">⚙︎</button>
       <div class="pb-group" id="pbRecGroup">
         <button class="pb-btn" id="pbRec" title="Record a tune — it becomes a song">⏺</button>
       </div>
@@ -614,6 +617,7 @@
   <script src="echo.js"></script>
   <script src="today.js"></script>
   <script src="notes.js"></script>
+  <script src="progress.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -942,7 +946,7 @@
     if(ac.state==='running') go();
     else ac.resume().then(go).catch(()=>{});
     // ✏️ Fix notes open: the key fixes the selected note instead of playing the song
-    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else if(echo.active) echo.onKey(m); else songs.onKey(m,inputFromMidi?lastMidiVel:null); }
+    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else if(echo.active) echo.onKey(m); else if(todayNotes.active) todayNotes.onKey(m); else songs.onKey(m,inputFromMidi?lastMidiVel:null); }
     if(currentMode==='notes') notes.onKey(m);
     if(pianoRec) pianoRec.push({m,on:performance.now(),off:null});
   }
@@ -1030,15 +1034,39 @@
   });
   function startEcho(o){ songs.hide(); document.getElementById('songsView').style.display='flex'; echo.start(o||{rounds:4}); }
 
-  // ── 🌟 Today: the daily lesson (Echo → learn a phrase → review → prize) ──
+  // Today's 🧠/✏️ steps draw in the Songs view: a second Notes instance there
+  const todayNotes=Notes.create({
+    host:document.getElementById('songsView'),
+    getKb:()=>kb, getLevel:()=>level,
+    audio:()=>ensureKbCtx(),
+    playNote:(ac,m,when,dur,o)=>{ Sound.use(ac); return Sound.schedule(m,when,dur,o); },
+    cancelNotes:tag=>Sound.cancel(tag),
+  });
+
+  // ── 🌟 Today: the daily lesson (Echo → notes → write → learn → review → prize) ──
   const today=Today.create({
     host:document.getElementById('songsView'),
-    songs, echo, getLevel:()=>level,
+    songs, echo, notes:todayNotes, getLevel:()=>level,
     listSongs:async()=>{ let mine=[]; try{ mine=await MC.store.listTakes(); }catch(e){} return [...mine,...MC.builtinTakes()]; },
     sticker:id=>songs.sticker(id),
-    onExit:()=>{ echo.stop(); songs.shelf(); },
+    onExit:()=>{ echo.stop(); todayNotes.stop(); songs.shelf(); },
   });
   function startToday(){ songs.release(); today.start(); }
+
+  // ── 📈 Progress (parent-only): hold ⚙︎ on the piano bar for 1.5 s ─────
+  const progress=Progress.create({
+    host:document.getElementById('progressHost'),
+    titles:async()=>{ let mine=[]; try{ mine=await MC.store.listTakes(); }catch(e){} return new Map([...MC.builtinTakes(),...mine].map(t=>[t.id,t.title])); },
+    audio:()=>ensureKbCtx(),
+    click:(ac,when,accent)=>scheduleMetroClick(ac,when,accent),
+  });
+  (()=>{
+    const b=document.getElementById('pbParent'); let t=0;
+    const cancel=()=>{ clearTimeout(t); t=0; b.classList.remove('sel'); };
+    b.addEventListener('pointerdown',e=>{ e.preventDefault(); b.classList.add('sel'); t=setTimeout(()=>{ cancel(); setMode('stats'); },1500); });
+    ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,()=>{ if(t){ cancel(); hint.textContent='⚙︎ Grown-ups: press and hold'; } }));
+    b.addEventListener('contextmenu',e=>e.preventDefault());
+  })();
 
   // ── 🧠 Notes: key cards, octave cards, staff cards, writing ──────────
   const notes=Notes.create({
@@ -2552,7 +2580,7 @@
       document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b.dataset.inst==='piano'));
       updateKeyLabels();
     }
-    if(!isSongs){ echo.stop(); today.stop(); }
+    if(!isSongs){ echo.stop(); today.stop(); todayNotes.stop(); }
     if(isSongs) songs.show(); else songs.hide();
     if(isNotes) notes.show(); else notes.hide();
     document.getElementById('hearRow').style.display=mode==='listen'?'':'none';
@@ -2564,7 +2592,7 @@
       flow:'Tap Start, then play music or clap 🎵',
       play:'Paste notes below, tap ▶ Play',
       dj:'Tap pads, build a beat, or scratch!',
-      stats:'Your rhythm practice history',
+      stats:'📈 Progress — for grown-ups',
       songs:'Pick a song — 👂 listen, then 👆 your turn',
       notes:'Name the notes · read the staff · write them ✏️',
     };
@@ -2577,7 +2605,7 @@
       setTimeout(()=>{initMetroCanvas();startMetroLoop();},80);
     }
     if(isDjMode) initDjTab();
-    if(isStats) renderStatsView();
+    if(isStats){ renderStatsView(); progress.render(); }
   }
 
   // ── Events ────────────────────────────────────────────────────────────

@@ -68,6 +68,26 @@ that sets a global, loaded before the inline script:
   refetched by URL) — Pages' 10-min HTTP cache served stale modules in
   testing. Cache name prefix `pt-`; only own caches are cleaned (Beat Hive
   shares the origin, prefix `bh-`).
+- **Curriculum = her Yamaha Junior Music Course: FIXED do (do = C).** Echo,
+  cards and writing all name notes Do/Re/Mi (🌱) → "Do · C" (🌸) → C (🌳).
+- `echo.js` → `Echo`: 🎤 hear a tune → sing it back (judged by intervals,
+  any octave) → find it on the keyboard. Stages follow Yamaha: do-re →
+  do-re-mi → …fa → C position → la → high/low do → all seven. One mic per
+  session, opened inside the tap (iOS). State: `MC.log` item `echo` (`v:2`).
+- `notes.js` → `Notes` (🧠 Notes tab; a 2nd instance runs Today's steps in
+  the Songs view): 🃏 key cards, 🔢 low/middle/high, 🎼 G clef (F clef
+  unlocks via `Notes.fUnlocked`), ✏️ write (put → trace → write by card box;
+  freehand head/stem analysis in `analyzeWrite`). Leitner boxes per card
+  (`card:<game>:<m>`, ≤ one box up per day), decks unlock at ≥ 85 %.
+- `today.js` → `Today`: daily path Echo → Notes → Write → Learn (2-bar
+  phrase: step-by-step then play along) → Review (spaced repetition via
+  `MC.srsNext`) → Prize. Song state `song:<id>`; progress in
+  `localStorage.musicEco_today`.
+- `progress.js` → `Progress`: parent page in the (hidden) stats view, opened
+  by HOLDING ⚙︎ on the piano bar 1.5 s. Weekly summary text, latency
+  calibration (`musicEco_latencyMs`, used by Play-along judging).
+- Practice log = separate IndexedDB `music-eco-log` (never bump `music-eco`:
+  live and staging share the origin). Play along stores per-note `dtMs`/`vel`.
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files. Live pitch = `Hear.mpm` (McLeod NSDF; frames

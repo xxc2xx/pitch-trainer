@@ -173,10 +173,16 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   const cls = C.makeTake({ id: 'cls1', title: 'Class song', tag: 'class', createdAt: 5, bpm: 90,
     notes: Array.from({ length: 16 }, (_, i) => ({ m: 60 + (i % 5), t: i, d: 1 })) });   // 16 beats = 4 bars
   let p = T.plan({ songs: [...B], items: {}, level: 'sprout', today: '2026-10-20' });
-  ok(p.steps.map(s => s.kind).join() === 'echo,learn,reward' && p.steps[1].songId === B[0].id && p.steps[1].phrase === 0 && p.minutes === 5,
-     'Today: fresh start = Echo + first starter song, phrase 1 + prize (5 min at 🌱)');
+  const learn0 = p.steps.find(s => s.kind === 'learn');
+  ok(p.steps[0].kind === 'echo' && p.steps[1].kind === 'notes' && learn0.songId === B[0].id && learn0.phrase === 0 && p.steps[p.steps.length - 1].kind === 'reward' && p.minutes === 5,
+     'Today: fresh start = Echo + Notes cards + first starter song, phrase 1 + prize (5 min at 🌱): ' + p.steps.map(s => s.kind).join());
+  ok(['keys', 'g'].includes(p.steps[1].game), 'Today 🌱: card game is key or staff cards (no octave cards on a C4–C5 keyboard)');
+  const pb = T.plan({ songs: [...B], items: {}, level: 'bloom', today: '2026-10-21' });
+  ok(pb.steps.some(s => s.kind === 'write' && s.n === 3), 'Today 🌸: a 3-note writing step every day');
+  const games = new Set(['2026-10-20', '2026-10-21', '2026-10-22'].map(day => T.plan({ songs: [...B], items: {}, level: 'bloom', today: day }).steps[1].game));
+  ok(games.size === 3, 'Today 🌸: the card game rotates day by day (' + [...games].join() + ')');
   p = T.plan({ songs: [...B, cls], items: {}, level: 'bloom', today: '2026-10-20' });
-  ok(p.steps[1].songId === 'cls1' && p.steps[0].rounds === 4 && p.minutes === 10, 'Today: her class song is learnt before the starters');
+  ok(p.steps.find(s => s.kind === 'learn').songId === 'cls1' && p.steps[0].rounds === 4 && p.minutes === 10, 'Today: her class song is learnt before the starters');
   const ph = T.phrases(cls, 'sprout');
   ok(ph.length === 2 && ph[0].from === 0 && ph[0].to === 8 && ph[1].from === 8, 'Today: 4 bars → two 2-bar phrases');
   ok(T.phrases({ ...cls, section: { from: 4, to: 12 } }, 'sprout').every(x => x.from >= 4 && x.to <= 12), 'Today: a practice part set in ✏️ Fix limits the phrases');
@@ -244,6 +250,31 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(N.traceScore(guide, guide.map(p => ({ x: p.x + 3, y: p.y - 2 })), 18) === 100 && N.traceScore(guide, [{ x: 20, y: 20 }], 18) === 0, 'trace: on the dots = 100, elsewhere = 0');
   const headOnly = N.traceScore(guide, guide.slice(0, 28), 18);
   ok(headOnly < 85, 'trace: the head without its stem is not 3 stars (' + headOnly + ')');
+}
+
+// ── Progress (progress.js): weekly summary for her teacher ──────────────
+{
+  const vm = require('vm'), fs = require('fs');
+  const win = { MusicCore: C };
+  const ctx = { window: win, performance, console, setTimeout };
+  vm.runInNewContext(fs.readFileSync(new URL('../echo.js', import.meta.url), 'utf8'), ctx);
+  vm.runInNewContext(fs.readFileSync(new URL('../progress.js', import.meta.url), 'utf8'), { ...ctx, Echo: win.Echo });
+  const P = win.Progress;
+  const sessions = [
+    { day: '2026-10-10', kind: 'song', durMs: 120000, stats: { hit: 10, meanAbsMs: 90, biasMs: 10 } },
+    { day: '2026-10-18', kind: 'echo', durMs: 90000 },
+    { day: '2026-10-19', kind: 'song', durMs: 180000, stats: { hit: 12, meanAbsMs: 60, biasMs: -45 } },
+    { day: '2026-10-20', kind: 'write', durMs: 60000, score: 80 },
+    { day: '2026-10-20', kind: 'today', durMs: 400000 },
+  ];
+  const items = { 'song:hcb': { phrase: 1, phrases: 2 }, 'song:mary': { mastered: true, srs: { due: '2026-10-25' } },
+    echo: { stage: 1, rounds: 10, good: 8 }, 'card:keys:60': { n: 5, ok: 5, box: 4 }, 'card:keys:62': { n: 4, ok: 2, box: 1 } };
+  const txt = P.weekly({ sessions, items, titles: new Map([['hcb', 'Hot Cross Buns'], ['mary', 'Mary']]), today: '2026-10-20' });
+  ok(/practised 3\/7 days, 6 min/.test(txt), 'weekly: days and minutes this week (today wrapper not double-counted)');
+  ok(/Hot Cross Buns \(part 2\/2\)/.test(txt) && /Can play: Mary/.test(txt), 'weekly: learning + mastered songs by name');
+  ok(/do–re–mi, 80% good/.test(txt), 'weekly: Echo stage + success');
+  ok(/Keys 78% \(practise Re\)/.test(txt), 'weekly: card accuracy with the weak note named');
+  ok(/Writing notes: 80\/100/.test(txt) && /avg 60 ms .*rushing.*\(was 90 ms\)/.test(txt), 'weekly: writing score + timing trend vs last week');
 }
 
 // ── Live pitch (hear.js): McLeod detector + steady-note tracker ──────────

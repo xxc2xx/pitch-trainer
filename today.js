@@ -4,6 +4,8 @@
 
    One session, sized by level (🌱 ~5 min · 🌸 ~10 · 🌳 ~15):
      1. 🎤 Echo warm-up      sing-then-play rounds at her current stage
+     2. 🧠 Notes             a round of cards (key / octave / staff, rotating by day)
+        ✏️ Write             3 notes on the staff (🌸/🌳; 🌱 every other day)
      2. 🎹 Learn             the learning song, one phrase further:
                              👆 Step by step, then 🎵 Play along on that phrase
                              (all phrases done → the whole song, 3★ twice = mastered)
@@ -24,6 +26,10 @@
   const MINUTES = { sprout: 5, bloom: 10, grow: 15 };
   const ECHO_ROUNDS = { sprout: 3, bloom: 4, grow: 5 };
   const REVIEWS = { sprout: 1, bloom: 2, grow: 3 };
+  const CARDS = { sprout: 6, bloom: 8, grow: 8 };
+  // which card game today: 🌱's keyboard is C4–C5 only, so no octave cards there
+  const GAMES = { sprout: ['keys', 'g'], bloom: ['keys', 'oct', 'g'], grow: ['g', 'oct', 'keys'] };
+  const dayNum = day => { const [y, m, d] = day.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
   const DONE_KEY = 'musicEco_today';          // { day, done:[step index…] } — resume where she stopped
 
   const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
@@ -53,6 +59,11 @@
     const level = o.level || 'sprout', today = o.today || MC.dayKey(new Date()), items = o.items || {};
     const songs = order((o.songs || []).filter(s => s.notes && s.notes.length >= 3));
     const steps = [{ kind: 'echo', rounds: ECHO_ROUNDS[level] || 4 }];
+    const games = GAMES[level] || GAMES.bloom, dn = dayNum(today);
+    let game = games[dn % games.length];
+    if(level === 'grow' && o.fClef && dn % 4 === 3) game = 'f';
+    steps.push({ kind: 'notes', game, n: CARDS[level] || 8 });
+    if(level !== 'sprout' || dn % 2 === 0) steps.push({ kind: 'write', n: 3 });
     const learning = songs.find(s => !(items['song:' + s.id] || {}).mastered);
     if(learning){
       const st = items['song:' + learning.id] || {}, ph = phrases(learning, level);
@@ -98,8 +109,8 @@
   `;
   function injectCSS(){ if(document.getElementById('todayCSS')) return; const s = document.createElement('style'); s.id = 'todayCSS'; s.textContent = CSS; document.head.appendChild(s); }
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const ICON = { echo: '🎤', learn: '🎹', review: '🔁', reward: '🎁' };
-  const NAME = { echo: 'Echo', learn: 'Learn', review: 'Review', reward: 'Prize' };
+  const ICON = { echo: '🎤', notes: '🧠', write: '✏️', learn: '🎹', review: '🔁', reward: '🎁' };
+  const NAME = { echo: 'Echo', notes: 'Notes', write: 'Write', learn: 'Learn', review: 'Review', reward: 'Prize' };
 
   function readDone(today){ try{ const v = JSON.parse(localStorage.getItem(DONE_KEY)); return v && v.day === today ? v.done : []; }catch(e){ return []; } }
   function writeDone(today, done){ try{ localStorage.setItem(DONE_KEY, JSON.stringify({ day: today, done })); }catch(e){} }
@@ -119,7 +130,7 @@
       let songs = [], items = {};
       try{ songs = await d.listSongs(); }catch(e){}
       try{ items = await MC.log.items(); }catch(e){}
-      const p = plan({ songs, items, level, today });
+      const p = plan({ songs, items, level, today, fClef: window.Notes && Notes.fUnlocked(items) });
       p.songs = new Map(songs.map(s => [s.id, s])); p.items = items;
       return p;
     }
@@ -166,10 +177,13 @@
       const s = cur.steps[i];
       if(s.kind === 'reward') return reward(false, i);
       const song = s.songId && cur.songs.get(s.songId);
+      const GN = { keys: 'Which key?', oct: 'Low · middle · high', g: 'Read the staff', f: 'F clef' };
       const what = s.kind === 'echo' ? `🎤 Echo — sing it, then play it`
+        : s.kind === 'notes' ? `🧠 ${GN[s.game] || 'Notes'}`
+        : s.kind === 'write' ? `✏️ Write ${s.n} notes`
         : s.kind === 'learn' ? `🎹 ${esc(song ? song.title : '')}${s.whole ? ' — the whole song!' : ` — part ${s.phrase + 1} of ${s.phrases}`}`
         : `🔁 ${esc(song ? song.title : '')} again`;
-      const sub = s.kind === 'echo' ? `${s.rounds} little tunes` : s.kind === 'learn' ? (s.whole ? 'Play along — 3 stars twice and it’s yours ⭐' : 'First step by step, then play along') : 'Play along';
+      const sub = s.kind === 'echo' ? `${s.rounds} little tunes` : s.kind === 'notes' ? `${s.n} cards` : s.kind === 'write' ? 'on the staff with your finger' : s.kind === 'learn' ? (s.whole ? 'Play along — 3 stars twice and it’s yours ⭐' : 'First step by step, then play along') : 'Play along';
       screen((cheer ? cheer + '<br><small style="font-size:.8em;color:#c8c8f0">Next: ' : '') + (first ? `🌟 Today: ${what}` : what) + (cheer ? '</small>' : ''),
              sub, first ? '▶ Start' : 'Next ▶', () => run(i));
     }
@@ -182,6 +196,14 @@
       if(s.kind === 'echo'){
         busy = true;                                   // Echo draws in the same view
         d.echo.start({ rounds: s.rounds, onDone: r => { mark(i); next(false, `🎤 ${r.good} of ${r.rounds} echoes!`); } });
+        return;
+      }
+      if(s.kind === 'notes' || s.kind === 'write'){
+        busy = true;                                   // the cards draw in this view too
+        d.notes.start({ game: s.kind === 'write' ? 'write' : s.game, n: s.n, onDone: (r, left) => {
+          if(left){ busy = false; return d.onExit && d.onExit(); }      // ← = leave the lesson for now
+          mark(i); next(false, `${'⭐'.repeat(r.stars || 1)} ${r.ok} of ${r.n}!`);
+        } });
         return;
       }
       const song = cur.songs.get(s.songId);
