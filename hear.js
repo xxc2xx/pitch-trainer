@@ -65,7 +65,7 @@
   // noise well below — callers drop frames under ~0.8 instead of showing a
   // random note. Picks the FIRST strong peak, which avoids most octave-low
   // errors that plain autocorrelation makes on a child's bright voice.
-  let nsdfBuf = null;
+  let nsdfBuf = null; const peakBuf = [];
   function mpm(buf, sr, o){
     o = o || {};
     const n = buf.length, fMin = o.fMin || 60, fMax = o.fMax || 1600;
@@ -81,7 +81,7 @@
     }
     // key maxima: the highest point of each positive lobe after the first
     // negative zero crossing
-    const peaks = [];
+    const peaks = peakBuf; peaks.length = 0;          // reused: ~33 calls/s
     let lag = 1; while(lag <= maxL && nsdf[lag] > 0) lag++;
     while(lag <= maxL){
       while(lag <= maxL && nsdf[lag] <= 0) lag++;
@@ -111,7 +111,9 @@
     o = o || {};
     const WIN = o.win || 5, HYST = o.hyst || 0.7, HOLD = o.hold || 3, GAP = o.gap ?? 6;
     let hist = [], note = null, cand = null, candN = 0, gap = 0, last = null;
-    const median = a => { const s = a.slice().sort((x, y) => x - y); return s[s.length >> 1]; };
+    // median of ≤ WIN values without allocating: a reused scratch array + insertion sort
+    const scratch = [];
+    const median = a => { scratch.length = 0; for(const v of a){ let k = scratch.length; while(k > 0 && scratch[k - 1] > v){ scratch[k] = scratch[k - 1]; k--; } scratch[k] = v; } return scratch[scratch.length >> 1]; };
     return {
       push(freq){
         if(!freq){
