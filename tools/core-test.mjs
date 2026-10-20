@@ -139,7 +139,9 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   let inSet = true, varied = true;
   E.STAGES.forEach((st, k) => { for(let j = 0; j < 40; j++){ const p = E.patterns(k, 2 + (j % 4), rnd); if(!p.every(x => st.deg.includes(x))) inSet = false; if(p.every(x => x === p[0])) varied = false; } });
   ok(inSet && varied, 'Echo.patterns: every stage stays in its notes, never one repeated note');
-  ok(E.patterns(0, 3, rnd).every(x => x === 7 || x === 4), 'Echo stage 1 is only sol and mi');
+  ok(Array.from({ length: 30 }, () => E.patterns(0, 3, rnd)).every(p => p.every(x => x === 0 || x === 2)), 'Echo stage 1 (Yamaha) is only do and re — do-re-do, re-do-re');
+  ok(E.STAGES[1].deg.join() === '0,2,4' && E.STAGES.findIndex(s => s.leaps) > 3, 'Echo: do-re-mi second, octaves after the C position');
+  ok(Array.from({ length: 30 }, () => E.patterns(5, 4, rnd)).every(p => p.some(x => Math.abs(x) === 12)), 'Echo octave stage always jumps to high or low do');
   const pat = [7, 4, 7, 9];                                    // s m s l
   ok(E.matchSung(pat, [70, 67, 70, 72]).ok, 'matchSung: same tune sung 3 semitones higher is right');
   ok(E.matchSung(pat, [67, 65, 67, 69]).ok, 'matchSung: ±1 semitone wobble still counts');
@@ -192,6 +194,56 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(!T.plan({ songs: [cls], items: { 'song:cls1': st }, level: 'bloom', today: '2026-10-21' }).steps.some(s => s.kind === 'review'), 'Today: not due yet → no review');
   const st2 = T.afterSong(st, { kind: 'review' }, { mode: 'timed', stars: 3 }, '2026-10-22');
   ok(st2.srs.due > '2026-10-23', 'Today: a good review pushes the next one further out (' + st2.srs.due + ')');
+}
+
+// ── Notes (notes.js): cards + writing ───────────────────────────────────
+{
+  const vm = require('vm'), fs = require('fs');
+  const win = { MusicCore: C };
+  vm.runInNewContext(fs.readFileSync(new URL('../notes.js', import.meta.url), 'utf8'), { window: win, performance, console, setTimeout });
+  const N = win.Notes;
+  ok(C.staffStep(60).step === -2 && C.staffStep(67).step === 2 && C.staffStep(53).step - C.CLEF_SHIFT.F === 6 && C.staffStep(70, true).acc === '♭', 'staffStep: middle C on a ledger line, G on line 2, F3 on the F-clef 4th line, B♭ spelt flat');
+  ok([-2, 0, 2, 4].map(C.stepToMidi).join() === '60,64,67,71', 'stepToMidi is the inverse for white keys');
+  ok(N.nameOf(60, 'sprout') === 'Do' && N.nameOf(67, 'bloom') === 'Sol · G' && N.nameOf(69, 'grow') === 'A', 'names: Do → Sol · G → A by level (fixed do)');
+  let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let good = true;
+  for(let k = 0; k < 200; k++){ const a = [60, 62, 64, 65, 67, 69, 71, 72][k % 8]; const c = N.choices(a, N.ORDER.keys.slice(0, 8), rnd);
+    if(c.length !== 3 || !c.includes(a) || new Set(c.map(m => m % 12)).size !== 3 || c.some(m => C.isBlack(m))) good = false; }
+  ok(good, 'choices: always 3 different white-key names, one of them right');
+  let card = N.box(null, true, '2026-10-20'); card = N.box(card, true, '2026-10-20');
+  ok(card.box === 2, 'Leitner: right twice on the same day only moves up one box');
+  card = N.box(card, true, '2026-10-21');
+  ok(card.box === 3 && card.due === '2026-10-23', 'Leitner: right again next day → box 3, back in 2 days');
+  ok(N.box(card, false, '2026-10-22').box === 1, 'Leitner: a miss goes back to box 1');
+  let meta = null; for(let k = 0; k < 9; k++) meta = N.deckAfter(meta, true, 'keys');
+  ok(meta.unlocked === 3, 'deck: not before 10 answers');
+  meta = N.deckAfter(meta, true, 'keys'); ok(meta.unlocked === 4 && meta.newest === 65, 'deck: 10 right in a row unlocks Fa');
+  let m2 = null; for(let k = 0; k < 12; k++) m2 = N.deckAfter(m2, k % 3 !== 0, 'keys'); ok(m2.unlocked === 3, 'deck: 67 % right does not unlock');
+  ok(!N.fUnlocked({}) && N.fUnlocked({ 'deck:g': { unlocked: 5 }, 'card:g:60': { box: 3 }, 'card:g:67': { box: 4 } }), 'F clef unlocks once the G-clef landmarks are solid');
+  const r = N.pickRound('keys', 8, { items: {}, today: '2026-10-20', range: [60, 72], rnd });
+  ok(r.length === 8 && r.every(m => [60, 62, 64].includes(m)) && r.every((m, k) => !k || m !== r[k - 1]), 'round: 8 cards from do-re-mi, never twice in a row');
+  const r2 = N.pickRound('keys', 4, { items: { 'card:keys:60': { box: 5, due: '2026-10-28' }, 'card:keys:62': { box: 1, due: '2026-10-20' } }, today: '2026-10-20', range: [60, 72], rnd });
+  ok(r2[0] === 62, 'round: a due card in a low box comes first');
+  // writing
+  const geo = { LS: 30, base: 240 };
+  const yOf = st => geo.base - st * geo.LS / 2;
+  const circle = (cx, cy, rx, ry, a0 = 0, a1 = Math.PI * 2) => Array.from({ length: 40 }, (_, k) => { const a = a0 + (a1 - a0) * k / 39; return { x: cx + rx * Math.cos(a), y: cy + ry * Math.sin(a) }; });
+  const line = (x, y0, y1) => Array.from({ length: 20 }, (_, k) => ({ x, y: y0 + (y1 - y0) * k / 19 }));
+  const head = circle(200, yOf(2), 20, 14);                               // a loop on the G line
+  let w = N.scoreWrite([head, line(219, yOf(2), yOf(2) - 100)], geo, 2, 'bloom');
+  ok(w.score === 100 && w.a.step === 2 && w.a.closed && w.a.stem.up && w.a.stem.side === 'right', 'write: G with a closed head and an up-stem on the right = 100');
+  ok(N.scoreWrite([circle(200, yOf(3), 20, 14)], geo, 2, 'bloom').score === 35 + 15, 'write: one step too high, no stem = 50');
+  ok(N.scoreWrite([circle(200, yOf(2), 20, 14, 0, Math.PI)], geo, 2, 'bloom').a.closed === false, 'write: an open arc is not a closed head');
+  ok(N.scoreWrite([head], geo, 2, 'sprout').score === 100, 'write 🌱: only where the head sits counts');
+  const dShape = circle(200, yOf(-2), 18, 14).concat(line(218, yOf(-2), yOf(-2) - 95));   // head + stem in one stroke
+  const ws = N.analyzeWrite([dShape], geo);
+  ok(ws.step === -2 && ws.stem && ws.stem.attached, 'write: head and stem in one stroke still finds middle C (' + ws.step + ')');
+  const down = N.scoreWrite([circle(200, yOf(6), 20, 14), line(181, yOf(6), yOf(6) + 100)], geo, 6, 'grow');
+  ok(down.score === 100 && !down.a.stem.up && down.a.stem.side === 'left', 'write: high note, stem down on the left = 100 at 🌳');
+  const guide = N.noteGuide(geo, 2, 200);
+  ok(N.traceScore(guide, guide.map(p => ({ x: p.x + 3, y: p.y - 2 })), 18) === 100 && N.traceScore(guide, [{ x: 20, y: 20 }], 18) === 0, 'trace: on the dots = 100, elsewhere = 0');
+  const headOnly = N.traceScore(guide, guide.slice(0, 28), 18);
+  ok(headOnly < 85, 'trace: the head without its stem is not 3 stars (' + headOnly + ')');
 }
 
 // ── Live pitch (hear.js): McLeod detector + steady-note tracker ──────────

@@ -382,6 +382,7 @@
   <div class="tabs">
     <button class="tab active" data-mode="listen">🎤 Listen</button>
     <button class="tab"        data-mode="songs" >🎵 Songs</button>
+    <button class="tab"        data-mode="notes" >🧠 Notes</button>
     <button class="tab"        data-mode="keys"  >🎹 Keys</button>
     <button class="tab"        data-mode="flow"  >🥁 Beat</button>
     <button class="tab"        data-mode="stats"  style="display:none">📊 Stats</button>
@@ -458,6 +459,7 @@
 
   <!-- ── Stats Tab ──────────────────────────────────────── -->
   <div id="songsView"></div>
+  <div id="notesView"></div>
 
   <div id="statsView">
     <div id="statsSummary"></div>
@@ -611,6 +613,7 @@
   <script src="studio.js"></script>
   <script src="echo.js"></script>
   <script src="today.js"></script>
+  <script src="notes.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -849,7 +852,8 @@
 
   function pianoCfg(){
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
-    const wide=listen||(togetherWide&&currentMode==='songs');   // Listen, or Dad's register in Together
+    // Listen, Dad's register in Together, or 🧠 Notes (octave cards need C3–C6)
+    const wide=listen||(togetherWide&&currentMode==='songs')||currentMode==='notes';
     const range=wide?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:level.range;
     // keys narrower than ~30px are too small for a finger
     const fit=Math.max(7,Math.floor((pianoHost.clientWidth||360)/30));
@@ -859,7 +863,8 @@
     pianoHost.classList.toggle('two',two);
     return {
       range, view, twoRow:two,
-      labels:isDrum?'none':(labelOverride||level.labels),
+      // 🧠 Notes asks "which note is this?" — names on the keys would give it away
+      labels:isDrum||currentMode==='notes'?'none':(labelOverride||level.labels),
       colorAmt:level.colorAmt,
       minimap:wide||level.minimap,
       levelClass:level.id,
@@ -928,8 +933,9 @@
   // keys are Dad's — his own instrument, never scored, never move the song.
   let inputFromMidi=false, togetherWide=false;
   const isDadInput=()=>currentMode==='songs'&&songs.together&&!inputFromMidi&&!(window.Studio&&Studio.active);
+  const pianoMode=()=>currentMode==='keys'||currentMode==='songs'||currentMode==='notes';
   function onPianoDown(m){
-    if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(!pianoMode()) return;
     if(isDadInput()){ const ac=ensureKbCtx(); Sound.use(ac); Sound.noteOnAs('parent',m,85); return; }
     const ac=ensureKbCtx(), bare=NOTE_BARE[m%12], oct=MC.octaveOf(m);
     const go=()=>playKeyNote(bare,MC.midiToFreq(m),oct);
@@ -937,10 +943,11 @@
     else ac.resume().then(go).catch(()=>{});
     // ✏️ Fix notes open: the key fixes the selected note instead of playing the song
     if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else if(echo.active) echo.onKey(m); else songs.onKey(m,inputFromMidi?lastMidiVel:null); }
+    if(currentMode==='notes') notes.onKey(m);
     if(pianoRec) pianoRec.push({m,on:performance.now(),off:null});
   }
   function onPianoUp(m){
-    if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(!pianoMode()) return;
     if(isDadInput()){ Sound.noteOffAs('parent',m); return; }
     ensureKbCtx();
     if(currentInstrument!=='drum') Sound.noteOff(m);
@@ -1033,6 +1040,17 @@
   });
   function startToday(){ songs.release(); today.start(); }
 
+  // ── 🧠 Notes: key cards, octave cards, staff cards, writing ──────────
+  const notes=Notes.create({
+    host:document.getElementById('notesView'),
+    getKb:()=>kb, getLevel:()=>level,
+    audio:()=>ensureKbCtx(),
+    playNote:(ac,m,when,dur,o)=>{ Sound.use(ac); return Sound.schedule(m,when,dur,o); },
+    cancelNotes:tag=>Sound.cancel(tag),
+    // writing needs the room: hide the piano while she writes
+    onPiano:show=>{ if(currentMode!=='notes') return; pianoArea.style.display=show?'':'none'; pianoBar.classList.toggle('show',show); },
+  });
+
   // ── Her keyboard (midi.js) ────────────────────────────────────────────
   // MIDI notes go through the on-screen keyboard exactly like a tap: the key
   // lights, the sampled piano plays and holds, Songs hears it, ⏺ records it.
@@ -1060,7 +1078,7 @@
     const ac=ensureKbCtx();
     // a key pressed in Keys/Songs is released on the piano even if the tab
     // changed while it was held — else its press count stays stuck (Codex P2)
-    if(currentMode==='keys'||currentMode==='songs'||(!isOn&&midiOnKb.has(m))){
+    if(pianoMode()||(!isOn&&midiOnKb.has(m))){
       inputFromMidi=true;                          // her keyboard — never Dad's part
       try{
         if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); midiOnKb.add(m); lastMidiVel=vel; kb?kb.press(m):onPianoDown(m); }
@@ -2510,24 +2528,24 @@
       t.classList.toggle('active',t.dataset.mode===mode));
     if(pianoRec&&mode!=='keys') stopPianoRec();
     const isFlow=mode==='flow', isPlay=mode==='play', isKeys=mode==='keys', isDjMode=mode==='dj', isStats=mode==='stats';
-    const isSongs=mode==='songs';
+    const isSongs=mode==='songs', isNotes=mode==='notes';
     const isOther=isFlow||isPlay||isDjMode||isStats;
     document.body.classList.toggle('mode-dj', isDjMode);
-    staffView.style.display =(isOther||isSongs)?'none':'';
+    staffView.style.display =(isOther||isSongs||isNotes)?'none':'';
     metroView.style.display =isFlow?'block':'none';
     playView.style.display  =isPlay?'flex':'none';
     document.getElementById('djView').style.display=isDjMode?'flex':'none';
     statsView.style.display =isStats?'flex':'none';
     pianoArea.style.display =isOther?'none':'';
-    controls.style.display  =(isKeys||isSongs||isPlay||isDjMode||isStats)?'none':'';
-    noteCard.style.display  =(isOther||isSongs)?'none':'';
+    controls.style.display  =(isKeys||isSongs||isNotes||isPlay||isDjMode||isStats)?'none':'';
+    noteCard.style.display  =(isOther||isSongs||isNotes)?'none':'';
     const isDrum=currentInstrument==='drum';
-    document.body.classList.toggle('mode-keys',isKeys||isSongs);
+    document.body.classList.toggle('mode-keys',isKeys||isSongs||isNotes);
     document.body.classList.toggle('mode-songs',isSongs);
-    pianoBar.classList.toggle('show',isKeys||isSongs);
+    pianoBar.classList.toggle('show',isKeys||isSongs||isNotes);
     document.getElementById('pbRecGroup').style.display=isKeys?'':'none';
     document.getElementById('instBar').classList.toggle('show',isKeys);
-    if(isKeys||isSongs||mode==='listen') updateKeyLabels();
+    if(isKeys||isSongs||isNotes||mode==='listen') updateKeyLabels();
     if(isSongs&&currentInstrument==='drum'){
       // Songs hides the instrument picker — melody needs a melodic voice
       currentInstrument='piano'; Sound.setInstrument('piano');   // demo/guide voice too
@@ -2536,6 +2554,7 @@
     }
     if(!isSongs){ echo.stop(); today.stop(); }
     if(isSongs) songs.show(); else songs.hide();
+    if(isNotes) notes.show(); else notes.hide();
     document.getElementById('hearRow').style.display=mode==='listen'?'':'none';
     if(singRec&&mode!=='listen'){ singRec.stop(); singRec=null; singRecBtn.classList.remove('on'); singRecBtn.textContent='⏺ Sing a song'; }
     if(isKeys&&isDrum) staffView.style.display='none';
@@ -2547,6 +2566,7 @@
       dj:'Tap pads, build a beat, or scratch!',
       stats:'Your rhythm practice history',
       songs:'Pick a song — 👂 listen, then 👆 your turn',
+      notes:'Name the notes · read the staff · write them ✏️',
     };
     hint.textContent=hints[mode]||'';
     if(isFlow){
@@ -2583,7 +2603,7 @@
   // Caps Lock on a Mac sends keydown when it locks and keyup when it
   // unlocks — one event per press — so each one is a short tap.
   function capsTap(e){
-    if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(!pianoMode()) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const m=KEY_MAP.CapsLock; if(m==null) return;
     if(kb){ kb.press(m); setTimeout(()=>kb.release(m),350); }
@@ -2591,7 +2611,7 @@
   }
   document.addEventListener('keydown',e=>{
     if(e.code==='CapsLock'){ capsTap(e); return; }
-    if(currentMode!=='keys'&&currentMode!=='songs') return;
+    if(!pianoMode()) return;
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k=e.code;

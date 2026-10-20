@@ -1,9 +1,10 @@
 /* echo.js — 🎤→🎹 Echo: hear a little tune, sing it back, then find it on
    the keyboard. Classic script → window.Echo. Depends on music-core.js.
 
-   This is audiation, the core of the Kodály approach her class uses: hear it
-   in your head before you play it. The curriculum follows the Kodály order
-   (sol–mi first, then la, then mi–re–do, pentatonic, then fa/ti).
+   Hear it in your head before you play it (audiation). The order follows
+   her Yamaha Junior Music Course: FIXED do (do = C), stepwise from do-re-do
+   and do-re-mi up to the C position, then la, then octaves (high/low do),
+   then all seven.
 
    Pure (tested in tools/core-test.mjs):
      Echo.STAGES                         [{ id, name, deg:[semitones from do] }]
@@ -20,30 +21,43 @@
   'use strict';
   const MC = window.MusicCore;
 
-  // movable do: offsets in semitones from do
-  const SYL = { '-5':'so', '-3':'la', 0:'do', 2:'re', 4:'mi', 5:'fa', 7:'sol', 9:'la', 11:'ti', 12:'do' };
+  // fixed do: offsets in semitones from C (do)
+  const SYL = { '-12':'do↓', 0:'do', 2:'re', 4:'mi', 5:'fa', 7:'sol', 9:'la', 11:'ti', 12:'do↑' };   // ↓↑ = low / high do
+  const STAGES_VERSION = 2;                          // 1 = the old Kodály order (sol–mi first)
   const STAGES = [
-    { id:'sm',   name:'sol–mi',          deg:[7, 4] },
-    { id:'sml',  name:'sol–mi–la',       deg:[4, 7, 9] },
-    { id:'mrd',  name:'mi–re–do',        deg:[0, 2, 4] },
-    { id:'drms', name:'do–re–mi–sol',    deg:[0, 2, 4, 7] },
-    { id:'pent', name:'do re mi sol la', deg:[0, 2, 4, 7, 9] },
-    { id:'low',  name:'+ low la, low sol', deg:[-5, -3, 0, 2, 4, 7, 9] },
-    { id:'dia',  name:'all seven + high do', deg:[0, 2, 4, 5, 7, 9, 11, 12] },
+    { id:'dr',    name:'do–re',            deg:[0, 2] },
+    { id:'drm',   name:'do–re–mi',         deg:[0, 2, 4] },
+    { id:'drmf',  name:'do–re–mi–fa',      deg:[0, 2, 4, 5] },
+    { id:'c5',    name:'do re mi fa sol',  deg:[0, 2, 4, 5, 7] },
+    { id:'la',    name:'+ la',             deg:[0, 2, 4, 5, 7, 9] },
+    { id:'oct',   name:'high & low do',    deg:[-12, 0, 2, 4, 7, 12], leaps:true },
+    { id:'all',   name:'all seven + octave', deg:[0, 2, 4, 5, 7, 9, 11, 12] },
   ];
-  const LEN = [[2, 3], [3, 3], [3, 4], [3, 4], [4, 4], [4, 5], [4, 5]];
+  const LEN = [[3, 3], [3, 4], [3, 4], [4, 5], [4, 5], [3, 4], [4, 5]];
 
   // A little tune: mostly steps between neighbouring notes of the stage, the
   // odd skip, never one note repeated throughout. rnd() → [0,1) (seedable).
   function patterns(stage, len, rnd){
     rnd = rnd || Math.random;
-    const deg = STAGES[Math.max(0, Math.min(STAGES.length - 1, stage))].deg;
-    let i = Math.floor(rnd() * deg.length);
+    const st = STAGES[Math.max(0, Math.min(STAGES.length - 1, stage))], deg = st.deg;
+    if(deg.length === 2){                                          // do-re-do, re-do-re, do-re-re-do…
+      const out = [rnd() < 0.7 ? deg[0] : deg[1]];
+      for(let k = 1; k < len; k++) out.push(rnd() < 0.8 ? (out[k - 1] === deg[0] ? deg[1] : deg[0]) : out[k - 1]);
+      if(out.every(x => x === out[0])) out[out.length - 1] = out[0] === deg[0] ? deg[1] : deg[0];
+      return out;
+    }
+    if(st.leaps){                                                  // octave stage: do jumps to high/low do
+      const lo = rnd() < 0.5, far = lo ? -12 : 12, near = [0, 2, 4, 7];
+      const out = [0, far];
+      while(out.length < len) out.push(rnd() < 0.5 ? 0 : near[1 + Math.floor(rnd() * 3)]);
+      if(rnd() < 0.5) out.reverse();
+      return out.slice(0, len);
+    }
+    let i = rnd() < 0.5 ? 0 : Math.floor(rnd() * deg.length);    // tunes often start on do
     const out = [deg[i]];
     for(let k = 1; k < len; k++){
       const r = rnd();
-      let step = r < 0.42 ? -1 : r < 0.84 ? 1 : r < 0.92 ? 2 : -2;
-      if(deg.length === 2) step = r < 0.75 ? (i === 0 ? 1 : -1) : 0;     // sol–mi: mostly swap, sometimes repeat
+      const step = r < 0.42 ? -1 : r < 0.84 ? 1 : r < 0.92 ? 2 : -2;
       i = Math.max(0, Math.min(deg.length - 1, i + step));
       out.push(deg[i]);
     }
@@ -140,11 +154,8 @@
     const later = (fn, ms) => { const id = setTimeout(fn, ms); timers.push(id); return id; };
     const host = d.host;
 
-    function doFor(level, rnd){
-      if(level.id === 'sprout') return 60;               // sol = G4, mi = E4: a child's singing range
-      const keys = [60, 62, 65, 57];                     // C D F A — sol sits D4…D5
-      return keys[Math.floor((rnd || Math.random)() * keys.length)];
-    }
+    // fixed do: do is always C (middle C) — the same keys as in her class
+    function doFor(){ return 60; }
 
     async function start(o){
       o = o || {};
@@ -163,7 +174,9 @@
         micP.then(h => { if(active && micP === mine) micH = h; else { try{ h.stop(); }catch(_){} } }, e => { if(micP === mine) micErr = e; });
       } else micErr = new Error('no microphone');
       try{ state = (MC.log && await MC.log.item('echo')) || null; }catch(e){ state = null; }
-      state = { stage: 0, streak: 0, misses: 0, short: 0, rounds: 0, good: 0, ...(state || {}) };
+      // stages from the old (Kodály) order don't map onto Yamaha's: start over once
+      if(state && state.v !== STAGES_VERSION) state = null;
+      state = { v: STAGES_VERSION, stage: 0, streak: 0, misses: 0, short: 0, rounds: 0, good: 0, ...(state || {}) };
       if(!active) return;
       nextRound();
     }
@@ -191,7 +204,9 @@
     function nextRound(){
       if(roundsLeft <= 0) return finish();
       roundsLeft--;
-      const lv = d.getLevel(), pat = patterns(state.stage, lenFor(state));
+      const lv = d.getLevel();
+      // 🌱's keyboard is C4–C5: low do (C3) isn't on it — use high do instead
+      const pat = patterns(state.stage, lenFor(state)).map(o => lv.range && 60 + o < lv.range[0] ? o + 24 : o);
       const doM = doFor(lv);
       round = { id: ++seq, pat, ms: pat.map(o => doM + o), phase: 'listen', sung: [], judged: null, idx: 0, wrong: 0 };
       render('👂 Listen…', '');
@@ -322,5 +337,5 @@
              get _round(){ return round; }, get _state(){ return state; } };
   }
 
-  window.Echo = { STAGES, patterns, matchSung, liveSeg, adapt, syllable, create };
+  window.Echo = { STAGES, STAGES_VERSION, patterns, matchSung, liveSeg, adapt, syllable, create };
 })();

@@ -378,6 +378,27 @@
     setItem: (key, v) => ltx('items', 'readwrite', st => st.put(v, key)).then(() => v),
   };
 
+  // ── Staff position ────────────────────────────────────────────────────
+  // step 0 = bottom line of the G clef (E4); each line/space is one step.
+  // Middle C = −2 (one ledger line below), G4 = 2 (2nd line), F3 on the F
+  // clef = its 4th line. flats: spell black keys as flats (key of F, B♭…).
+  const SPELL_SHARP = [['C',''],['C','♯'],['D',''],['D','♯'],['E',''],['F',''],['F','♯'],['G',''],['G','♯'],['A',''],['A','♯'],['B','']];
+  const SPELL_FLAT  = [['C',''],['D','♭'],['D',''],['E','♭'],['E',''],['F',''],['G','♭'],['G',''],['A','♭'],['A',''],['B','♭'],['B','']];
+  const DIA = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 };
+  function staffStep(m, flats){
+    const [letter, acc] = (flats ? SPELL_FLAT : SPELL_SHARP)[pc(m)];
+    const oct = octaveOf(m) + (flats && acc === '♭' && letter === 'C' ? 1 : 0);
+    return { step: (oct - 4) * 7 + DIA[letter] - 2, letter, acc, oct };
+  }
+  // the natural (white-key) note sitting on a staff step — inverse of staffStep
+  function stepToMidi(step){
+    const d = step + 2, oct = 4 + Math.floor(d / 7), i = ((d % 7) + 7) % 7;
+    return 12 * (oct + 1) + [0, 2, 4, 5, 7, 9, 11][i];
+  }
+  // clef offsets: the F clef is drawn on the same 5 lines, 12 steps lower
+  // (its bottom line is G2), so F3 sits on the 4th line
+  const CLEF_SHIFT = { G: 0, F: -12 };
+
   // ── Practice helpers (pure) ───────────────────────────────────────────
   // local calendar day, 'YYYY-MM-DD'
   function dayKey(d){
@@ -438,6 +459,7 @@
     parseTokens, fromTokens, toTokens,
     BUILTIN, builtinTakes,
     store, log, dayKey, addDays, streak, srsNext, timingStats,
+    staffStep, stepToMidi, CLEF_SHIFT,
   };
   if(typeof module !== 'undefined' && module.exports) module.exports = MusicCore;
   else root.MusicCore = MusicCore;
