@@ -1,11 +1,11 @@
-const CACHE = 'staging-pt-v30';
-// Both apps live on xxc2xx.github.io and share Cache Storage: only ever
-// delete OUR caches (same prefix) plus the old shared 'pitch-vN' names both
-// apps used before they had their own prefixes.
+const CACHE = 'staging-pt-v35';
+// Both apps (live AND staging) share Cache Storage on xxc2xx.github.io: only
+// ever delete OUR caches (same prefix). The old 'pitch-vN' names are still
+// LIVE Pitch Trainer's current cache until go-live — never touch them.
 const PREFIX = CACHE.replace(/v\d+$/, '');
 
 const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js', './sound.js', './midi.js', './songfile.js', './addsong.js', './studio.js',
-                './music-core.js', './piano.js'];
+                './music-core.js', './piano.js', './echo.js', './today.js', './notes.js', './progress.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
@@ -18,7 +18,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE && (k.startsWith(PREFIX) || /^(staging-)?pitch-v\d+$/.test(k))).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k.startsWith(PREFIX)).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

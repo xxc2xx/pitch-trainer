@@ -28,6 +28,7 @@
   'use strict';
   const MC = window.MusicCore;
   const STICKER_KEY = 'musicEco_stickers';
+  const LATENCY_KEY = 'musicEco_latencyMs';
   const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb']);
   const DIATONIC = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 };
   const SHARP_SPELL = [['C',''],['C','♯'],['D',''],['D','♯'],['E',''],['F',''],['F','♯'],['G',''],['G','♯'],['A',''],['A','♯'],['B','']];
@@ -42,6 +43,8 @@
     text-align:center;transition:transform .1s,border-color .15s;position:relative;}
   .sg-card:active{transform:scale(.96);}
   .sg-card .ic{font-size:2rem;line-height:1;}
+  .sg-practice{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
+  .sg-card.sg-today{background:linear-gradient(135deg,#2a1f5a,#1b2f5a);border-color:#6a6ad0;grid-column:span 2;}
   .sg-card.sg-add{border-style:dashed;border-color:#4a4a8a;background:#121230;}
   .sg-card .st{font-size:.68rem;color:#ffd54f;min-height:1em;}
   .sg-card .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;max-width:100%;}
@@ -74,6 +77,7 @@
     animation:sgdance .5s ease-in-out infinite alternate;font-size:90px;line-height:120px;text-align:center;}
   .sg-done .stars{font-size:2.4rem;letter-spacing:.2em;}
   .sg-done .msg{font-size:1.1rem;font-weight:800;color:#fff;text-align:center;padding:0 16px;}
+  .sg-strip{display:flex;flex-direction:column;align-items:center;gap:4px;background:#11112a;border-radius:12px;padding:8px 10px;}
   .sg-conf{position:fixed;top:-40px;font-size:26px;pointer-events:none;animation:sgfall linear forwards;z-index:51;}
   @keyframes sgfade{from{opacity:0}to{opacity:1}}
   @keyframes sgdance{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-14px) rotate(6deg)}}
@@ -135,6 +139,10 @@
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
     let canvas = null, ctx2 = null, progEl = null;
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
+    const hits = new Map();       // note index → { dtMs (− early, + late), vel } — Play along only
+    let runStart = 0;             // performance.now() when the run began (practice log)
+    let onDone = null;            // set by songs.play(): a lesson path takes the result instead of the shelf
+    let mediaReady = Promise.resolve();
 
     // ── Shelf ───────────────────────────────────────────────────────────
     function card(t, deletable){
@@ -150,6 +158,7 @@
     async function renderShelf(){
       if(together){ together = false; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
+      onDone = null;                         // back on the shelf = the lesson path was left
       const builtin = MC.builtinTakes();
       let mine = [];
       try{ mine = await MC.store.listTakes(); }catch(e){}
@@ -158,12 +167,21 @@
       const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
         <span class="st" style="color:#8a8ab8">video · music · MIDI</span></div>` : '';
       // her songs lead; the built-ins are just a starter set
+      // 🌟 Today (daily path) and 🎤 Echo lead the shelf when wired in
+      const practice = (d.todayCard ? d.todayCard() : '') +
+        (d.openEcho ? `<div class="sg-card" id="sgEcho"><span class="ic">🎤</span><span>Echo</span>
+          <span class="st" style="color:#8a8ab8">sing it, then play it</span></div>` : '');
       host.innerHTML = `<div class="sg-shelf">
+        ${practice ? `<h3>🌟 Practice</h3><div class="sg-grid sg-practice">${practice}</div>` : ''}
         <h3>🎒 From class</h3>
         <div class="sg-grid">${addCard}${fromClass.map(t => card(t, true)).join('')}</div>
         ${own.length ? `<h3>🎹 My songs</h3><div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>` : ''}
         <h3>⭐ Starter songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
       </div>`;
+      const ec = host.querySelector('#sgEcho');
+      if(ec) ec.onclick = () => d.openEcho();
+      const td = host.querySelector('#sgToday');
+      if(td && d.openToday) td.onclick = () => d.openToday();
       const add = host.querySelector('#sgAdd');
       if(add) add.onclick = () => d.addSong(t => open(t));
       host.querySelectorAll('.sg-card[data-id]').forEach(el => el.addEventListener('click', async e => {
@@ -268,7 +286,7 @@
       canvas.onclick = seekTo;
       sizeCanvas(); pulse(true);
       startMode('wait');
-      loadMedia(t);
+      mediaReady = loadMedia(t);
     }
 
     // ── Original recording (video / audio) ──────────────────────────────
@@ -457,7 +475,7 @@
     }
 
     function startMode(m){
-      stopAll(); idx = 0; wrong = 0; judged.clear();
+      stopAll(); idx = 0; wrong = 0; judged.clear(); hits.clear(); runStart = performance.now();
       if(m === 'timed'){ mode = 'timed'; startTimed(); }
       else { mode = 'wait'; target(); }
       setBtns(); progress(); animateTo();
@@ -471,7 +489,7 @@
     function progress(){ if(progEl) progEl.style.width = (notes.length ? idx / notes.length * 100 : 0) + '%'; }
 
     // ── Input from the keyboard ─────────────────────────────────────────
-    function onKey(m){
+    function onKey(m, vel){
       if(!take || demo) return;
       const kb = d.getKb();
       if(mode === 'wait'){
@@ -484,7 +502,7 @@
         return;
       }
       if(mode === 'timed' && timed && timed.running){
-        const beat = nowBeat(timed);
+        const beat = heardBeat(timed);
         let best = -1, bestDt = 1e9;
         notes.forEach((n, i) => {
           if(judged.has(i) || n.m !== m) return;
@@ -494,6 +512,7 @@
         const W = timed.W;
         if(best >= 0 && bestDt <= W[2]){
           judged.set(best, bestDt <= W[0] ? 'tight' : bestDt <= W[1] ? 'loose' : 'ok');
+          hits.set(best, { dtMs: Math.round((beat - notes[best].t) * 60 / timed.bpm * 1000), vel: vel == null ? null : vel });
           kb && kb.flash(m);
         } else { kb && kb.wobble(m); }
       }
@@ -544,11 +563,20 @@
       if(run.media) return MC.secToBeat(take, run.media.currentTime);   // the recording is the clock
       return (d.audio().currentTime - run.t0) / (60 / run.bpm);
     }
+    // What she HEARS lags the clock by the output latency (Bluetooth speakers:
+    // 100–250 ms). Judge her presses against the heard beat, or a perfect
+    // player looks late. Calibrated on the Progress page; else the browser's guess.
+    function latencySec(){
+      try{ const v = localStorage.getItem(LATENCY_KEY); if(v != null && v !== '') return Math.max(0, +v) / 1000; }catch(e){}
+      const ac = d.audio && d.audio();
+      return ac ? (ac.outputLatency || ac.baseLatency || 0) : 0;
+    }
+    function heardBeat(run){ return nowBeat(run) - latencySec() / (60 / run.bpm); }
     // keep a loop going; returns true when it jumped
     function keepLoop(run, beat){
       if(!run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
       run.media.currentTime = Math.max(0, MC.beatToSec(take, loopAB.from - 0.5));
-      notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to) judged.delete(i); });
+      notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to){ judged.delete(i); hits.delete(i); } });
       return true;
     }
     function playMedia(fromBeat){
@@ -612,7 +640,8 @@
         const beat = nowBeat(run);
         keepLoop(run, beat);
         updateDad(beat);
-        notes.forEach((n, i) => { if(!judged.has(i) && beat > n.t + W[2]) judged.set(i, 'miss'); });
+        const hb = beat - latencySec() / spb;
+        notes.forEach((n, i) => { if(!judged.has(i) && hb > n.t + W[2]) judged.set(i, 'miss'); });
         const next = notes.findIndex((n, i) => !judged.has(i));
         idx = next < 0 ? notes.length : next; progress();
         const kb = d.getKb();
@@ -625,6 +654,28 @@
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
+    }
+
+    // ── Timing strip: one dot per note, above the line = early, below = late
+    // A child sees dots and one kind sentence; numbers only at 🌳 Grow.
+    function timingStrip(per, st, level){
+      const W = 280, H = 64, mid = H / 2, win = (WINDOWS[level.id] || WINDOWS.bloom)[2] * 60 / bpm * 1000;
+      const col = { tight:'#43a047', loose:'#fdd835', ok:'#fb8c00' };
+      const n = per.length, x = i => 10 + (n > 1 ? i / (n - 1) : 0.5) * (W - 20);
+      const r = Math.max(1.8, Math.min(4.5, (W - 20) / Math.max(1, n - 1) / 2.4));   // long songs: smaller dots
+      const dots = per.map(p => p.dtMs == null
+        ? `<circle cx="${x(p.i).toFixed(1)}" cy="${mid}" r="${(r * 0.8).toFixed(1)}" fill="none" stroke="#55557a" stroke-width="1.2"/>`
+        : `<circle cx="${x(p.i).toFixed(1)}" cy="${(mid + Math.max(-1, Math.min(1, p.dtMs / win)) * (mid - 7)).toFixed(1)}" r="${r.toFixed(1)}" fill="${col[p.res] || '#fb8c00'}"/>`).join('');
+      const say = st.hit < 2 ? 'Keep going — you\'ll find the beat! 🎵'
+        : Math.abs(st.biasMs) <= 40 && st.evennessMs <= 60 ? 'Right on the beat! 🎯'
+        : st.biasMs < -40 ? 'A little quick — wait for the beat 🐢'
+        : st.biasMs > 40 ? 'A little late — get ready early 🐇'
+        : 'Nice — now make it extra steady 🐘';
+      const nums = level.id === 'grow' ? `<br><small style="color:#8a8ab8">avg ${st.meanAbsMs} ms · ${st.biasMs < 0 ? 'rushing' : 'dragging'} ${Math.abs(st.biasMs)} ms · spread ${st.evennessMs} ms</small>` : '';
+      return `<div class="sg-strip"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="timing">
+          <text x="2" y="10" font-size="8" fill="#6a6a9a">early</text><text x="2" y="${H - 3}" font-size="8" fill="#6a6a9a">late</text>
+          <line x1="8" y1="${mid}" x2="${W - 8}" y2="${mid}" stroke="#6a6ad0" stroke-width="1.5" stroke-dasharray="4 3"/>${dots}</svg>
+        <div class="msg" style="font-size:.9rem">${say}${nums}</div></div>`;
     }
 
     // ── Finish + reward ─────────────────────────────────────────────────
@@ -641,13 +692,22 @@
       }
       const wasTimed = mode === 'timed';
       const onBeat = notes.reduce((c, _, i) => c + (/tight|loose|ok/.test(judged.get(i) || '') ? 1 : 0), 0);
+      const perNote = notes.map((n, i) => { const h = hits.get(i); return { i, m: n.m, res: judged.get(i) || null, dtMs: h ? h.dtMs : null, vel: h ? h.vel : null }; });
+      const stats = wasTimed ? MC.timingStats(perNote) : null;
+      const result = { kind: 'song', songId: take.id, title: take.title, mode, level: level.id, stars,
+                       durMs: Math.round(performance.now() - runStart), wrong,
+                       section: partOnly && take.section ? { ...take.section } : null,
+                       notes: wasTimed ? perNote : [], stats };
+      if(MC.log) MC.log.add(result).catch(() => {});
       stopAll(); setBtns();
       const n = addSticker(take.id);
+      if(onDone){ const f = onDone; onDone = null; f(result); return; }   // a lesson path shows its own Next ▶
       const av = d.avatar && d.avatar();
       const ov = document.createElement('div'); ov.className = 'sg-done';
       ov.innerHTML = `<div class="emo">🦀</div>
         <div class="stars">${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
         <div class="msg">You played ${esc(take.title)}!${wasTimed ? `<br><small style="color:#9fe8b0">🎯 ${onBeat} of ${notes.length} notes on the beat</small>` : ''}${n > 1 ? `<br><small style="color:#ffd54f">${n} times now 🏅</small>` : ''}</div>
+        ${wasTimed ? timingStrip(perNote, stats, level) : ''}
         <div class="sg-ctrl"><button class="sg-btn go" data-a="again">↺ Again</button>
         <button class="sg-btn" data-a="shelf">🎵 Songs</button></div>`;
       // stored data goes in as a property, never as markup
@@ -841,18 +901,31 @@
     window.addEventListener('resize', () => { if(take) sizeCanvas(); });
 
     return {
-      show(){ host.style.display = 'flex'; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
+      show(){ host.style.display = 'flex'; if(d.busy && d.busy()) return; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
       hide(){
         stopAll(); pulse(false); stopSing(); host.style.display = 'none';
         if(window.Studio) Studio.pause();
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
-      refresh(){ if(take) open(take); else renderShelf(); },
+      refresh(){ if(d.busy && d.busy()) return; if(take) open(take); else renderShelf(); },
+      shelf(){ take = null; renderShelf(); },
+      // a lesson step: open the song in a mode; onDone(result) replaces the
+      // sticker screen. Play along waits for her recording to load first.
+      play(t, o){
+        o = o || {};
+        open(t); onDone = o.onDone || null;
+        if(o.mode === 'timed'){ const me = take; mediaReady.then(() => { if(take === me) startMode('timed'); }); }
+      },
+      // drop the open song without drawing the shelf (the path draws next)
+      release(){ stopAll(); pulse(false); stopSing(); dropMedia(); take = null; onDone = null; d.onClose && d.onClose(); },
+      sticker: addSticker,
       onKey,
       get open(){ return !!take; },
       get media(){ return media; },
       get together(){ return together; },                 // the original recording (tests, Studio)
       openTake: open,
+      // test hook: the running Play-along clock
+      get _run(){ return timed ? { t0: timed.t0, bpm: timed.bpm, notes, latency: latencySec(), ac: d.audio() } : null; },
     };
   }
 
