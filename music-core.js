@@ -327,6 +327,106 @@
     deleteAudio: id => tx('audio', 'readwrite', s => s.delete(id)),
   };
 
+  // ── Practice log: a SEPARATE database ─────────────────────────────────
+  // Not a v2 of 'music-eco': staging and live share this origin, and live's
+  // v1 code would fail with a VersionError once staging upgraded it.
+  //   sessions {id, ts, day, kind:'song'|'echo'|'today', songId, mode, level,
+  //             durMs, stars, notes:[{i,m,dtMs,vel,res}], stats, echo}
+  //   items    key 'song:<id>' | 'echo' → spaced-repetition / stage state
+  const LOG_NAME = 'music-eco-log', LOG_VER = 1;
+  let _log = null;
+  function openLog(){
+    if(_log) return _log;
+    _log = new Promise((res, rej) => {
+      if(typeof indexedDB === 'undefined') return rej(new Error('no indexedDB'));
+      const rq = indexedDB.open(LOG_NAME, LOG_VER);
+      rq.onupgradeneeded = () => {
+        const db = rq.result;
+        if(!db.objectStoreNames.contains('sessions')){
+          const st = db.createObjectStore('sessions', { keyPath:'id' });
+          st.createIndex('day', 'day');
+        }
+        if(!db.objectStoreNames.contains('items')) db.createObjectStore('items');
+      };
+      rq.onsuccess = () => res(rq.result);
+      rq.onerror = () => { _log = null; rej(rq.error); };
+    });
+    return _log;
+  }
+  function ltx(st, mode, fn){
+    return openLog().then(db => new Promise((res, rej) => {
+      const t = db.transaction(st, mode), s = t.objectStore(st);
+      const rq = fn(s);
+      t.oncomplete = () => res(rq && rq.result);
+      t.onerror = t.onabort = () => rej(t.error);
+    }));
+  }
+  const log = {
+    add: s => { const rec = { id: 'ses_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                              ts: Date.now(), day: dayKey(new Date()), ...s };
+                return ltx('sessions', 'readwrite', st => st.put(rec)).then(() => rec); },
+    // sessions with from ≤ day ≤ to ('YYYY-MM-DD'), oldest first
+    range: (from, to) => ltx('sessions', 'readonly', st => st.index('day').getAll(IDBKeyRange.bound(from, to)))
+                           .then(a => (a || []).sort((x, y) => x.ts - y.ts)),
+    item: key => ltx('items', 'readonly', st => st.get(key)),
+    items: () => openLog().then(db => new Promise((res, rej) => {
+      const t = db.transaction('items', 'readonly'), s = t.objectStore('items'), out = {};
+      const rq = s.openCursor();
+      rq.onsuccess = () => { const c = rq.result; if(c){ out[c.key] = c.value; c.continue(); } };
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error);
+    })),
+    setItem: (key, v) => ltx('items', 'readwrite', st => st.put(v, key)).then(() => v),
+  };
+
+  // ── Practice helpers (pure) ───────────────────────────────────────────
+  // local calendar day, 'YYYY-MM-DD'
+  function dayKey(d){
+    d = d instanceof Date ? d : new Date(d);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  function addDays(day, n){ const [y, m, d] = day.split('-').map(Number); return dayKey(new Date(y, m - 1, d + n)); }
+  // consecutive practised days ending today (or yesterday: today isn't over)
+  function streak(days, today){
+    const set = new Set(days); today = today || dayKey(new Date());
+    let d = set.has(today) ? today : addDays(today, -1), n = 0;
+    while(set.has(d)){ n++; d = addDays(d, -1); }
+    return n;
+  }
+  // Spaced repetition for a child's songs (SM-2-lite; ts-fsrs would need a
+  // build step). 3★ grows the gap, 2★ nudges it, 1★ starts over tomorrow.
+  function srsNext(st, stars, today){
+    st = { ease: 2.3, intervalD: 0, reps: 0, lapses: 0, ...(st || {}) };
+    today = today || dayKey(new Date());
+    if(stars >= 3){
+      st.intervalD = st.reps === 0 ? 1 : st.reps === 1 ? 3 : Math.round(st.intervalD * st.ease);
+      st.reps++; st.ease = Math.min(2.8, st.ease + 0.05);
+    } else if(stars === 2){
+      st.intervalD = Math.max(1, Math.round((st.intervalD || 1) * 1.2));
+    } else {
+      st.intervalD = 1; st.reps = 0; st.lapses++; st.ease = Math.max(1.5, st.ease - 0.2);
+    }
+    st.due = addDays(today, st.intervalD);
+    st.last = today; st.lastStars = stars;
+    return st;
+  }
+  // per-note timing of a Play-along run → numbers for the parent page
+  // notes: [{dtMs (signed: − early, + late; null = missed), vel (0..127|null)}]
+  function timingStats(notes){
+    const hit = notes.filter(n => n.dtMs != null), dts = hit.map(n => n.dtMs);
+    const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    const sd = a => { if(a.length < 2) return 0; const m = mean(a); return Math.sqrt(mean(a.map(x => (x - m) ** 2))); };
+    const vels = hit.map(n => n.vel).filter(v => v != null);
+    return {
+      n: notes.length, hit: hit.length,
+      onBeatPct: notes.length ? Math.round(hit.length / notes.length * 100) : 0,
+      meanAbsMs: Math.round(mean(dts.map(Math.abs))),
+      biasMs: Math.round(mean(dts)),               // − rushing, + dragging
+      evennessMs: Math.round(sd(dts)),             // lower = steadier
+      velMean: vels.length ? Math.round(mean(vels)) : null,
+      velSpread: vels.length ? Math.round(sd(vels)) : null,
+    };
+  }
+
   const MusicCore = {
     CORE_VERSION: 1,
     NOTE_NAMES, NOTE_BARE, SOLFEGE, PALETTE,
@@ -337,7 +437,7 @@
     autoChords, chordAt, chordTones,
     parseTokens, fromTokens, toTokens,
     BUILTIN, builtinTakes,
-    store,
+    store, log, dayKey, addDays, streak, srsNext, timingStats,
   };
   if(typeof module !== 'undefined' && module.exports) module.exports = MusicCore;
   else root.MusicCore = MusicCore;

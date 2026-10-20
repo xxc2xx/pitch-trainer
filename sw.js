@@ -1,11 +1,11 @@
-const CACHE = 'pt-v30';
+const CACHE = 'pt-v32';
 // Both apps live on xxc2xx.github.io and share Cache Storage: only ever
 // delete OUR caches (same prefix) plus the old shared 'pitch-vN' names both
 // apps used before they had their own prefixes.
 const PREFIX = CACHE.replace(/v\d+$/, '');
 
 const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js', './sound.js', './midi.js', './songfile.js', './addsong.js', './studio.js',
-                './music-core.js', './piano.js'];
+                './music-core.js', './piano.js', './echo.js', './today.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

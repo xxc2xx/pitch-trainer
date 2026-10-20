@@ -110,6 +110,90 @@ ok(C.toTokens(midCh) === C.toTokens(tw), 'MIDI export with a chords track still 
   ok(ov.length === 2 && ov[0].t === 0 && ov[0].d === 1 && ov[1].t === 0.5 && ov[1].d === 1.5, 'MIDI import keeps overlapping same-pitch notes: ' + JSON.stringify(ov.map(n => [n.t, n.d])));
 }
 
+// ── Practice helpers ────────────────────────────────────────────────────
+ok(C.dayKey(new Date(2026, 9, 5)) === '2026-10-05' && C.addDays('2026-10-31', 1) === '2026-11-01' && C.addDays('2026-03-01', -1) === '2026-02-28', 'dayKey / addDays across months');
+ok(C.streak(['2026-10-18', '2026-10-19', '2026-10-20'], '2026-10-20') === 3, 'streak: 3 days ending today');
+ok(C.streak(['2026-10-18', '2026-10-19'], '2026-10-20') === 2, 'streak: today not done yet still counts yesterday');
+ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'streak: a missed day breaks it');
+{
+  let st = C.srsNext(null, 3, '2026-10-20');
+  ok(st.intervalD === 1 && st.due === '2026-10-21', 'srs: first 3★ → tomorrow');
+  st = C.srsNext(st, 3, '2026-10-21'); ok(st.intervalD === 3 && st.due === '2026-10-24', 'srs: second 3★ → 3 days');
+  st = C.srsNext(st, 3, '2026-10-24'); ok(st.intervalD >= 7, 'srs: third 3★ → about a week (' + st.intervalD + ')');
+  const iv = st.intervalD; st = C.srsNext(st, 2, '2026-11-01'); ok(st.intervalD >= iv && st.intervalD <= Math.ceil(iv * 1.2), 'srs: 2★ nudges the gap');
+  st = C.srsNext(st, 1, '2026-11-10'); ok(st.intervalD === 1 && st.reps === 0 && st.lapses === 1, 'srs: 1★ starts over tomorrow');
+}
+{
+  const ts = C.timingStats([{ dtMs: 50, vel: 60 }, { dtMs: 70, vel: 80 }, { dtMs: 60, vel: 70 }, { dtMs: null, vel: null }]);
+  ok(ts.biasMs === 60 && ts.meanAbsMs === 60 && ts.onBeatPct === 75 && ts.evennessMs === 8 && ts.velMean === 70, 'timingStats: dragging 60 ms, 3 of 4 on the beat: ' + JSON.stringify(ts));
+  ok(C.timingStats([{ dtMs: -40 }, { dtMs: -20 }]).biasMs === -30, 'timingStats: negative bias = rushing');
+}
+
+// ── Echo (echo.js): curriculum + singing judge ──────────────────────────
+{
+  const vm = require('vm'), fs = require('fs');
+  const win = { MusicCore: C };
+  vm.runInNewContext(fs.readFileSync(new URL('../echo.js', import.meta.url), 'utf8'), { window: win, document: undefined, performance, console });
+  const E = win.Echo;
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  let inSet = true, varied = true;
+  E.STAGES.forEach((st, k) => { for(let j = 0; j < 40; j++){ const p = E.patterns(k, 2 + (j % 4), rnd); if(!p.every(x => st.deg.includes(x))) inSet = false; if(p.every(x => x === p[0])) varied = false; } });
+  ok(inSet && varied, 'Echo.patterns: every stage stays in its notes, never one repeated note');
+  ok(E.patterns(0, 3, rnd).every(x => x === 7 || x === 4), 'Echo stage 1 is only sol and mi');
+  const pat = [7, 4, 7, 9];                                    // s m s l
+  ok(E.matchSung(pat, [70, 67, 70, 72]).ok, 'matchSung: same tune sung 3 semitones higher is right');
+  ok(E.matchSung(pat, [67, 65, 67, 69]).ok, 'matchSung: ±1 semitone wobble still counts');
+  ok(E.matchSung(pat, [67, 64, 79, 69]).notes[2], 'matchSung: an octave slip is not a wrong note');
+  const bad = E.matchSung(pat, [67, 69, 67, 69]);
+  ok(!bad.ok && !bad.notes[1], 'matchSung: going up where the tune goes down is wrong');
+  ok(!E.matchSung(pat, [67, 64]).ok, 'matchSung: too few notes is not a match');
+  // live segmentation: G4 300 ms, gap 150 ms, E4 300 ms → 2 notes
+  const seg = E.liveSeg(), got = [];
+  let t = 0; const feed = (mf, ms) => { for(let k = 0; k < ms; k += 30){ const n = seg.push(mf, t); if(n) got.push(n.m); t += 30; } };
+  feed(67.2, 300); feed(null, 150); feed(63.8, 300); feed(null, 150);
+  ok(got.join() === '67,64', 'liveSeg: two sung notes found with their pitches: ' + got.join());
+  const seg2 = E.liveSeg(), got2 = []; t = 0;
+  const feed2 = (mf, ms) => { for(let k = 0; k < ms; k += 30){ const n = seg2.push(mf, t); if(n) got2.push(n.m); t += 30; } };
+  feed2(67, 300); feed2(64, 300); const last = seg2.flush(); if(last) got2.push(last.m);
+  ok(got2.join() === '67,64', 'liveSeg: a pitch change without a breath starts a new note');
+  let st = null; for(let k = 0; k < 4; k++) st = E.adapt(st, true);
+  ok(st.stage === 1 && st.streak === 0, 'adapt: 4 good echoes unlock the next stage');
+  st = E.adapt(E.adapt(st, false), false);
+  ok(st.stage === 1 && st.short === 1, 'adapt: 2 misses make the tunes shorter, never go back a stage');
+}
+
+// ── Today (today.js): daily plan ────────────────────────────────────────
+{
+  const vm = require('vm'), fs = require('fs');
+  const win = { MusicCore: C };
+  vm.runInNewContext(fs.readFileSync(new URL('../today.js', import.meta.url), 'utf8'), { window: win, performance, console, setTimeout });
+  const T = win.Today, B = C.builtinTakes();
+  const cls = C.makeTake({ id: 'cls1', title: 'Class song', tag: 'class', createdAt: 5, bpm: 90,
+    notes: Array.from({ length: 16 }, (_, i) => ({ m: 60 + (i % 5), t: i, d: 1 })) });   // 16 beats = 4 bars
+  let p = T.plan({ songs: [...B], items: {}, level: 'sprout', today: '2026-10-20' });
+  ok(p.steps.map(s => s.kind).join() === 'echo,learn,reward' && p.steps[1].songId === B[0].id && p.steps[1].phrase === 0 && p.minutes === 5,
+     'Today: fresh start = Echo + first starter song, phrase 1 + prize (5 min at 🌱)');
+  p = T.plan({ songs: [...B, cls], items: {}, level: 'bloom', today: '2026-10-20' });
+  ok(p.steps[1].songId === 'cls1' && p.steps[0].rounds === 4 && p.minutes === 10, 'Today: her class song is learnt before the starters');
+  const ph = T.phrases(cls, 'sprout');
+  ok(ph.length === 2 && ph[0].from === 0 && ph[0].to === 8 && ph[1].from === 8, 'Today: 4 bars → two 2-bar phrases');
+  ok(T.phrases({ ...cls, section: { from: 4, to: 12 } }, 'sprout').every(x => x.from >= 4 && x.to <= 12), 'Today: a practice part set in ✏️ Fix limits the phrases');
+  // learning progress
+  let st = T.afterSong(null, { kind: 'learn', phrase: 0, phrases: 2 }, { mode: 'timed', stars: 2 }, '2026-10-20');
+  ok(st.phrase === 1, 'Today: 2★ on a phrase → next phrase');
+  ok(T.afterSong(st, { kind: 'learn', phrase: 1, phrases: 2 }, { mode: 'wait', stars: 3 }, '2026-10-20').phrase === 1, 'Today: step-by-step alone does not move on');
+  st = { phrase: 2, phrases: 2, wins: 0 };
+  st = T.afterSong(st, { kind: 'learn', whole: true, phrases: 2 }, { mode: 'timed', stars: 3 }, '2026-10-20');
+  st = T.afterSong(st, { kind: 'learn', whole: true, phrases: 2 }, { mode: 'timed', stars: 3 }, '2026-10-21');
+  ok(st.mastered && st.srs && st.srs.due === '2026-10-22', 'Today: whole song 3★ twice → mastered, review tomorrow');
+  p = T.plan({ songs: [...B, cls], items: { 'song:cls1': st }, level: 'bloom', today: '2026-10-22' });
+  ok(p.steps.some(s => s.kind === 'review' && s.songId === 'cls1') && p.steps.find(s => s.kind === 'learn').songId === B[0].id,
+     'Today: a mastered song comes back for review when due; learning moves to the next song');
+  ok(!T.plan({ songs: [cls], items: { 'song:cls1': st }, level: 'bloom', today: '2026-10-21' }).steps.some(s => s.kind === 'review'), 'Today: not due yet → no review');
+  const st2 = T.afterSong(st, { kind: 'review' }, { mode: 'timed', stars: 3 }, '2026-10-22');
+  ok(st2.srs.due > '2026-10-23', 'Today: a good review pushes the next one further out (' + st2.srs.due + ')');
+}
+
 // ── Live pitch (hear.js): McLeod detector + steady-note tracker ──────────
 {
   const vm = require('vm'), fs = require('fs');

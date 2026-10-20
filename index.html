@@ -609,6 +609,8 @@
   <script src="songfile.js"></script>
   <script src="addsong.js"></script>
   <script src="studio.js"></script>
+  <script src="echo.js"></script>
+  <script src="today.js"></script>
   <script>
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
@@ -934,7 +936,7 @@
     if(ac.state==='running') go();
     else ac.resume().then(go).catch(()=>{});
     // ✏️ Fix notes open: the key fixes the selected note instead of playing the song
-    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else songs.onKey(m); }
+    if(currentMode==='songs'){ if(window.Studio&&Studio.active) Studio.onKey(m); else if(echo.active) echo.onKey(m); else songs.onKey(m,inputFromMidi?lastMidiVel:null); }
     if(pianoRec) pianoRec.push({m,on:performance.now(),off:null});
   }
   function onPianoUp(m){
@@ -994,6 +996,10 @@
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
     addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
     range:()=>Midi.range,
+    openEcho:()=>startEcho(),
+    todayCard:()=>today.card(),
+    openToday:()=>startToday(),
+    busy:()=>echo.active||today.busy,              // Echo / Today own the view: don't redraw the shelf over it
     onTogether:on=>{
       togetherWide=on; updateKeyLabels();
       if(on){
@@ -1002,6 +1008,30 @@
       }
     },
   });
+
+  // ── 🎤 Echo: hear a tune, sing it back, find it on the keyboard ───────
+  // Renders into the Songs view (the piano stays below it); keys go to Echo
+  // while it runs.
+  const echo=Echo.create({
+    host:document.getElementById('songsView'),
+    audio:()=>ensureKbCtx(),
+    playNote:(ac,m,when,dur,o)=>{ Sound.use(ac); return Sound.schedule(m,when,dur,o); },
+    cancelNotes:tag=>Sound.cancel(tag),
+    mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
+    getKb:()=>kb, getLevel:()=>level,
+    onExit:()=>{ today.stop(); songs.shelf(); },
+  });
+  function startEcho(o){ songs.hide(); document.getElementById('songsView').style.display='flex'; echo.start(o||{rounds:4}); }
+
+  // ── 🌟 Today: the daily lesson (Echo → learn a phrase → review → prize) ──
+  const today=Today.create({
+    host:document.getElementById('songsView'),
+    songs, echo, getLevel:()=>level,
+    listSongs:async()=>{ let mine=[]; try{ mine=await MC.store.listTakes(); }catch(e){} return [...mine,...MC.builtinTakes()]; },
+    sticker:id=>songs.sticker(id),
+    onExit:()=>{ echo.stop(); songs.shelf(); },
+  });
+  function startToday(){ songs.release(); today.start(); }
 
   // ── Her keyboard (midi.js) ────────────────────────────────────────────
   // MIDI notes go through the on-screen keyboard exactly like a tap: the key
@@ -1018,6 +1048,7 @@
                  :st.state==='unsupported'?'Use Chrome on the computer for a real keyboard':'Her keyboard';
   });
   midiBtn.addEventListener('click',()=>{ ensureKbCtx(); Midi.connect(); });
+  let lastMidiVel=null;       // velocity of her latest key → Songs timing/dynamics feedback
   const midiOnKb=new Set();   // her keys currently held down on the on-screen piano
   Midi.onNote((m,vel,isOn)=>{
     // a context made outside a tap stays suspended — ask for one tap instead (Codex P1)
@@ -1032,7 +1063,7 @@
     if(currentMode==='keys'||currentMode==='songs'||(!isOn&&midiOnKb.has(m))){
       inputFromMidi=true;                          // her keyboard — never Dad's part
       try{
-        if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); midiOnKb.add(m); kb?kb.press(m):onPianoDown(m); }
+        if(isOn){ if(kb&&!songs.together) kb.scrollTo(m); midiOnKb.add(m); lastMidiVel=vel; kb?kb.press(m):onPianoDown(m); }
         else { midiOnKb.delete(m); kb?kb.release(m):onPianoUp(m); }
       } finally { inputFromMidi=false; }
     } else {
@@ -2503,6 +2534,7 @@
       document.querySelectorAll('.inst-btn').forEach(b=>b.classList.toggle('sel',b.dataset.inst==='piano'));
       updateKeyLabels();
     }
+    if(!isSongs){ echo.stop(); today.stop(); }
     if(isSongs) songs.show(); else songs.hide();
     document.getElementById('hearRow').style.display=mode==='listen'?'':'none';
     if(singRec&&mode!=='listen'){ singRec.stop(); singRec=null; singRecBtn.classList.remove('on'); singRecBtn.textContent='⏺ Sing a song'; }
