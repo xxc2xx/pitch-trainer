@@ -20,16 +20,19 @@ SHA="$(git -C "$REPO" rev-parse --short "$BRANCH")"
 python3 - "$WT/staging" "$SHA" <<'PY'
 import sys, os, re, json
 d, sha = sys.argv[1], sys.argv[2]
-p = os.path.join(d, 'index.html'); s = open(p).read()
 badge = ('<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;'
          'background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;'
          'border-radius:0 0 6px 6px;pointer-events:none">STAGING ' + sha + '</div>')
-s = s.replace('<meta charset="UTF-8">', '<meta charset="UTF-8">\n  <meta name="robots" content="noindex">', 1)
-# cache-bust local scripts: Pages caches .js for 10 min, and an old module
-# against a new index.html breaks (seen in testing)
-s = re.sub(r'<script src="([\w.-]+\.js)"></script>', lambda m: '<script src="%s?v=%s"></script>' % (m.group(1), sha), s)
-s = re.sub(r'(<body[^>]*>)', lambda m: m.group(1) + '\n' + badge, s, count=1)
-open(p, 'w').write(s)
+for name in ('index.html', 'garden.html'):             # every app page that ships
+  p = os.path.join(d, name)
+  if not os.path.exists(p): continue
+  s = open(p).read()
+  s = s.replace('<meta charset="UTF-8">', '<meta charset="UTF-8">\n  <meta name="robots" content="noindex">', 1)
+  # cache-bust local scripts: Pages caches .js for 10 min, and an old module
+  # against a new page breaks (seen in testing)
+  s = re.sub(r'<script src="([\w.-]+\.js)"></script>', lambda m: '<script src="%s?v=%s"></script>' % (m.group(1), sha), s)
+  s = re.sub(r'(<body[^>]*>)', lambda m: m.group(1) + '\n' + badge, s, count=1)
+  open(p, 'w').write(s)
 m = os.path.join(d, 'manifest.json')
 if os.path.exists(m):
     j = json.load(open(m)); j['name'] += ' (staging)'; j['short_name'] += ' β'
