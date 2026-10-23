@@ -7,7 +7,7 @@
        passed in so there is exactly one detector to tune. Frames go through
        Hear.pitchTracker (median + octave-slip fold) first.
 
-   Hear.mpm(buf, sampleRate)  → { freq, clarity } | null   McLeod pitch, one frame
+   Hear.mpm(buf, sampleRate)  → { freq, clarity } | null   McLeod pitch, one frame (object reused)
    Hear.pitchTracker()        → { push(freq|null) → { mf, note, cents } | null }
        Steady note for the Listen display: hysteresis so a wobbly voice
        doesn't flicker between neighbouring notes.
@@ -66,6 +66,7 @@
   // random note. Picks the FIRST strong peak, which avoids most octave-low
   // errors that plain autocorrelation makes on a child's bright voice.
   let nsdfBuf = null; const peakBuf = [];
+  const mpmOut = { freq: 0, clarity: 0 };            // reused: callers read it at once
   function mpm(buf, sr, o){
     o = o || {};
     const n = buf.length, fMin = o.fMin || 60, fMax = o.fMax || 1600;
@@ -95,7 +96,9 @@
     const a = nsdf[pk - 1], b = nsdf[pk], c = nsdf[pk + 1], d = a - 2 * b + c;
     const shift = d !== 0 ? 0.5 * (a - c) / d : 0;
     const freq = sr / (pk + shift);
-    return freq >= fMin && freq <= fMax ? { freq, clarity: Math.min(1, b - 0.25 * (a - c) * shift) } : null;
+    if(freq < fMin || freq > fMax) return null;
+    mpmOut.freq = freq; mpmOut.clarity = Math.min(1, b - 0.25 * (a - c) * shift);
+    return mpmOut;
   }
 
   // ── Steady note from a wobbly voice ───────────────────────────────────
@@ -111,6 +114,7 @@
     o = o || {};
     const WIN = o.win || 5, HYST = o.hyst || 0.7, HOLD = o.hold || 3, GAP = o.gap ?? 6;
     let hist = [], note = null, cand = null, candN = 0, gap = 0, last = null;
+    const out = { mf: 0, note: 0, cents: 0 };       // reused per tracker: read it before the next push
     // median of ≤ WIN values without allocating: a reused scratch array + insertion sort
     const scratch = [];
     const median = a => { scratch.length = 0; for(const v of a){ let k = scratch.length; while(k > 0 && scratch[k - 1] > v){ scratch[k] = scratch[k - 1]; k--; } scratch[k] = v; } return scratch[scratch.length >> 1]; };
@@ -134,7 +138,8 @@
           if(candN >= (note == null ? 2 : HOLD)){ note = r; cand = null; candN = 0; }
         } else { cand = null; candN = 0; }
         if(note == null) return null;
-        last = { mf, note, cents: Math.round((mf - note) * 100) };
+        out.mf = mf; out.note = note; out.cents = Math.round((mf - note) * 100);
+        last = out;
         return last;
       },
       reset(){ hist = []; note = null; cand = null; candN = 0; gap = 0; last = null; },
