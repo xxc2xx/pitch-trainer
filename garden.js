@@ -127,12 +127,31 @@
   function toast(msg){ const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2400); }
 
   /* ── Audio ── */
+  // iOS: a looping silent <audio> moves the page onto the media channel, so
+  // Web Audio still plays with the iPhone/iPad silent switch on (same trick
+  // as index.html). Started on the first touch, before any context exists.
+  const iosAudio = (() => {
+    const el = document.createElement('audio');
+    el.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+    el.loop = true; el.volume = 0.001; el.setAttribute('playsinline', '');
+    return el;
+  })();
   let ac = null;
   function actx(){
     if(!ac){ const A = window.AudioContext || window.webkitAudioContext; if(!A) return null; ac = new A(); Sound.use(ac); }
     if(ac.state !== 'running') ac.resume().catch(() => {});
     return ac;
   }
+  (() => {
+    const unlock = () => {
+      ['touchstart', 'touchend', 'pointerdown'].forEach(ev => document.removeEventListener(ev, unlock, true));
+      iosAudio.play().catch(() => {});
+      const c = actx(); if(!c) return;
+      const src = c.createBufferSource(); src.buffer = c.createBuffer(1, 1, c.sampleRate);
+      src.connect(c.destination); src.start(0);
+    };
+    ['touchstart', 'touchend', 'pointerdown'].forEach(ev => document.addEventListener(ev, unlock, true));
+  })();
   function blip(m, when, dur, vol){
     const c = actx(); if(!c) return;
     const t = when || c.currentTime, f = MC.midiToFreq(m), g = c.createGain(), o = c.createOscillator();
@@ -899,6 +918,7 @@
   document.addEventListener('visibilitychange', () => { if(document.hidden){ stopRun(); micStop(); } });
 
   show('home');
+  if('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   window.Garden = { SONGS, targetsOf, songBeats, verdictOf, scoreOf, berriesFor, timingSummary, distractors, staffSvg, WIN, POINTS,
     _state: () => state, _press: (m, src) => pressed(m, src || 'screen'), _run: () => run };
 })();
