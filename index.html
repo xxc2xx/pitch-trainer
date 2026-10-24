@@ -619,6 +619,11 @@
   <script src="notes.js"></script>
   <script src="progress.js"></script>
   <script>
+  // Live, staging and dev share one origin: staging must never write the keys
+  // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
+  // already had once, never deletes the original.
+  const AVATAR_KEY=window.MusicCore.adoptKey('pitchTrainer_avatar');
+  const ONBOARD_KEY=window.MusicCore.adoptKey('pitchTrainer_onboarded');
   // ── Avatar onboarding gate ───────────────────────────────────────────
   // #avatarGate defaults to visible via CSS (safe default, no build step
   // available to inject a head-blocking script) — this hides it
@@ -630,12 +635,12 @@
   // this, a user who skipped onboarding had no way to reach the gate again.
   var AVATAR_PLACEHOLDER="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Crect width='34' height='34' fill='%230f0e17'/%3E%3Ccircle cx='17' cy='13' r='6' fill='%234a4a7a'/%3E%3Cpath d='M6 31c0-6 5-9 11-9s11 3 11 9' fill='%234a4a7a'/%3E%3C/svg%3E";
   function showAvatarBadge(){
-    var avatar=localStorage.getItem('pitchTrainer_avatar');
+    var avatar=localStorage.getItem(AVATAR_KEY);
     var badge=document.getElementById('avatarBadge');
     badge.src=avatar||AVATAR_PLACEHOLDER;
     badge.style.display='block';
   }
-  if(localStorage.getItem('pitchTrainer_onboarded')==='1'){
+  if(localStorage.getItem(ONBOARD_KEY)==='1'){
     document.getElementById('avatarGate').classList.add('hidden');
   }
   showAvatarBadge();  // always show the badge (placeholder until an avatar is set)
@@ -771,9 +776,9 @@
       const dataUrl=lastResult && lastResult.dataURL;
       if(!dataUrl) return;
       try{
-        localStorage.setItem('pitchTrainer_avatar',dataUrl);
+        localStorage.setItem(AVATAR_KEY,dataUrl);
       }catch(err){ /* quota/storage disabled — proceed without persisting */ }
-      localStorage.setItem('pitchTrainer_onboarded','1');
+      localStorage.setItem(ONBOARD_KEY,'1');
       gate.classList.add('hidden');
       showAvatarBadge();
     });
@@ -781,7 +786,7 @@
     retakeBtn.addEventListener('click',showDropZoneState);
 
     skipBtn.addEventListener('click',function(){
-      localStorage.setItem('pitchTrainer_onboarded','1');
+      localStorage.setItem(ONBOARD_KEY,'1');
       gate.classList.add('hidden');
     });
 
@@ -1003,7 +1008,7 @@
     playNote:(ac,m,when,dur,o)=>Sound.schedule(m,when,dur,o),
     cancelNotes:tag=>Sound.cancel(tag),
     click:(ac,when,accent,dest)=>scheduleMetroClick(ac,when,accent,dest),
-    avatar:()=>{ try{ return localStorage.getItem('pitchTrainer_avatar'); }catch(e){ return null; } },
+    avatar:()=>{ try{ return localStorage.getItem(AVATAR_KEY); }catch(e){ return null; } },
     mic:onPitch=>Hear.pitchStream({detectPitch,onPitch}),
     addSong:onSaved=>AddSong.open({detectPitch,onSaved}),
     range:()=>Midi.range,
@@ -1349,8 +1354,8 @@
   // No backend here, so both grains live in localStorage instead of JSONL
   // files. See ~/busy-brain/claude-config/ARCHITECTURE.md for the
   // reference this was ported from.
-  const FLOW_ATTEMPTS_KEY='pitchTrainer_flowAttempts';
-  const FLOW_SESSIONS_KEY='pitchTrainer_flowSessions';
+  const FLOW_ATTEMPTS_KEY=MC.adoptKey('pitchTrainer_flowAttempts');
+  const FLOW_SESSIONS_KEY=MC.adoptKey('pitchTrainer_flowSessions');
   const FLOW_ATTEMPTS_CAP=1500, FLOW_SESSIONS_CAP=500;
 
   function readJSONList(key){

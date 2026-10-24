@@ -1,12 +1,16 @@
-/* music-core.js — shared foundation for pitch-trainer and beat-hive.
-   CORE_VERSION 1
+/* @shared music-core 1.1.0 */
+/* music-core.js — shared foundation for pitch-trainer, beat-hive and music-garden.
+   VERSION (semver) is the contract consumers pin in vendor.lock.json:
+   major = removed/renamed export or changed return shape, minor = additive,
+   patch = fix. Bump it in this header, in VERSION below and in
+   shared-manifest.json together.
 
    Classic script (not an ES module) so both apps' inline <script> blocks can
    use it synchronously: it sets window.MusicCore. Under node it exports the
    same object for tools/core-test.mjs.
 
-   beat-hive carries a vendored copy — edit THIS file, then run
-   tools/sync-core.sh. beat-hive's qc.js fails if the copies drift.
+   beat-hive and music-garden carry vendored copies — edit THIS file, then run
+   tools/consumers-test.sh and tools/sync-core.sh (see CLAUDE.md, governance).
 
    Contents:
    - PALETTE / SOLFEGE / note helpers  (one colour per pitch class, everywhere)
@@ -17,6 +21,32 @@
 */
 (function(root){
   'use strict';
+  const VERSION = '1.1.0';
+
+  // ── Environment namespace ─────────────────────────────────────────────
+  // Live, staging and local dev share ONE origin (xxc2xx.github.io /
+  // localhost), so storage is shared unless names differ. Every persistent
+  // name goes through ns(): unchanged in production, 'name@stg' under
+  // /staging/, '@dev' on localhost, '@test' with ?env=test (automated runs).
+  let _env = null;
+  function env(){
+    if(_env != null) return _env;
+    const L = root.location;
+    if(!L) return (_env = '');
+    if(/[?&]env=test(&|$)/.test(L.search || '')) return (_env = 'test');
+    if(/\/staging\//.test(L.pathname || '')) return (_env = 'stg');
+    if(/^(localhost|127\.0\.0\.1|\[::1\])$/.test(L.hostname || '')) return (_env = 'dev');
+    return (_env = '');
+  }
+  const ns = name => env() ? name + '@' + env() : name;
+  // one-time copy of an un-namespaced localStorage value into this env's key,
+  // so moving a key behind ns() keeps what she already had; never deletes
+  function adoptKey(name){
+    const k = ns(name);
+    if(k === name) return k;
+    try{ if(localStorage.getItem(k) == null){ const v = localStorage.getItem(name); if(v != null) localStorage.setItem(k, v); } }catch(e){}
+    return k;
+  }
 
   // ── Pitch classes ─────────────────────────────────────────────────────
   const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
@@ -449,7 +479,8 @@
   }
 
   const MusicCore = {
-    CORE_VERSION: 1,
+    CORE_VERSION: 1, VERSION, env, ns, adoptKey,
+    _setEnv: e => { _env = e; },                   // tests only
     NOTE_NAMES, NOTE_BARE, SOLFEGE, PALETTE,
     pc, octaveOf, midiToFreq, freqToMidiFloat, midiName, midiOf,
     colorOf, isBlack, shapeOf, label,

@@ -1,3 +1,4 @@
+/* @shared hear 1.0.0 */
 /* hear.js — Hear: microphone/audio → notes → Take.
    Classic script → window.Hear. Depends on music-core.js.
 
@@ -410,6 +411,6 @@
     return res;
   }
 
-  window.Hear = { mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
+  window.Hear = { VERSION: '1.0.0', mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
                   gradioCall, analyzeRemote };
 })();

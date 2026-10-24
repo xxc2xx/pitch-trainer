@@ -1,0 +1,175 @@
+{
+  "music-core.js": {
+    "global": "MusicCore",
+    "version": "1.1.0",
+    "sha256": "899405dd2a7c63784654317e73defdb0c30450a1d19f4ac85ba193080b8da5ea",
+    "api": {
+      "BUILTIN": "object",
+      "CLEF_SHIFT": "object",
+      "CORE_VERSION": "number",
+      "LEVELS": "object",
+      "NOTE_BARE": "object",
+      "NOTE_NAMES": "object",
+      "PALETTE": "object",
+      "SOLFEGE": "object",
+      "VERSION": "string",
+      "_setEnv": "fn/1",
+      "addDays": "fn/2",
+      "adoptKey": "fn/1",
+      "autoChords": "fn/1",
+      "beatToSec": "fn/2",
+      "builtinTakes": "fn/0",
+      "chordAt": "fn/2",
+      "chordTones": "fn/3",
+      "colorOf": "fn/1",
+      "dayKey": "fn/1",
+      "env": "fn/0",
+      "estimateTempo": "fn/1",
+      "freqToMidiFloat": "fn/1",
+      "fromTokens": "fn/2",
+      "getLevel": "fn/0",
+      "isBlack": "fn/1",
+      "label": "fn/2",
+      "log": "object",
+      "makeTake": "fn/1",
+      "midiName": "fn/1",
+      "midiOf": "fn/2",
+      "midiToFreq": "fn/1",
+      "ns": "fn/1",
+      "octaveOf": "fn/1",
+      "parseTokens": "fn/1",
+      "pc": "fn/1",
+      "quantize": "fn/2",
+      "secToBeat": "fn/2",
+      "setLevel": "fn/1",
+      "shapeOf": "fn/1",
+      "skyline": "fn/1",
+      "songFromAnalysis": "fn/3",
+      "srsNext": "fn/3",
+      "staffStep": "fn/2",
+      "stepToMidi": "fn/1",
+      "store": "object",
+      "streak": "fn/2",
+      "takeLength": "fn/1",
+      "timingStats": "fn/1",
+      "toTokens": "fn/1"
+    },
+    "consumers": [
+      "beat-hive",
+      "music-garden"
+    ]
+  },
+  "hear.js": {
+    "global": "Hear",
+    "version": "1.0.0",
+    "sha256": "c1b691403bb53654d5f2b59c1895b5dd9ac8a00307553cf557c8b7850e1473a2",
+    "api": {
+      "VERSION": "string",
+      "analyzeRemote": "fn/3",
+      "decode": "fn/1",
+      "gradioCall": "fn/4",
+      "legato": "fn/2",
+      "mergeFragments": "fn/1",
+      "mpm": "fn/3",
+      "normaliseOctave": "fn/1",
+      "pitchStream": "fn/1",
+      "pitchTracker": "fn/1",
+      "secondsToTake": "fn/2",
+      "singRecorder": "fn/1",
+      "snapToKey": "fn/1",
+      "transcribeBlob": "fn/2"
+    },
+    "consumers": [
+      "beat-hive",
+      "music-garden"
+    ]
+  },
+  "midi.js": {
+    "global": "Midi",
+    "version": "1.0.0",
+    "sha256": "343e0117b085b25efa1b80e2be2156862496ac969a8403a71f2f12c72b800d98",
+    "api": {
+      "VERSION": "string",
+      "_message": "fn/1",
+      "autoConnect": "fn/0",
+      "connect": "fn/0",
+      "connected": "getter",
+      "onNote": "fn/1",
+      "onStatus": "fn/1",
+      "range": "getter",
+      "resetRange": "fn/0",
+      "supported": "boolean"
+    },
+    "consumers": [
+      "beat-hive",
+      "music-garden"
+    ]
+  },
+  "sound.js": {
+    "global": "Sound",
+    "version": "1.0.0",
+    "sha256": "c253162c7278de02acbf8bbed6b19a108c4e3eacb3fc7a957aac353d8079d952",
+    "api": {
+      "VERSION": "string",
+      "allOff": "fn/0",
+      "cancel": "fn/1",
+      "instrument": "getter",
+      "noteOff": "fn/1",
+      "noteOffAs": "fn/2",
+      "noteOn": "fn/2",
+      "noteOnAs": "fn/3",
+      "onStatus": "fn/1",
+      "parentInstrument": "getter",
+      "sampled": "getter",
+      "schedule": "fn/4",
+      "setInstrument": "fn/1",
+      "setParentInstrument": "fn/1",
+      "use": "fn/1"
+    },
+    "consumers": [
+      "music-garden"
+    ]
+  },
+  "echo.js": {
+    "global": "Echo",
+    "version": "1.0.0",
+    "sha256": "be85af1e3058542e443e2464cf54902a08d05899a5d6ed008bb71a53afc4b741",
+    "api": {
+      "STAGES": "object",
+      "STAGES_VERSION": "number",
+      "VERSION": "string",
+      "adapt": "fn/2",
+      "create": "fn/1",
+      "liveSeg": "fn/1",
+      "matchSung": "fn/2",
+      "patterns": "fn/3",
+      "syllable": "fn/1"
+    },
+    "consumers": []
+  },
+  "notes.js": {
+    "global": "Notes",
+    "version": "1.0.0",
+    "sha256": "9620491517e2973b4657e1ac85d2182e7ffdc3e71fb6a446ff944c7e62869927",
+    "api": {
+      "ORDER": "object",
+      "START": "object",
+      "VERSION": "string",
+      "analyzeWrite": "fn/2",
+      "box": "fn/3",
+      "choices": "fn/3",
+      "create": "fn/1",
+      "deckAfter": "fn/3",
+      "drawStaff": "fn/3",
+      "fUnlocked": "fn/1",
+      "nameOf": "fn/2",
+      "noteGuide": "fn/3",
+      "octName": "fn/1",
+      "pickRound": "fn/3",
+      "scoreWrite": "fn/4",
+      "starsOf": "fn/1",
+      "traceScore": "fn/3"
+    },
+    "consumers": []
+  }
+}

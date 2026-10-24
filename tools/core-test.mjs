@@ -317,5 +317,25 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(t0.push(null) === null, 'tracker gap 0: silence reported at once (recorder splits repeated notes)');
 }
 
+// ── Environment isolation (plan D1 / audit S0) ────────────────────────
+{
+  const mem = {}; globalThis.localStorage = { getItem: k => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
+  C._setEnv('');
+  ok(C.ns('pitchTrainer_flowSessions') === 'pitchTrainer_flowSessions' && C.adoptKey('x') === 'x', 'prod: names unchanged');
+  C._setEnv('stg');
+  mem['pitchTrainer_onboarded'] = '1';
+  const k = C.adoptKey('pitchTrainer_onboarded');
+  ok(k === 'pitchTrainer_onboarded@stg' && mem[k] === '1' && mem['pitchTrainer_onboarded'] === '1', 'staging adopts the old value once, never deletes it');
+  mem[k] = '0'; C.adoptKey('pitchTrainer_onboarded');
+  ok(mem[k] === '0', 'adopt never overwrites the env copy');
+  C._setEnv('test'); ok(C.ns('music-learn') === 'music-learn@test', 'test env name');
+  C._setEnv(null); delete globalThis.localStorage;
+  // the shipped page: no localStorage call may use a bare live key
+  const html = (await import('fs')).readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const bare = [...html.matchAll(/localStorage\.(?:getItem|setItem|removeItem)\('(pitchTrainer_[A-Za-z]+)'/g)].map(m => m[1]);
+  ok(!bare.length, 'index.html: every pitchTrainer_* key goes through MusicCore.ns' + (bare.length ? ' — bare: ' + bare.join(', ') : ''));
+  ok(/FLOW_ATTEMPTS_KEY=MC\.adoptKey\('pitchTrainer_flowAttempts'\)/.test(html) && /FLOW_SESSIONS_KEY=MC\.adoptKey\('pitchTrainer_flowSessions'\)/.test(html), 'index.html: Flow keys are env-scoped');
+}
+
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);

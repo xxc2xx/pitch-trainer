@@ -1,3 +1,4 @@
+/* @shared midi 1.0.0 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -62,6 +63,7 @@
   }
 
   const Midi = {
+    VERSION: '1.0.0',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },

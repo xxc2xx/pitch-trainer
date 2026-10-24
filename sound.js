@@ -1,3 +1,4 @@
+/* @shared sound 1.0.0 */
 /* sound.js — instrument voices: sampled when available, synth until then.
    Classic script → window.Sound.
 
@@ -121,6 +122,7 @@
   const tagBus = new Map();
 
   const Sound = {
+    VERSION: '1.0.0',
     use(c){
       if(ctx !== c){ ctx = c; loader = null; [inst, soft].forEach(o => Object.keys(o).forEach(k => delete o[k])); }
       load(current);

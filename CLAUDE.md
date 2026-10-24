@@ -107,12 +107,41 @@ Keys are 30px minimum; Sprout locks to C4–C5 (the classroom bell set).
 Chrome only treats touch *pointerup* as a user gesture, so the piano resumes
 its AudioContext on both edges (`ensureKbCtx`).
 
+## Shared-module governance (2026-10-24)
+
+pitch-trainer is the source of truth for the engine modules other apps vendor:
+`music-core.js`, `hear.js`, `midi.js` (beat-hive, music-garden), `sound.js`
+(music-garden), `echo.js`, `notes.js` (music-garden, from PR3).
+
+- Each starts with `/* @shared <name> <semver> */` and exports `VERSION`.
+  major = removed/renamed export or changed return shape, minor = additive,
+  patch = fix. Bump header + `VERSION` together, then
+  `node tools/shared.mjs manifest` (rewrites `shared-manifest.json`, the
+  API read by running each module in a stub window).
+- `node tools/shared.mjs check` — fails if the API change doesn't match the
+  bump (or code changed with no bump).
+- `tools/consumers-test.sh` — runs every consumer's own gate against the
+  candidate modules in a throwaway copy. Must pass before pushing a shared
+  change.
+- `tools/sync-core.sh [dir…] [--major] [--to <commit>]` — copies modules +
+  `tools/shared.mjs` into consumers and writes their `vendor.lock.json`. A
+  major bump is refused without `--major`; `--to` rolls a consumer back.
+- `node tools/governance-test.mjs` — failure injection for all of the above.
+
+## Environment isolation (2026-10-24)
+
+Live, staging and localhost share one origin. `MusicCore.env()` is `''`
+(live), `stg` (`/staging/`), `dev` (localhost) or `test` (`?env=test`);
+`MusicCore.ns(name)` scopes a storage name to it, `adoptKey(name)` copies an
+old un-scoped value once (never deletes). The four keys live reads
+(`pitchTrainer_flowSessions/flowAttempts/onboarded/avatar`) go through it,
+so staging no longer writes into live Beat Stats. The IndexedDB stores move
+behind `ns` with a copy-migration in PR3 (music-garden `docs/plan`).
+
 ## Music Garden moved out (2026-10-24)
 
 The kid-facing Music Garden now lives in its own repo, `~/music-garden`
-(github.com/xxc2xx/music-garden). It vendors `music-core.js`, `hear.js`,
-`midi.js` and `sound.js` from here — `tools/sync-core.sh` copies them into
-beat-hive and music-garden; both repos' `tools/qc.js` fail on drift.
+(github.com/xxc2xx/music-garden). It vendors engine modules from here (see governance above).
 
 ## Modes (tabs)
 
