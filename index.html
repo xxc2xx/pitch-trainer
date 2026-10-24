@@ -50,7 +50,7 @@
     #avatarDropZone{
       width:100%;border:2px dashed #1e1e38;border-radius:12px;
       padding:28px 12px;text-align:center;cursor:pointer;
-      transition:border-color .2s,background .2s;color:#3a3a6a;font-size:.8rem;
+      transition:border-color .2s,background .2s;color:#8686aa;font-size:.8rem;
       position:relative;
     }
     #avatarDropZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
@@ -58,17 +58,17 @@
     #avatarDropZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
     #avatarPixelCanvas{display:none;width:180px;height:180px;border-radius:14px;background:#06050f;border:1px solid #1e1e38;}
     #avatarControls{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;}
-    #avatarControls label{font-size:.72rem;color:#5a5a8a;display:flex;align-items:center;gap:6px;}
+    #avatarControls label{font-size:.72rem;color:#8686aa;display:flex;align-items:center;gap:6px;}
     #avatarPalette{background:#0f0e17;color:#e6e6f5;border:1px solid #242440;border-radius:6px;padding:3px 6px;font-size:.72rem;}
     #avatarConfirmBtn,#avatarRetakeBtn{padding:8px 20px;font-size:.82rem;}
     #avatarSkipBtn{
-      background:transparent;border:none;color:#3a3a5a;font-size:.7rem;
+      background:transparent;border:none;color:#8686aa;font-size:.7rem;
       text-decoration:underline;cursor:pointer;padding:4px;
     }
 
     .tabs{display:flex;gap:7px;width:100%;max-width:400px;}
     .tab{
-      flex:1;padding:8px 4px;border:2px solid #242440;background:transparent;color:#484868;
+      flex:1;padding:8px 4px;border:2px solid #242440;background:transparent;color:#7c7ca8;
       border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;
     }
     .tab.active{background:#242440;color:#fffffe;border-color:#4444aa;}
@@ -79,7 +79,7 @@
     }
     .note-card.lit{box-shadow:0 0 38px rgba(255,215,0,.38);}
     .note-big{font-size:clamp(2rem,9.5vw,3.4rem);font-weight:900;line-height:1;color:#e2b714;min-height:1.1em;}
-    .note-sub{font-size:.72rem;color:#5a5a7a;margin-top:2px;min-height:1.1em;}
+    .note-sub{font-size:.72rem;color:#8686aa;margin-top:2px;min-height:1.1em;}
     .cents-wrap{position:relative;height:5px;background:#1e1e38;border-radius:3px;margin-top:6px;}
     .cents-wrap::after{content:'';position:absolute;left:50%;top:-2px;width:2px;height:9px;background:#2e2e50;transform:translateX(-50%);}
     #centsDot{
@@ -138,7 +138,7 @@
     .btn:active{transform:scale(.95);}
     .btn-start{background:#e94560;color:#fff;box-shadow:0 4px 18px rgba(233,69,96,.45);}
     .btn-stop{background:#2d2d44;color:#ccc;}
-    .hint{font-size:.68rem;color:#3a3a5a;text-align:center;}
+    .hint{font-size:.68rem;color:#8686aa;text-align:center;}
     #hearRow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
     #hearRow .pb-btn{border:1px solid #2c2c5a;background:#12112a;}
     #singRecBtn.on{background:#e94560;color:#fff;border-color:#e94560;animation:recblink 1s infinite;}
@@ -150,9 +150,9 @@
     .play-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;}
     #playBpmSlider{width:90px;accent-color:#e2b714;}
     #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
-    .play-chk{font-size:.75rem;color:#5a5a8a;display:flex;align-items:center;gap:4px;cursor:pointer;}
-    #playStatus{font-size:.72rem;color:#3a3a5a;text-align:center;min-height:1.2em;}
-    #playLog{font-size:.66rem;color:#5a5a8a;background:#0a0a18;border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;margin-top:6px;max-height:140px;overflow-y:auto;font-family:ui-monospace,Menlo,monospace;line-height:1.35;display:none;white-space:pre-wrap;word-break:break-word;}
+    .play-chk{font-size:.75rem;color:#8686aa;display:flex;align-items:center;gap:4px;cursor:pointer;}
+    #playStatus{font-size:.72rem;color:#8686aa;text-align:center;min-height:1.2em;}
+    #playLog{font-size:.66rem;color:#8686aa;background:#0a0a18;border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;margin-top:6px;max-height:140px;overflow-y:auto;font-family:ui-monospace,Menlo,monospace;line-height:1.35;display:none;white-space:pre-wrap;word-break:break-word;}
     #playLog.show{display:block;}
     #playLog .err{color:#ef4444;}
     #playLog .ok{color:#22c55e;}
@@ -161,15 +161,15 @@
     #sheetZone{
       width:100%;border:2px dashed #1e1e38;border-radius:12px;
       padding:18px 12px;text-align:center;cursor:pointer;
-      transition:border-color .2s,background .2s;color:#3a3a6a;font-size:.78rem;
+      transition:border-color .2s,background .2s;color:#8686aa;font-size:.78rem;
       position:relative;
     }
     #sheetZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
     #sheetZone .zone-icon{font-size:1.8rem;display:block;margin-bottom:4px;}
     #sheetZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
     #sheetPreview{width:100%;max-height:140px;object-fit:contain;border-radius:8px;display:none;background:#06050f;}
-    #apiKeyWrap{display:flex;align-items:center;gap:6px;font-size:.72rem;color:#3a3a5a;}
-    #apiKeyWrap input{
+    .apiKeyWrap{display:flex;align-items:center;gap:6px;font-size:.72rem;color:#8686aa;}
+    .apiKeyWrap input{
       flex:1;background:#0a0918;color:#aaa;border:1px solid #1a1a38;
       border-radius:6px;padding:4px 8px;font-size:.72rem;outline:none;
       font-family:monospace;
@@ -186,7 +186,7 @@
     #instBar{display:none;flex-wrap:wrap;gap:5px;justify-content:center;padding:5px 0 2px;}
     #instBar.show{display:flex;}
     .inst-btn{
-      background:#0e0d1a;border:1.5px solid #1e1e38;color:#404070;
+      background:#0e0d1a;border:1.5px solid #1e1e38;color:#8686aa;
       border-radius:18px;padding:3px 11px;font-size:.71rem;cursor:pointer;transition:all .12s;white-space:nowrap;
     }
     .inst-btn.sel{background:#1a1a40;border-color:#4848cc;color:#8888ee;}
@@ -197,7 +197,7 @@
     .stats-card{background:#0e0d1a;border:1px solid #1e1e38;border-radius:10px;
       padding:8px 14px;text-align:center;min-width:76px;}
     .stats-card .num{font-size:1.15rem;font-weight:700;color:#8888ee;}
-    .stats-card .lbl{font-size:.62rem;color:#4a4a7a;text-transform:uppercase;letter-spacing:.03em;}
+    .stats-card .lbl{font-size:.62rem;color:#8686aa;text-transform:uppercase;letter-spacing:.03em;}
     #statsCanvas{width:100%;background:#06050f;border-radius:10px;border:1px solid #0d0d28;display:block;}
     #statsSessionList{font-size:.7rem;color:#8a8ac0;background:#0a0a18;
       border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;max-height:160px;overflow-y:auto;}
@@ -205,7 +205,7 @@
       border-bottom:1px solid #14142a;}
     .stats-row:last-child{border-bottom:none;}
     .stats-row .rate{font-weight:600;}
-    #statsEmpty{font-size:.75rem;color:#3a3a5a;text-align:center;padding:20px 10px;}
+    #statsEmpty{font-size:.75rem;color:#8686aa;text-align:center;padding:20px 10px;}
 
     /* ── DJ / MPC Tab ────────────────────────────────────────────── */
     #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:9px;}
@@ -215,7 +215,7 @@
 
     /* Bank + TAP */
     .dj-bank-btn{
-      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#4a4a7a;
+      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#8686aa;
       border-radius:7px;padding:5px 11px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .12s;
     }
     .dj-bank-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
@@ -244,9 +244,9 @@
 
     /* Echo (Note Repeat) row */
     .dj-repeat-row{display:flex;align-items:center;gap:6px;justify-content:center;}
-    .dj-rep-lbl{font-size:.63rem;color:#3a3a6a;}
+    .dj-rep-lbl{font-size:.63rem;color:#8686aa;}
     .dj-rep-btn{
-      background:#0e0d1a;border:1.5px solid #1e1e3a;color:#3a3a5a;
+      background:#0e0d1a;border:1.5px solid #1e1e3a;color:#8686aa;
       border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
     .dj-rep-btn.sel{background:#2a1540;border-color:#aa55cc;color:#cc88ff;}
@@ -254,7 +254,7 @@
     /* FX row */
     .dj-fx-row{display:flex;align-items:center;gap:6px;justify-content:center;flex-wrap:wrap;}
     .dj-fx-btn{
-      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#3a6a8a;
+      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#5a9fc4;
       border-radius:14px;padding:4px 12px;font-size:.67rem;cursor:pointer;
       transition:all .1s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     }
@@ -263,7 +263,7 @@
 
     /* Advanced toggle */
     #djAdvBtn{
-      background:transparent;border:none;color:#2a2a4a;font-size:.62rem;cursor:pointer;
+      background:transparent;border:none;color:#8686aa;font-size:.62rem;cursor:pointer;
       padding:2px 6px;touch-action:manipulation;align-self:center;
     }
 
@@ -277,11 +277,11 @@
     .seq-mute{
       width:18px;height:18px;flex-shrink:0;
       background:#0e0d20;border:1.5px solid #2a2a3a;border-radius:3px;
-      font-size:.46rem;font-weight:800;color:#2a2a4a;cursor:pointer;
+      font-size:.46rem;font-weight:800;color:#8686aa;cursor:pointer;
       display:flex;align-items:center;justify-content:center;transition:all .1s;touch-action:manipulation;
     }
-    .seq-mute.muted{background:#300a0a;border-color:#772222;color:#cc4444;}
-    .seq-label{font-size:.56rem;color:#4a4a7a;width:20px;text-align:right;flex-shrink:0;padding-right:2px;}
+    .seq-mute.muted{background:#300a0a;border-color:#772222;color:#ff7a7a;}
+    .seq-label{font-size:.56rem;color:#8686aa;width:20px;text-align:right;flex-shrink:0;padding-right:2px;}
     .seq-steps{display:flex;gap:2px;flex:1;}
     .seq-step{
       flex:1;height:20px;background:#0f0f28;border:1.5px solid #1a1a35;
@@ -294,9 +294,9 @@
 
     /* Patterns */
     .dj-presets{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;align-items:center;}
-    .dj-pre-lbl{font-size:.63rem;color:#3a3a5a;}
+    .dj-pre-lbl{font-size:.63rem;color:#8686aa;}
     .dj-preset-btn{
-      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#5a5a8a;
+      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#8686aa;
       border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
     .dj-preset-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
@@ -304,18 +304,18 @@
     /* CHOP loader */
     #djChopLoad{display:flex;align-items:center;gap:8px;justify-content:center;}
     #djChopBtn{
-      background:#0e0d1a;border:1.5px solid #1a3a1a;color:#2a5a2a;
+      background:#0e0d1a;border:1.5px solid #1a3a1a;color:#5fae5f;
       border-radius:8px;padding:5px 13px;font-size:.68rem;cursor:pointer;
       position:relative;overflow:hidden;transition:all .12s;
     }
     #djChopBtn:hover,#djChopBtn:active{border-color:#44aa44;color:#77dd77;}
     #djChopBtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
     #djDemoBtn{
-      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#2a5a7a;
+      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#5a9fc4;
       border-radius:8px;padding:5px 11px;font-size:.68rem;cursor:pointer;transition:all .12s;
     }
     #djDemoBtn:hover,#djDemoBtn:active{border-color:#3388cc;color:#66aaee;}
-    #djChopStatus{font-size:.63rem;color:#2a5a2a;min-width:80px;}
+    #djChopStatus{font-size:.63rem;color:#5fae5f;min-width:80px;}
 
     /* Dual-disc scratch */
     #djScratch{
@@ -421,14 +421,14 @@
 
   <div id="playView">
     <!-- OMR server (preferred — purpose-built sheet music model) -->
-    <div id="apiKeyWrap">
+    <div class="apiKeyWrap" id="omrUrlWrap">
       <span>🎼 OMR server:</span>
       <input type="text" id="omrUrlInput" placeholder="https://<you>-pitch-trainer-omr.hf.space  (leave empty to use Claude Vision)">
       <button id="omrUrlSave">Save</button>
       <span id="omrUrlStatus"></span>
     </div>
     <!-- API key row (fallback — used when OMR server is empty) -->
-    <div id="apiKeyWrap">
+    <div class="apiKeyWrap" id="apiKeyRowWrap">
       <span>🔑 Anthropic API key:</span>
       <input type="password" id="apiKeyInput" placeholder="sk-ant-…  (fallback, used only if OMR server is empty)">
       <button id="apiKeySave">Save</button>
@@ -438,7 +438,7 @@
     <div id="sheetZone">
       <span class="zone-icon">🎼</span>
       Drop a photo of sheet music here, or tap to upload<br>
-      <small style="color:#2a2a4a;">(JPG / PNG / GIF — read by Claude Vision)</small>
+      <small style="color:#8686aa;">(JPG / PNG / GIF — read by Claude Vision)</small>
       <input type="file" id="sheetFile" accept="image/*,audio/midi,.mid,.midi">
     </div>
     <img id="sheetPreview" alt="uploaded sheet">
@@ -477,7 +477,7 @@
       <button class="dj-bank-btn sel" data-bank="drums">DRUMS</button>
       <button class="dj-bank-btn"    data-bank="melody">MELODY</button>
       <button class="dj-bank-btn"    data-bank="chop" >CHOP</button>
-      <span style="font-size:.7rem;color:#4a4a7a;margin-left:4px;">Speed</span>
+      <span style="font-size:.7rem;color:#8686aa;margin-left:4px;">Speed</span>
       <input type="range" id="djBpmSlider" min="60" max="180" value="120">
       <span id="djBpmVal">120</span>
       <button id="djTapBtn">TAP</button>
@@ -1441,8 +1441,11 @@
   // iOS doesn't reliably fire beforeunload for a backgrounded/closed PWA
   // tab — this is the safety net so a session that's just left open (not
   // explicitly Stopped) still gets logged.
+  // Coming back with Beat still running (she didn't press Stop): open a fresh
+  // session, otherwise logBeatAttempt drops every beat until the next Stop.
   document.addEventListener('visibilitychange',function(){
     if(document.hidden) endFlowSession();
+    else if(isRunning && currentMode==='flow' && !flowSessionId) startFlowSession();
   });
 
   // Phase optimization at PLO launch: test 20 equidistant phase offsets and pick
@@ -1885,7 +1888,7 @@
       ctx.fillText(Math.round(smoothedBPM), W/2, BPM_Y);
       ctx.shadowBlur=0;
       ctx.font=`600 ${Math.round(H*.055)}px sans-serif`;
-      ctx.fillStyle=bpmLocked?'#7878cc':'#5a5a7a';
+      ctx.fillStyle=bpmLocked?'#7878cc':'#8686aa';
       ctx.fillText(bpmLocked?'BPM 🔒':'BPM', W/2, BPM_Y+Math.round(H*.13));
     } else if(isRunning){
       if(countdownVal>0){
@@ -2542,7 +2545,7 @@
     ctx.lineTo(cssW-padSide,padTop+chartH);
     ctx.stroke();
 
-    ctx.fillStyle='#3a3a5a';
+    ctx.fillStyle='#8686aa';
     ctx.font='9px system-ui,sans-serif';
     ctx.textAlign='left';
     ctx.fillText('Hit rate — last '+n+' session'+(n===1?'':'s'),padSide,10);

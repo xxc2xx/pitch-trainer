@@ -337,5 +337,19 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(/FLOW_ATTEMPTS_KEY=MC\.adoptKey\('pitchTrainer_flowAttempts'\)/.test(html) && /FLOW_SESSIONS_KEY=MC\.adoptKey\('pitchTrainer_flowSessions'\)/.test(html), 'index.html: Flow keys are env-scoped');
 }
 
+// ── Page integrity (audit P1a/P1b) ─────────────────────────────────────
+{
+  const html = (await import('fs')).readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+  const dup = [...new Set(ids.filter((v, i) => ids.indexOf(v) !== i))];
+  ok(!dup.length, `index.html: ${ids.length} ids, all unique` + (dup.length ? ' — duplicates: ' + dup.join(', ') : ''));
+  // every CSS text colour readable on the app's dark ground (WCAG AA 4.5:1)
+  const lum = h => { const c = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(x => x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const css = html.slice(0, html.indexOf('</style>'));
+  const faint = [...css.matchAll(/(?<![-\w])color:#([0-9a-fA-F]{6})/g)].map(m => m[1]).filter(c => ratio(c, '0f0e17') < 4.5);
+  ok(!faint.length, 'index.html: CSS text colours ≥ 4.5:1 on #0f0e17' + (faint.length ? ' — faint: ' + [...new Set(faint)].join(', ') : ''));
+}
+
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
 process.exit(fail ? 1 : 0);
