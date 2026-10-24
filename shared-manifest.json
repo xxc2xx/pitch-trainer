@@ -149,8 +149,8 @@
   },
   "notes.js": {
     "global": "Notes",
-    "version": "1.0.0",
-    "sha256": "9620491517e2973b4657e1ac85d2182e7ffdc3e71fb6a446ff944c7e62869927",
+    "version": "1.0.1",
+    "sha256": "fdb796a142ba786ff21008fd4c5b5a83b26cc58098fd2f0189693f6c48358d2e",
     "api": {
       "ORDER": "object",
       "START": "object",
