@@ -23,7 +23,7 @@ d, sha = sys.argv[1], sys.argv[2]
 badge = ('<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;'
          'background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;'
          'border-radius:0 0 6px 6px;pointer-events:none">STAGING ' + sha + '</div>')
-for name in ('index.html', 'garden.html'):             # every app page that ships
+for name in ('index.html',):                            # every app page that ships
   p = os.path.join(d, name)
   if not os.path.exists(p): continue
   s = open(p).read()

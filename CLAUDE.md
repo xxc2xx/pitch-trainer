@@ -107,29 +107,12 @@ Keys are 30px minimum; Sprout locks to C4–C5 (the classroom bell set).
 Chrome only treats touch *pointerup* as a user gesture, so the piano resumes
 its AudioContext on both edges (`ensureKbCtx`).
 
-## Music Garden — `garden.html` + `garden.js` (added 2026-10-23)
+## Music Garden moved out (2026-10-24)
 
-The clean kid-facing app (the main `index.html` stays the full tool). One big
-choice per screen, spoken prompts, grown-up settings behind a 1.5 s
-press-and-hold. Unicorn / bunny / strawberry art is inline SVG symbols in
-`garden.html`; strawberries are the reward. State: `localStorage.garden_v1`.
-
-- **My book**: her Yamaha JMC tunes (do-re-do … five-finger hill, plus the
-  bass-clef version) in `SONGS` as `[midi, beats]`, drawn by `staffSvg`
-  (clef glyph sized from its canvas ink box). Our own titles; no book lyrics.
-- **Song screen**: Listen (app plays) · Learn (waits for each note, key hint
-  optional) · Play! (Taiko-style: count-in, playhead, per-note verdict
-  great ≤110 ms / good ≤230 ms / early-late / wrong / missed, combo, results
-  with a timing chart, "Hear me" replays her recorded notes over the beat).
-  Only the note name is judged, not the octave.
-- **Note quiz**: name the note / which staff is X / name the shining note in
-  a song; weighted toward notes she misses; bass clef is a grown-up toggle.
-- **Today**: 4-question quiz → Learn the current song → Play! it.
-- Input: on-screen keys, computer keys, MIDI (Chrome/Mac), or microphone
-  (energy-onset + `Hear.pitchTracker`; ignores our own sounds via `muteUntil`
-  and the beat clicks). Shares `musicEco_latencyMs` with Pitch Trainer.
-- `tools/stage.sh` badges and cache-busts `garden.html` too:
-  staging URL `/pitch-trainer/staging/garden.html`.
+The kid-facing Music Garden now lives in its own repo, `~/music-garden`
+(github.com/xxc2xx/music-garden). It vendors `music-core.js`, `hear.js`,
+`midi.js` and `sound.js` from here — `tools/sync-core.sh` copies them into
+beat-hive and music-garden; both repos' `tools/qc.js` fail on drift.
 
 ## Modes (tabs)
 
