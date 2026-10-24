@@ -1,3 +1,4 @@
+/* @shared notes 1.0.0 */
 /* notes.js — 🧠 Notes: reading and writing notes, the Yamaha way (fixed do).
    Classic script → window.Notes. Depends on music-core.js.
 
@@ -503,6 +504,6 @@
              get _cards(){ return cards; }, get _i(){ return i; }, get _geo(){ return geo; }, get _game(){ return game; } };
   }
 
-  window.Notes = { ORDER, START, nameOf, octName, choices, box, deckAfter, fUnlocked, pickRound, traceScore, analyzeWrite, scoreWrite,
+  window.Notes = { VERSION: '1.0.0', ORDER, START, nameOf, octName, choices, box, deckAfter, fUnlocked, pickRound, traceScore, analyzeWrite, scoreWrite,
                    noteGuide, drawStaff, starsOf, create };
 })();

@@ -1,3 +1,4 @@
+/* @shared echo 1.0.0 */
 /* echo.js — 🎤→🎹 Echo: hear a little tune, sing it back, then find it on
    the keyboard. Classic script → window.Echo. Depends on music-core.js.
 
@@ -337,5 +338,5 @@
              get _round(){ return round; }, get _state(){ return state; } };
   }
 
-  window.Echo = { STAGES, STAGES_VERSION, patterns, matchSung, liveSeg, adapt, syllable, create };
+  window.Echo = { VERSION: '1.0.0', STAGES, STAGES_VERSION, patterns, matchSung, liveSeg, adapt, syllable, create };
 })();
