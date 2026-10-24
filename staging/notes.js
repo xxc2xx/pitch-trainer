@@ -1,4 +1,4 @@
-/* @shared notes 1.0.0 */
+/* @shared notes 1.0.1 */
 /* notes.js — 🧠 Notes: reading and writing notes, the Yamaha way (fixed do).
    Classic script → window.Notes. Depends on music-core.js.
 
@@ -309,6 +309,10 @@
 
     async function start(o){
       injectCSS(); host.style.display = 'flex';
+      // create/resume the audio context NOW, inside the tap: after the await
+      // below (and from the next-card timers) iOS would leave a new context
+      // suspended and the note prompts would be silent
+      try{ d.audio && d.audio(); }catch(e){}
       await load();
       game = o.game; onDone = o.onDone || null; results = []; i = 0; active = true; t0 = performance.now();
       const lvl = d.getLevel();
@@ -504,6 +508,6 @@
              get _cards(){ return cards; }, get _i(){ return i; }, get _geo(){ return geo; }, get _game(){ return game; } };
   }
 
-  window.Notes = { VERSION: '1.0.0', ORDER, START, nameOf, octName, choices, box, deckAfter, fUnlocked, pickRound, traceScore, analyzeWrite, scoreWrite,
+  window.Notes = { VERSION: '1.0.1', ORDER, START, nameOf, octName, choices, box, deckAfter, fUnlocked, pickRound, traceScore, analyzeWrite, scoreWrite,
                    noteGuide, drawStaff, starsOf, create };
 })();

@@ -142,7 +142,7 @@
     const hits = new Map();       // note index → { dtMs (− early, + late), vel } — Play along only
     let runStart = 0;             // performance.now() when the run began (practice log)
     let onDone = null;            // set by songs.play(): a lesson path takes the result instead of the shelf
-    let mediaReady = Promise.resolve();
+    let mediaReady = Promise.resolve(), mediaLoading = false;
 
     // ── Shelf ───────────────────────────────────────────────────────────
     function card(t, deletable){
@@ -286,7 +286,10 @@
       canvas.onclick = seekTo;
       sizeCanvas(); pulse(true);
       startMode('wait');
-      mediaReady = loadMedia(t);
+      // Listen / Play along stay disabled until the recording is in: waiting
+      // inside the tap would lose the user gesture and iOS blocks play().
+      mediaLoading = true; setBtns();
+      mediaReady = loadMedia(t).catch(() => {}).then(() => { if(take === t){ mediaLoading = false; setBtns(); } });
     }
 
     // ── Original recording (video / audio) ──────────────────────────────
@@ -453,6 +456,7 @@
       q('#sgTimed') && q('#sgTimed').classList.toggle('sel', mode === 'timed');
       q('#sgDemo') && (q('#sgDemo').textContent = demo ? '⏹ Stop' : '👂 Listen');
       q('#sgTimed') && (q('#sgTimed').textContent = timed ? '⏹ Stop' : '🎵 Play along');
+      ['#sgDemo', '#sgTimed'].forEach(id => { const b = q(id); if(b){ b.disabled = mediaLoading; b.style.opacity = mediaLoading ? '.5' : ''; } });
     }
 
     function stopAll(){
