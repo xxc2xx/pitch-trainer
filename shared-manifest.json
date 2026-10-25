@@ -158,7 +158,9 @@
       "patterns": "fn/3",
       "syllable": "fn/1"
     },
-    "consumers": []
+    "consumers": [
+      "music-garden"
+    ]
   },
   "notes.js": {
     "global": "Notes",

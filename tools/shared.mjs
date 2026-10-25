@@ -29,7 +29,7 @@ const MODULES = {                        // file → global it defines
 };
 const CONSUMERS = {                      // which modules each consumer vendors
   'beat-hive':    ['music-core.js', 'hear.js', 'midi.js'],
-  'music-garden': ['music-core.js', 'hear.js', 'midi.js', 'sound.js'],
+  'music-garden': ['music-core.js', 'hear.js', 'midi.js', 'sound.js', 'echo.js'],
 };
 const ALIASES = { MC: 'MusicCore' };     // how consumers name the globals in their own code
 const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
