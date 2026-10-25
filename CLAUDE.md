@@ -86,8 +86,10 @@ that sets a global, loaded before the inline script:
 - `progress.js` → `Progress`: parent page in the (hidden) stats view, opened
   by HOLDING ⚙︎ on the piano bar 1.5 s. Weekly summary text, latency
   calibration (`musicEco_latencyMs`, used by Play-along judging).
-- Practice log = separate IndexedDB `music-eco-log` (never bump `music-eco`:
-  live and staging share the origin). Play along stores per-note `dtMs`/`vel`.
+- Practice log = IndexedDB `MusicCore.ns('music-learn')` (music-core 1.2.0,
+  see "Learning store" below). `MC.log` keeps its old calls on top of it.
+  Never bump `music-eco` / `music-eco-log`: old staging builds still open
+  them. Play along stores per-note `dtMs`/`vel`.
 - `hear.js` → `Hear`: live sing → Take (segmentation, key-snap, octave
   normalise); offline basic-pitch (Spotify, TF.js) loaded lazily from
   jsDelivr for audio files. Live pitch = `Hear.mpm` (McLeod NSDF; frames
@@ -135,8 +137,30 @@ Live, staging and localhost share one origin. `MusicCore.env()` is `''`
 `MusicCore.ns(name)` scopes a storage name to it, `adoptKey(name)` copies an
 old un-scoped value once (never deletes). The four keys live reads
 (`pitchTrainer_flowSessions/flowAttempts/onboarded/avatar`) go through it,
-so staging no longer writes into live Beat Stats. The IndexedDB stores move
-behind `ns` with a copy-migration in PR3 (music-garden `docs/plan`).
+so staging no longer writes into live Beat Stats. Since PR3 the IndexedDB
+stores are env-scoped too (`music-eco@stg`, `music-learn@stg`, …).
+
+## Learning store (music-core 1.2.0, 2026-10-25)
+
+`MusicCore.learn()` = one env-scoped IDB `music-learn<ns>` with stores
+`sessions` (idx day, kind), `attempts` (idx sessionId, day, skill), `items`,
+`meta`. Contracts in music-garden `docs/plan/00-overview.md` D2.
+- `begin(f)` → handle `{attempt, pause, resume, end(status, summary, items)}`;
+  attempt ids are `<sessionId>.<seq>`, every write is a `put` (retries are
+  idempotent); `end` applies derived items once (`applied` flag).
+- `recover()` (run by `MusicCore.ready()`) marks other pages' open sessions
+  `interrupted`; `export()` / `import(j)` (import never overwrites an item).
+- Storage failures never throw into the app: `learn().health` +
+  `MusicCore.onStorageError(fn)`. Invalid records are dropped and counted.
+- Adapters: `idbAdapter` (real) / `memAdapter(stores, faults)` (tests).
+  Key ranges may be open-ended (`_rangeOf`; real IDB throws on
+  `bound(undefined)` — found only in Chrome, keep the core-test).
+- Staging migration (in `ready()`, env `stg` only): copy-only from
+  `music-eco-log` and `music-eco` into the `@stg` stores; markers
+  `migrated_log_v1` / `migrated_content_v1` in the new `meta`, set with the
+  last write, so a failed copy retries without duplicates. Legacy stores are
+  never written: rolling back to an old staging build still works (drilled
+  in Chrome 2026-10-25).
 
 ## Music Garden moved out (2026-10-24)
 

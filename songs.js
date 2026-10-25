@@ -27,8 +27,8 @@
 (function(){
   'use strict';
   const MC = window.MusicCore;
-  const STICKER_KEY = 'musicEco_stickers';
-  const LATENCY_KEY = 'musicEco_latencyMs';
+  const STICKER_KEY = MC.adoptKey('musicEco_stickers');      // env-scoped (MusicCore.ns)
+  const LATENCY_KEY = MC.adoptKey('musicEco_latencyMs');
   const FLAT_KEYS = new Set(['F','Bb','Eb','Ab','Db','Gb']);
   const DIATONIC = { C:0, D:1, E:2, F:3, G:4, A:5, B:6 };
   const SHARP_SPELL = [['C',''],['C','♯'],['D',''],['D','♯'],['E',''],['F',''],['F','♯'],['G',''],['G','♯'],['A',''],['A','♯'],['B','']];
@@ -326,7 +326,7 @@
     }
     // ✨ Better notes: full-band separation + melody + beats + chords on the
     // user's own HF Space (~/song-analyzer). On-device notes stay if it fails.
-    const AN_KEY = 'musicEco_analyzerUrl';
+    const AN_KEY = MC.adoptKey('musicEco_analyzerUrl');
     async function betterNotes(){
       const t = take, b = host.querySelector('#sgBetter');
       let url = ''; try{ url = localStorage.getItem(AN_KEY) || ''; }catch(e){}

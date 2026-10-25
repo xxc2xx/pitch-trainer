@@ -30,7 +30,7 @@
   // which card game today: 🌱's keyboard is C4–C5 only, so no octave cards there
   const GAMES = { sprout: ['keys', 'g'], bloom: ['keys', 'oct', 'g'], grow: ['g', 'oct', 'keys'] };
   const dayNum = day => { const [y, m, d] = day.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
-  const DONE_KEY = 'musicEco_today';          // { day, done:[step index…] } — resume where she stopped
+  const DONE_KEY = MC.adoptKey('musicEco_today');          // { day, done:[step index…] } — resume where she stopped
 
   const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
 

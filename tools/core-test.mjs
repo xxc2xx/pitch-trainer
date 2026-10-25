@@ -337,6 +337,98 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(/FLOW_ATTEMPTS_KEY=MC\.adoptKey\('pitchTrainer_flowAttempts'\)/.test(html) && /FLOW_SESSIONS_KEY=MC\.adoptKey\('pitchTrainer_flowSessions'\)/.test(html), 'index.html: Flow keys are env-scoped');
 }
 
+// ── Learning store: contracts, idempotence, recovery, migration (plan D2/D1) ──
+{
+  C._setEnv('test');
+  const mk = (faults) => C.memAdapter(C.LEARN_STORES, faults);
+  const flushAll = () => new Promise(r => setTimeout(r, 0));
+
+  // session → attempts → completed, items applied exactly once
+  const A = mk(); const L = C.createLearn(A, { app: 'garden' });
+  const s = L.begin({ kind: 'g-quiz', contentId: 'q1', input: 'screen', rules: 'r1' });
+  s.attempt({ skill: 'reading', target: { m: 64 }, observed: { m: 62 }, outcome: 'wrong', firstTry: true });
+  s.attempt({ skill: 'reading', target: { m: 64 }, observed: { m: 64 }, outcome: 'correct' });
+  const bad = s.attempt({ skill: 'juggling', outcome: 'correct' });           // invalid → dropped, not thrown
+  await s.end('completed', { right: 0, n: 1 }, { 'skill:reading:64': { n: 2, ok: 1 } });
+  await s.end('completed', { right: 9, n: 9 }, { 'skill:reading:64': { n: 99, ok: 99 } });   // second end is a no-op
+  const ses = [...A.data.sessions.values()], att = [...A.data.attempts.values()];
+  ok(ses.length === 1 && ses[0].status === 'completed' && ses[0].applied && ses[0].summary.n === 1, 'session completes once, summary kept');
+  ok(att.length === 2 && att.every(x => x.sessionId === ses[0].id && x.id.startsWith(ses[0].id + '.')), 'attempts belong to their session (deterministic ids)');
+  ok(att.find(x => x.outcome === 'wrong').observed.m === 62, 'the wrong note she picked is kept');
+  ok(A.data.items.get('skill:reading:64').n === 2 && L.health.dropped === 1 && bad && bad.skill === 'juggling', 'derived items applied once; invalid attempt dropped and counted');
+
+  // open-ended day ranges (Grown-ups / Progress call sessions() with no dates).
+  // Real IndexedDB throws on IDBKeyRange.bound(undefined, …) — found in Chrome.
+  ok((await L.sessions()).length === 1 && (await L.attempts()).length === 2 && (await L.sessions('2000-01-01')).length === 1
+    && (await L.sessions(undefined, '2000-01-01')).length === 0, 'sessions()/attempts() with an open range return everything in it');
+  {
+    const calls = []; const g = globalThis;
+    const prev = g.IDBKeyRange;
+    g.IDBKeyRange = { only: (v) => (calls.push(['only', v]), {}), bound: (a, b) => { if(a == null || b == null) throw new Error('bound(undefined)'); calls.push(['bound']); return {}; },
+      lowerBound: (v) => (calls.push(['lower', v]), {}), upperBound: (v) => (calls.push(['upper', v]), {}) };
+    let threw = false;
+    try{ const r = C._rangeOf; [{}, { from: 'a' }, { to: 'b' }, { from: 'a', to: 'b' }, { eq: 1 }].forEach(q => r(q)); }catch(e){ threw = e.message; }
+    g.IDBKeyRange = prev;
+    ok(!threw && calls.map(c => c[0]).join() === 'lower,upper,bound,only', 'IndexedDB key ranges never call bound() with a missing end' + (threw ? ': ' + threw : ''));
+  }
+
+  // re-applying the same session (retry after a crash) never double-counts
+  const rec = Object.assign({}, ses[0], { status: 'completed' });
+  const L2 = C.createLearn(A); const h2 = L2.begin({ kind: 'x' }); await h2.end('completed', {}, { 'skill:reading:64': { n: 5 } });
+  ok(A.data.items.get('skill:reading:64').n === 5, 'a different session applies its own items');
+  await A.tx(['sessions', 'items'], 'readwrite', async a => { const cur = await a.get('sessions', rec.id); ok(cur.applied === true, 'applied flag persisted'); });
+
+  // recovery: another page's open session → interrupted; mine untouched; idempotent
+  const B = mk(); const old = C.createLearn(B); const o1 = old.begin({ kind: 'g-song', contentId: 'drd' });
+  o1.attempt({ skill: 'motor', target: { m: 60 }, outcome: 'correct' }); o1.pause(); await flushAll();
+  const now = C.createLearn(B); const mine = now.begin({ kind: 'g-song' }); await flushAll();
+  const r1 = await now.recover(), r2 = await now.recover();
+  const after = new Map([...B.data.sessions.values()].map(x => [x.id, x]));
+  ok(r1.length === 1 && after.get(o1.id).status === 'interrupted' && after.get(o1.id).attemptCount === 1, 'recover: earlier page\'s open session → interrupted, attempts kept');
+  ok(after.get(mine.id).status === 'started' && r2.length === 0, 'recover leaves this page\'s session alone and is idempotent');
+  ok(!after.get(o1.id).applied, 'interrupted sessions earn no derived progress');
+
+  // pause / resume: activeMs excludes the pause
+  const P = mk(), LP = C.createLearn(P), hp = LP.begin({ kind: 'g-song' });
+  hp.pause(); await new Promise(r => setTimeout(r, 60)); hp.resume(); await hp.end('exited', {});
+  const sp = [...P.data.sessions.values()][0];
+  ok(sp.status === 'exited' && sp.activeMs < 50, `exited session, pause not counted (activeMs ${sp.activeMs})`);
+
+  // storage failures never throw into the child's path
+  const U = C.createLearn(mk({ unavailable: true })); const hu = U.begin({ kind: 'g-quiz' });
+  hu.attempt({ skill: 'reading', target: { m: 60 }, outcome: 'correct' }); await hu.end('completed', {});
+  ok(U.health.ok === false && /unavailable/.test(U.health.lastError), 'storage unavailable → no throw, health reports it');
+  const Q = C.createLearn(mk({ quota: true })); const hq = Q.begin({ kind: 'g-quiz' }); await hq.end('completed', {});
+  ok(Q.health.ok === false && /Quota/.test(Q.health.lastError), 'storage full → no throw, health reports it');
+  ok((await U.sessions('2000-01-01', '2999-12-31')).length === 0, 'reads on a dead store return empty, not an error');
+
+  // export → import: idempotent, invalid records skipped, newer items kept
+  const E = mk(), LE = C.createLearn(E); const he = LE.begin({ kind: 'g-song' }); he.attempt({ skill: 'rhythm', target: { m: 60 }, outcome: 'correct', errMs: -20 }); await he.end('completed', { score: 90 }, { 'song:drd': { best: 2 } });
+  const dump = await LE.export(); dump.sessions.push({ id: 'junk' });
+  const F = mk(), LF = C.createLearn(F); F.data.items.set('song:drd', { best: 3 });
+  const i1 = await LF.import(dump), i2 = await LF.import(dump);
+  ok(i1.sessions === 1 && i1.attempts === 1 && i1.skipped === 1 && F.data.sessions.size === 1 && F.data.attempts.size === 1, 'import: valid records in, junk skipped');
+  ok(i2.sessions === 1 && F.data.sessions.size === 1 && F.data.items.get('song:drd').best === 3, 'import twice = same data; never overwrites newer item');
+
+  // migration: legacy log → new store, copy-only, idempotent, safe to retry
+  const legacy = C.memAdapter(C.LEGACY_LOG);
+  legacy.data.sessions.set('ses_a', { id: 'ses_a', ts: 1000, day: '2026-10-20', kind: 'song', songId: 's1', durMs: 60000, notes: [{ i: 0, m: 60, dtMs: 30 }, { i: 1, m: 62, dtMs: null }], stats: { hit: 1 } });
+  legacy.data.sessions.set('ses_b', { id: 'ses_b', ts: 2000, day: '2026-10-21', kind: 'echo', durMs: 30000 });
+  legacy.data.items.set('song:s1', { due: '2026-10-22' }); legacy.data.items.set('echo', { stage: 2 });
+  const M = mk({ failAfterPuts: 3 });
+  let threw = false; try{ await C.migrateLog(M, legacy); }catch(e){ threw = true; }
+  ok(threw && M.data.sessions.size === 0 && !M.data.meta.get('migrated_log_v1'), 'migration failing part-way writes nothing and sets no marker');
+  delete M.faults.failAfterPuts; M.data.items.set('echo', { stage: 5 });             // newer state already here
+  const m1 = await C.migrateLog(M, legacy), m2 = await C.migrateLog(M, legacy);
+  ok(m1.sessions === 2 && m1.attempts === 2 && M.data.sessions.size === 2 && M.data.attempts.size === 2, 'retry migrates sessions + expands legacy notes into attempts');
+  ok(m2.skipped === true && M.data.sessions.size === 2, 'second run is a no-op (marker)');
+  ok(M.data.items.get('echo').stage === 5 && M.data.items.get('song:s1').due === '2026-10-22', 'migration never overwrites newer items');
+  ok(legacy.data.sessions.size === 2 && legacy.data.items.size === 2, 'legacy store untouched (rollback keeps working)');
+  const ms = M.data.sessions.get('ses_a');
+  ok(ms.legacy && ms.status === 'completed' && ms.activeMs === 60000 && ms.env === 'test' && M.data.attempts.get('ses_a.2').outcome === 'miss', 'legacy session mapped to the session contract');
+  C._setEnv(null);
+}
+
 // ── Page integrity (audit P1a/P1b) ─────────────────────────────────────
 {
   const html = (await import('fs')).readFileSync(new URL('../index.html', import.meta.url), 'utf8');
