@@ -1,8 +1,8 @@
 {
   "music-core.js": {
     "global": "MusicCore",
-    "version": "1.2.0",
-    "sha256": "68086e7ecd5f6e494c33c4f715390c30e61107b990b3d2230738ce2245e8fbfb",
+    "version": "1.2.1",
+    "sha256": "dbc8ae48a26a80a8c6465316b5fa5865c6e606476f38c3ebac5e6ee475773b26",
     "api": {
       "BUILTIN": "object",
       "CLEF_SHIFT": "object",

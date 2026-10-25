@@ -140,7 +140,7 @@ old un-scoped value once (never deletes). The four keys live reads
 so staging no longer writes into live Beat Stats. Since PR3 the IndexedDB
 stores are env-scoped too (`music-eco@stg`, `music-learn@stg`, …).
 
-## Learning store (music-core 1.2.0, 2026-10-25)
+## Learning store (music-core 1.2.x, 2026-10-25)
 
 `MusicCore.learn()` = one env-scoped IDB `music-learn<ns>` with stores
 `sessions` (idx day, kind), `attempts` (idx sessionId, day, skill), `items`,

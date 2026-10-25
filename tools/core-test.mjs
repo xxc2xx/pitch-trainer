@@ -410,6 +410,22 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(i1.sessions === 1 && i1.attempts === 1 && i1.skipped === 1 && F.data.sessions.size === 1 && F.data.attempts.size === 1, 'import: valid records in, junk skipped');
   ok(i2.sessions === 1 && F.data.sessions.size === 1 && F.data.items.get('song:drd').best === 3, 'import twice = same data; never overwrites newer item');
 
+  // Codex P2: a backup taken mid-activity must not rewind the session once it finished locally
+  {
+    const G = mk(), LG = C.createLearn(G); const hg = LG.begin({ kind: 'g-quiz' });
+    hg.attempt({ skill: 'reading', target: { m: 62 }, outcome: 'correct' }); await flushAll();
+    const mid = await LG.export();                                  // exported while 'started'
+    await hg.end('completed', { right: 1, n: 1 });
+    await LG.import(mid);
+    const back = G.data.sessions.get(hg.rec.id);
+    const H = mk(), LH = C.createLearn(H); await LH.import(mid);   // other way round: open local, ended backup
+    const ended = await LE.export(); const Hs = H.data.sessions.size;
+    ok(back.status === 'completed' && back.summary.n === 1 && Hs === 1, 'restore never rewinds a finished session (kept completed + summary)');
+    const I = mk(), LI = C.createLearn(I); const open = Object.assign({}, ended.sessions[0], { status: 'started', summary: {} });
+    I.data.sessions.set(open.id, open); await LI.import(ended);
+    ok(I.data.sessions.get(open.id).status === 'completed', 'restore does finish a session that is still open locally');
+  }
+
   // migration: legacy log → new store, copy-only, idempotent, safe to retry
   const legacy = C.memAdapter(C.LEGACY_LOG);
   legacy.data.sessions.set('ses_a', { id: 'ses_a', ts: 1000, day: '2026-10-20', kind: 'song', songId: 's1', durMs: 60000, notes: [{ i: 0, m: 60, dtMs: 30 }, { i: 1, m: 62, dtMs: null }], stats: { hit: 1 } });

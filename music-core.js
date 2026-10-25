@@ -1,4 +1,4 @@
-/* @shared music-core 1.2.0 */
+/* @shared music-core 1.2.1 */
 /* music-core.js — shared foundation for pitch-trainer, beat-hive and music-garden.
    VERSION (semver) is the contract consumers pin in vendor.lock.json:
    major = removed/renamed export or changed return shape, minor = additive,
@@ -21,7 +21,7 @@
 */
 (function(root){
   'use strict';
-  const VERSION = '1.2.0';
+  const VERSION = '1.2.1';
 
   // ── Environment namespace ─────────────────────────────────────────────
   // Live, staging and local dev share ONE origin (xxc2xx.github.io /
@@ -557,8 +557,11 @@
         if(!j || j.format !== 'music-learn' || !Array.isArray(j.sessions)) return Promise.reject(new Error('not a music-learn export'));
         const s = j.sessions.filter(r => !validate('session', r).length), t = (j.attempts || []).filter(r => !validate('attempt', r).length);
         return A.tx(['sessions', 'attempts', 'items'], 'readwrite', async a => {
-          for(const r of s) await a.put('sessions', r);
-          for(const r of t) await a.put('attempts', r);
+          // merge-only: a local record wins unless it is still open and the
+          // backup's copy has ended (a restore never rewinds a session)
+          const open = (x) => x.status === 'started' || x.status === 'paused';
+          for(const r of s){ const cur = await a.get('sessions', r.id); if(!cur || (open(cur) && !open(r))) await a.put('sessions', r); }
+          for(const r of t) if(await a.get('attempts', r.id) === undefined) await a.put('attempts', r);
           for(const [k, v] of (j.items || [])) if(await a.get('items', k) === undefined) await a.put('items', v, k);   // never overwrite newer state
           return { sessions: s.length, attempts: t.length, skipped: j.sessions.length - s.length + (j.attempts || []).length - t.length };
         });
@@ -628,6 +631,10 @@
     const L = learn();
     _ready = (async () => {
       const out = {};
+      // staging only, on purpose: live builds never shipped music-core, so the
+      // un-scoped legacy stores on this shared origin hold STAGING data —
+      // copying them into prod would be the contamination plan D1 forbids.
+      // Go-live moves progress with an explicit Grown-ups import (PR8).
       if(env() === 'stg'){
         try{ out.log = await migrateLog(L._adapter, idbAdapter('music-eco-log', 1, LEGACY_LOG)); }catch(e){ out.log = { error: String(e && e.message || e) }; _onError('migrate log: ' + out.log.error); }
         try{ out.content = await migrateContent(L._adapter, idbAdapter('music-eco', 1, CONTENT_STORES), content()); }catch(e){ out.content = { error: String(e && e.message || e) }; _onError('migrate content: ' + out.content.error); }
