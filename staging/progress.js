@@ -24,7 +24,7 @@
     const out = {};
     sessions.forEach(s => {
       const d = out[s.day] || (out[s.day] = { min: 0, n: 0, timing: [], write: [] });
-      if(s.kind !== 'today') d.min += (s.durMs || 0) / 60000;        // 'today' wraps the others
+      if(s.kind !== 'today' && s.kind !== 'g-today') d.min += mins(s);  // 'today' wraps the others
       d.n++;
       if(s.stats && s.stats.hit >= 3) d.timing.push(s.stats);
       if(s.kind === 'write' && s.score != null) d.write.push(s.score);
@@ -32,6 +32,9 @@
     return out;
   }
   const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  // Pitch Trainer sessions carry durMs; Music Garden sessions carry activeMs
+  // (time actually playing, pauses excluded) — same store, same calendar.
+  const mins = s => (s.durMs != null ? s.durMs : s.activeMs || 0) / 60000;
 
   function cardStats(items, game){
     return Object.entries(items).filter(([k]) => k.startsWith('card:' + game + ':'))
@@ -45,8 +48,8 @@
     const week = (o.sessions || []).filter(s => s.day >= from && s.day <= today);
     const prev = (o.sessions || []).filter(s => s.day >= MC.addDays(today, -13) && s.day < from);
     const days = new Set(week.map(s => s.day)).size;
-    const mins = Math.round(week.filter(s => s.kind !== 'today').reduce((a, s) => a + (s.durMs || 0), 0) / 60000);
-    const lines = [`Week of ${from}: practised ${days}/7 days, ${mins} min.`];
+    const total = Math.round(week.filter(s => s.kind !== 'today' && s.kind !== 'g-today').reduce((a, s) => a + mins(s), 0));
+    const lines = [`Week of ${from}: practised ${days}/7 days, ${total} min.`];
     const songs = Object.entries(items).filter(([k]) => k.startsWith('song:'));
     const learning = songs.filter(([, v]) => !v.mastered && (v.phrase || v.phrases));
     const mastered = songs.filter(([, v]) => v.mastered);
@@ -70,6 +73,18 @@
       const m = Math.round(avg(tw.map(t => t.meanAbsMs))), b = Math.round(avg(tw.map(t => t.biasMs)));
       const was = tp.length ? Math.round(avg(tp.map(t => t.meanAbsMs))) : null;
       lines.push(`Timing (her keyboard): avg ${m} ms from the beat${Math.abs(b) > 30 ? (b < 0 ? ', slightly rushing' : ', slightly late') : ''}${was != null ? ` (was ${was} ms)` : ''}.`);
+    }
+    // Music Garden (the kid app): Play! scores and staff-reading quiz
+    const gPlay = week.filter(s => s.kind === 'g-song' && s.mode === 'play' && s.status === 'completed' && s.summary && s.summary.score != null);
+    if(gPlay.length){
+      const best = {};
+      gPlay.forEach(s => { const k = s.title || s.contentId; best[k] = Math.max(best[k] || 0, s.summary.score); });
+      lines.push('Garden songs (best Play! score): ' + Object.entries(best).map(([k, v]) => `${k} ${v}`).join(', ') + '.');
+    }
+    const gq = week.filter(s => s.kind === 'g-quiz' && s.summary && s.summary.n);
+    if(gq.length){
+      const r = gq.reduce((a, s) => a + (s.summary.right || 0), 0), n = gq.reduce((a, s) => a + s.summary.n, 0);
+      lines.push(`Garden note quiz: ${r}/${n} right first time.`);
     }
     return lines.join('\n');
   }
@@ -120,7 +135,7 @@
         const c = cardStats(items, g); if(!c.length) return '';
         return `<div style="margin:4px 0"><b>${GAME[g]}</b> <div class="pg-chips">${c.map(x => `<span class="${x.n >= 3 && x.acc < 0.7 ? 'weak' : x.box >= 4 ? 'good' : ''}" title="box ${x.box} · ${x.ok}/${x.n}">${noteName(x.m)} ${x.n ? Math.round(100 * x.acc) + '%' : ''}</span>`).join('')}</div></div>`;
       }).join('') || 'No cards yet — try 🧠 Notes.';
-      const lat = (() => { try{ return localStorage.getItem('musicEco_latencyMs'); }catch(e){ return null; } })();
+      const lat = (() => { try{ return localStorage.getItem(MC.adoptKey('musicEco_latencyMs')); }catch(e){ return null; } })();
       host.innerHTML = `<div class="pg">
         <div class="pg-box"><span class="pg-big">🔥 ${streak}</span> day streak · ${weekMin} min this week</div>
         <h4>Last 8 weeks</h4><div class="pg-box"><div class="pg-cal">${cells.join('')}</div></div>
@@ -180,7 +195,7 @@
         tapBtn.style.display = 'none'; tapBtn.onpointerdown = null;
         if(offs.length < 4){ lab.textContent = 'Not enough taps — try again'; return; }
         const s = offs.slice().sort((a, b) => a - b), med = Math.max(0, Math.round(s[s.length >> 1]));
-        try{ localStorage.setItem('musicEco_latencyMs', String(med)); }catch(e){}
+        try{ localStorage.setItem(MC.adoptKey('musicEco_latencyMs'), String(med)); }catch(e){}
         lab.textContent = `now ${med} ms ✓`;
       }, (0.8 + 12 * spb + 0.5) * 1000);
     }

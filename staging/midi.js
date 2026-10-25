@@ -1,4 +1,4 @@
-/* @shared midi 1.0.0 */
+/* @shared midi 1.0.1 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -18,7 +18,8 @@
 */
 (function(){
   'use strict';
-  const RANGE_KEY = 'musicEco_kbRange';
+  // env-scoped like every stored name (MusicCore.ns); plain key if music-core isn't loaded
+  const RANGE_KEY = window.MusicCore && MusicCore.adoptKey ? MusicCore.adoptKey('musicEco_kbRange') : 'musicEco_kbRange';
   const supported = typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function';
   let access = null, noteFn = () => {}, statusFn = () => {};
   let pedal = false;
@@ -63,7 +64,7 @@
   }
 
   const Midi = {
-    VERSION: '1.0.0',
+    VERSION: '1.0.1',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },
