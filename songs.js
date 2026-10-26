@@ -164,7 +164,7 @@
     injectCSS();
     const host = d.host;
     let take = null, notes = [], idx = 0, mode = 'wait', wrong = 0;
-    let phrase = [], arr = null, shownRep = -1;      // phrase = the song once; arr = its practice arrangement
+    let phrase = [], arr = null, shownRep = -1, arrEl = null;      // phrase = the song once; arr = its practice arrangement
     let demo = null, timed = null, camX = 0, raf = 0, bpm = 90;
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
     let finishT = 0;                       // pending completion — cancelled on leave
@@ -299,7 +299,7 @@
           <button class="sg-btn" data-view="lane" title="Notes slide to the line">〰 Rhythm lane</button>
           <button class="sg-btn" data-view="score" title="The notes on a staff">𝄞 Score</button></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
-      canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d');
+      canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d'); arrEl = host.querySelector('#sgArr');
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
       // switching view keeps the song, place, tempo and results — only the
@@ -555,15 +555,20 @@
     // Listen + Play along use the practice arrangement; Step by step waits
     // for her, so it walks the phrase once
     const useArr = on => { notes = on && arr && !media ? arr.notes : phrase; };   // a recording is its own music: never repeated
+    // runs every frame while playing: no DOM lookup, and a write only when
+    // the repeat changes (arrEl is cached when the song screen is drawn)
     function arrLabel(beat){
-      const el = host.querySelector('#sgArr'); if(!el) return;
-      if(!arr || media){ el.textContent = ''; return; }
-      const running = !!(timed || demo) && notes !== phrase;
-      if(running && arr.reps > 1){
+      const running = !!(timed || demo) && arr && notes !== phrase;
+      if(running){
+        if(arr.reps < 2) return;
         const r = Math.max(0, Math.min(arr.reps - 1, Math.floor((beat || 0) / arr.beats)));
-        if(r === shownRep) return;                     // DOM only when the repeat changes
-        shownRep = r; el.textContent = `Repeat ${r + 1} of ${arr.reps}`;
-      } else {
+        if(r === shownRep) return;
+        shownRep = r; if(arrEl) arrEl.textContent = `Repeat ${r + 1} of ${arr.reps}`;
+        return;
+      }
+      const el = arrEl; if(!el) return;
+      if(!arr || media){ el.textContent = ''; return; }
+      {
         shownRep = -1;
         el.textContent = (arr.reps > 1 ? `🔁 ${arr.reps}× · ` : '') + `${Math.round(arr.sec)} s`;
         el.title = arr.reps > 1 ? `The ${take.exercise ? 'exercise' : 'song'} plays ${arr.reps} times in a row (${Math.round(arr.sec)} s at ${bpm} bpm)` : '';
