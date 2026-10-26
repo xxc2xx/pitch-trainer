@@ -278,7 +278,10 @@
 
     function isVisible(m){
       const i = wIndex.get(snapWhite(m, -1)); if(i == null) return false;
-      return i >= startW && i < startW + spanWhites();
+      if(!MC.isBlack(m)) return i >= startW && i < startW + spanWhites();
+      // a black key needs BOTH neighbours on screen and must not be the
+      // half-cut edge key (.pv2-cut, hidden and untappable) in every row
+      return i >= startW && i + 1 < startW + spanWhites() && (keyEls.get(m) || []).some(el => !el.classList.contains('pv2-cut'));
     }
     function scrollTo(m, force){
       if(m < lo || m > hi) return;

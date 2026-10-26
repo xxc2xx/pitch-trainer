@@ -180,7 +180,7 @@ loop) are not done yet.
   to `level.see`). Locked while Listen / Play along runs. Falling notes is
   hidden until its renderer exists (Stage B).
 - **Songs keyboard**: starts at G3–G4 (8 equal white keys, C4 centre at
-  43.75%) over C2–C6 on every level, overview + −/+ enabled even on Sprout;
+  43.75%) over at least C2–C6 (Bloom/Grow keep their wider ranges), overview + −/+ enabled even on Sprout;
   `#pbRange` shows the real ends. Her slide/zoom is saved; app auto-scrolls
   to a note are not. Other tabs keep their own position.
 - piano.js: black keys cut in half by the view edge are hidden and
