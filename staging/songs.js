@@ -47,6 +47,8 @@
   .sg-card.sg-today{background:var(--today-bg,linear-gradient(135deg,#2a1f5a,#1b2f5a));border-color:var(--accent);grid-column:span 2;}
   .sg-card.sg-add{border-style:dashed;border-color:var(--line-strong);background:var(--surface);}
   .sg-card .st{font-size:.68rem;color:var(--gold);min-height:1em;}
+  .sg-card .len{font-size:.66rem;font-weight:600;color:var(--text-2);}
+  .sg-arr{font-size:.74rem;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;min-width:6.5em;}
   .sg-card .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;max-width:100%;}
   .sg-card .dots i{width:7px;height:7px;border-radius:50%;}
   .sg-card .del{position:absolute;top:4px;right:6px;font-size:.7rem;color:var(--text-3);padding:2px 4px;}
@@ -127,10 +129,42 @@
 
   const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
 
+  // Her Yamaha book's short exercises (fixed do), moved from Music Garden.
+  // Our own titles, no book lyrics. Each is ONE phrase; it is practised as a
+  // repeated arrangement (arrangeFor), never presented as a longer score.
+  const EXERCISES = [
+    { id:'x_drd',  title:'Do Re Do',            icon:'🌱', tokens:'C4 D4 C4 R' },
+    { id:'x_drm',  title:'Up to Mi',            icon:'🌱', tokens:'C4 D4 E4 R' },
+    { id:'x_mrd',  title:'Down from Mi',        icon:'🌱', tokens:'E4 D4 C4 R' },
+    { id:'x_hcb',  title:'Hot Cross Buns (book)', icon:'🥯', timeSig:[2,4], tokens:'E4 D4 C4 R E4 D4 C4 R C4 C4 D4 D4 E4 D4 C4 R' },
+    { id:'x_fa',   title:'Up to Fa and back',   icon:'🌿', tokens:'C4 D4 E4 F4 E4 D4 C4 R' },
+    { id:'x_sol',  title:'Steps to Sol',        icon:'🌿', tokens:'C4 D4 E4 R E4 F4 G4 R G4 F4 E4 R E4 D4 C4 R' },
+    { id:'x_hill', title:'Five-finger hill',    icon:'⛰️', tokens:'C4 D4 E4 F4 G4:4 G4 F4 E4 D4 C4:4' },
+    { id:'x_low',  title:'Low hill (left hand)', icon:'⛰️', tokens:'C3 D3 E3 F3 G3:4 G3 F3 E3 D3 C3:4' },
+  ];
+  let exTakes = null;
+  const exerciseTakes = () => exTakes || (exTakes = EXERCISES.map(x => ({ ...MC.fromTokens(x.tokens, {
+    id: x.id, title: x.title, bpm: 76, timeSig: x.timeSig, source: 'builtin', createdAt: 0 }), icon: x.icon, exercise: true })));
+  // Practice length: an exercise repeats its phrase at least 8 times; any
+  // other song shorter than 20 s repeats whole until it lasts ≥ 20 s.
+  // Whole bars only (a closing rest is part of the music), one clock, real
+  // tempo — never stretched notes or silent padding. Recordings never repeat.
+  const MIN_SEC = 20, EX_REPEATS = 8;
+  function arrangeFor(t, phrase, bpm){
+    const bar = bpbOf(t), last = phrase.reduce((mx, n) => Math.max(mx, n.t + n.d), 0);
+    const beats = Math.max(bar, Math.ceil(last / bar - 1e-6) * bar), sec = beats * 60 / bpm;
+    const reps = (t.audioId || (t.sync && t.sync.audioId)) ? 1
+      : t.exercise ? Math.max(EX_REPEATS, Math.ceil(MIN_SEC / sec)) : sec < MIN_SEC ? Math.ceil(MIN_SEC / sec) : 1;
+    const notes = reps === 1 ? phrase : [];
+    for(let r = 0; reps > 1 && r < reps; r++) phrase.forEach(n => notes.push({ ...n, t: n.t + r * beats, rep: r }));
+    return { reps, beats, totalBeats: reps > 1 ? beats * reps : last, sec: (reps > 1 ? beats * reps : last) * 60 / bpm, notes };
+  }
+
   function create(d){
     injectCSS();
     const host = d.host;
     let take = null, notes = [], idx = 0, mode = 'wait', wrong = 0;
+    let phrase = [], arr = null, shownRep = -1, arrEl = null;      // phrase = the song once; arr = its practice arrangement
     let demo = null, timed = null, camX = 0, raf = 0, bpm = 90;
     let sing = null, sungM = null, hold = 0, needGap = false, gapT = 0;
     let finishT = 0;                       // pending completion — cancelled on leave
@@ -155,17 +189,24 @@
         ${deletable ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}
         <span class="ic">${t.icon || ({ sing:'🎤', piano:'🎹', video:'🎬', 'audio-file':'🎵', 'midi-file':'📄', musicxml:'📄', 'beat-hive':'🥁' }[t.source] || '🎵')}</span>
         <span>${esc(t.title)}</span><span class="dots">${dots}</span>
+        <span class="len">${lengthLabel(t)}</span>
         <span class="st">${st ? '⭐'.repeat(Math.min(st, 5)) + (st > 5 ? '+' : '') : ''}</span></div>`;
+    }
+    // "Exercise · 8× · 25 s" / "18 s": how long Listen and Play along last
+    function lengthLabel(t){
+      if(t.audioId || (t.sync && t.sync.audioId)) return '';
+      const b = Math.round((t.bpm || 90) * (d.getLevel().id === 'sprout' ? 0.8 : 1)), a = arrangeFor(t, MC.skyline(t.notes), b);
+      return (t.exercise ? 'Exercise · ' : '') + (a.reps > 1 ? `${a.reps}× · ` : '') + `${Math.round(a.sec)} s`;
     }
     let shelfTakes = new Map();
     async function renderShelf(){
       if(together){ together = false; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       onDone = null;                         // back on the shelf = the lesson path was left
-      const builtin = MC.builtinTakes();
+      const builtin = MC.builtinTakes(), exercises = exerciseTakes();
       let mine = [];
       try{ mine = await MC.store.listTakes(); }catch(e){}
-      shelfTakes = new Map([...builtin, ...mine].map(t => [t.id, t]));
+      shelfTakes = new Map([...exercises, ...builtin, ...mine].map(t => [t.id, t]));
       const fromClass = mine.filter(t => t.tag === 'class'), own = mine.filter(t => t.tag !== 'class');
       const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
         <span class="st" style="color:var(--text-2)">video · music · MIDI</span></div>` : '';
@@ -178,6 +219,8 @@
         ${practice ? `<h3>🌟 Practice</h3><div class="sg-grid sg-practice">${practice}</div>` : ''}
         <h3>🎒 From class</h3>
         <div class="sg-grid">${addCard}${fromClass.map(t => card(t, true)).join('')}</div>
+        <h3>📘 Her book — exercises</h3>
+        <div class="sg-grid">${exerciseTakes().map(t => card(t, false)).join('')}</div>
         ${own.length ? `<h3>🎹 My songs</h3><div class="sg-grid">${own.map(t => card(t, true)).join('')}</div>` : ''}
         <h3>⭐ Starter songs</h3><div class="sg-grid">${builtin.map(t => card(t, false)).join('')}</div>
       </div>`;
@@ -205,7 +248,8 @@
     function open(t){
       take = t;
       const level = d.getLevel();
-      notes = fitToRange(MC.skyline(t.notes), level.range);
+      // the Songs keyboard spans at least C2–C6 (d.songRange): a song keeps its real octave
+      notes = fitToRange(MC.skyline(t.notes), d.songRange ? d.songRange() : level.range);
       // practice part set in ✏️ Fix notes: practise just that bit
       partOnly = !!(t.section && t.section.to != null);
       if(partOnly){
@@ -219,6 +263,7 @@
       // Sprout starts a little slower — rhythm is new
       if(together){ together = false; dadChords = []; dadAt = undefined; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
+      phrase = notes; arr = partOnly ? null : arrangeFor(t, phrase, bpm); shownRep = -1;
       mode = 'wait';
       d.onOpen && d.onOpen({ ...t, notes });
       host.innerHTML = `
@@ -238,6 +283,7 @@
             <button class="sg-btn" id="sgRestart" title="Start over">↺</button>
             ${window.Studio ? '<button class="sg-btn" id="sgEdit" title="Fix wrong notes, set the practice part">✏️ Fix</button>' : ''}
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
+            <span class="sg-arr" id="sgArr" aria-live="polite"></span>
           </div></div>
         <div id="sgExRow" class="sg-ctrl" style="display:none">
           <button class="sg-btn" id="sgExXml" title="Open in MuseScore (free) to print the score">🎼 Sheet music (.musicxml)</button>
@@ -253,7 +299,7 @@
           <button class="sg-btn" data-view="lane" title="Notes slide to the line">〰 Rhythm lane</button>
           <button class="sg-btn" data-view="score" title="The notes on a staff">𝄞 Score</button></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
-      canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d');
+      canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d'); arrEl = host.querySelector('#sgArr');
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
       // switching view keeps the song, place, tempo and results — only the
@@ -274,7 +320,7 @@
       const tr = host.querySelector('#sgTempo');
       if(tr) tr.oninput = () => {
         if(media){ rate = +tr.value / 100; media.playbackRate = rate; host.querySelector('#sgBpm').textContent = tr.value + '%'; }
-        else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; }
+        else { bpm = +tr.value; host.querySelector('#sgBpm').textContent = bpm; if(!timed && !demo){ arr = partOnly ? null : arrangeFor(t, phrase, bpm); arrLabel(); } }
       };
       host.querySelector('#sgLoop').onclick = setLoop;
       const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
@@ -506,11 +552,33 @@
       const kb = d.getKb(); kb && kb.setTarget(null);
     }
 
+    // Listen + Play along use the practice arrangement; Step by step waits
+    // for her, so it walks the phrase once
+    const useArr = on => { notes = on && arr && !media ? arr.notes : phrase; };   // a recording is its own music: never repeated
+    // runs every frame while playing: no DOM lookup, and a write only when
+    // the repeat changes (arrEl is cached when the song screen is drawn)
+    function arrLabel(beat){
+      const running = !!(timed || demo) && arr && notes !== phrase;
+      if(running){
+        if(arr.reps < 2) return;
+        const r = Math.max(0, Math.min(arr.reps - 1, Math.floor((beat || 0) / arr.beats)));
+        if(r === shownRep) return;
+        shownRep = r; if(arrEl) arrEl.textContent = `Repeat ${r + 1} of ${arr.reps}`;
+        return;
+      }
+      const el = arrEl; if(!el) return;
+      if(!arr || media){ el.textContent = ''; return; }
+      {
+        shownRep = -1;
+        el.textContent = (arr.reps > 1 ? `🔁 ${arr.reps}× · ` : '') + `${Math.round(arr.sec)} s`;
+        el.title = arr.reps > 1 ? `The ${take.exercise ? 'exercise' : 'song'} plays ${arr.reps} times in a row (${Math.round(arr.sec)} s at ${bpm} bpm)` : '';
+      }
+    }
     function startMode(m){
-      stopAll(); idx = 0; wrong = 0; judged.clear(); hits.clear(); runStart = performance.now();
+      stopAll(); useArr(m === 'timed'); idx = 0; wrong = 0; judged.clear(); hits.clear(); runStart = performance.now();
       if(m === 'timed'){ mode = 'timed'; startTimed(); }
       else { mode = 'wait'; target(); }
-      setBtns(); progress(); animateTo();
+      setBtns(); progress(); animateTo(); arrLabel();
     }
 
     function target(){
@@ -626,10 +694,11 @@
     function startDemo(){
       stopAll(); stopSing();               // the mic would hear the demo through the speaker
       const ac = d.audio(), spb = 60 / bpm, t0 = ac.currentTime + 0.4;
+      useArr(true); idx = 0; judged.clear(); hits.clear();
       demo = { t0, bpm, tag: 'demo' + (++runSeq), stop: false, last: -1, media };
       if(media) playMedia(loopAB ? loopAB.from - 0.5 : -1);                 // her original video/song
       else notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 85, tag: demo.tag }));
-      const len = MC.takeLength({ notes });
+      const len = arr && !media ? arr.totalBeats : MC.takeLength({ notes });   // ends after the final bar
       const run = demo;
       const tick = () => {
         if(run.stop) return;
@@ -642,7 +711,7 @@
         }
         if(keepLoop(run, beat)) run.last = -1;
         camX = xOf(Math.max(-1, beat)) - camLead();
-        draw(beat);
+        draw(beat); arrLabel(beat);
         if(beat > len + 0.5 || (run.media && run.media.ended)){ stopAll(); startMode('wait'); return; }
         raf = requestAnimationFrame(tick);
       };
@@ -665,7 +734,7 @@
         // the "music": melody softly underneath so she hears what to play
         if(guideOn) notes.forEach(n => d.playNote(ac, n.m, t0 + n.t * spb, n.d * spb, { vel: 90, tag: timed.tag, soft: true }));
       }
-      const len = MC.takeLength({ notes });
+      const len = arr && !media ? arr.totalBeats : MC.takeLength({ notes });   // one result, after the final bar
       const run = timed;
       const tick = () => {
         if(run.stop) return;
@@ -681,7 +750,7 @@
         const lead = lv === 'sprout' ? 99 : 1;
         if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
-        draw(beat);
+        draw(beat); arrLabel(beat);
         if((beat > len + 0.6 || (run.media && run.media.ended)) && !(loopAB && loopAB.to != null)){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
@@ -964,5 +1033,5 @@
     };
   }
 
-  window.Songs = { create, fitToRange };
+  window.Songs = { create, fitToRange, arrangeFor, exerciseTakes };
 })();
