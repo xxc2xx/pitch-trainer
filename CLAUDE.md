@@ -193,6 +193,17 @@ loop) are not done yet.
   Stage B's off-screen range cue; yellow noteheads on the white Storybook
   staff need an outline (Stage B).
 
+## sound.js 1.0.1 — timed sampled notes (2026-10-26)
+
+smplr 1.1.0's stop function CANCELS a note still waiting in its 200 ms
+lookahead queue and stops every voice sharing the stopId, and takes a
+NUMBER time. 1.0.0 called it right after scheduling (to set the note end)
+and passed `{ time }`: tagged tunes lost every note after the first (Garden
+"Hear it" on iPhone), and releasing a key never stopped a sampled note.
+1.0.1 passes `duration` to smplr and calls stop(time) only to cancel/release.
+`node tools/sound-test.mjs` replays smplr's rules with a fake instrument;
+`node tools/sound-test.mjs <old sound.js>` shows the old bug.
+
 ## Music Garden moved out (2026-10-24)
 
 The kid-facing Music Garden now lives in its own repo, `~/music-garden`

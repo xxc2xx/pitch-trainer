@@ -120,8 +120,8 @@
   },
   "sound.js": {
     "global": "Sound",
-    "version": "1.0.0",
-    "sha256": "c253162c7278de02acbf8bbed6b19a108c4e3eacb3fc7a957aac353d8079d952",
+    "version": "1.0.1",
+    "sha256": "fe7fbfc80e0297cf93100d2fb69b7dacac23b0281f9be0c50414b3c322e1d54a",
     "api": {
       "VERSION": "string",
       "allOff": "fn/0",
