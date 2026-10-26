@@ -12,9 +12,29 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>🎵 Pitch Trainer</title>
   <style>
+    /* Appearance themes (Studio = default, Storybook = light). Every shell
+       colour is a token; pitch colours stay MusicCore.colorOf(). Canvas code
+       reads the same tokens once per theme change (themePalette). */
+    :root,:root[data-theme="studio"]{
+      --page:#101522;--stage:#171F30;--surface:#1A2338;--surface-2:#222D46;--line:#34435F;--line-strong:#4A5C80;
+      --text:#F7F8FC;--text-2:#ADB9D1;--text-3:#8E9BB8;--accent:#7E90F0;--sel:#33426A;--on-sel:#FFFFFF;
+      --primary:#C53159;--on-primary:#FFFFFF;--gold:#FFD54F;--staff:#5A6A8C;--fade:#E6E6F0;--hit:#FFD54F;
+      --chord:#FFD54F;--now:#7EC8FF;--today-bg:linear-gradient(135deg,#2A2F66,#1B2F5A);
+      --pv2-white:#FFFDF9;--pv2-black:#202733;--pv2-mini-bg:#0E1424;--pv2-mini-line:#34435F;--pv2-mini-w:#3C4A68;--pv2-mini-b:#0E1424;--pv2-win:#FFD54F;
+      color-scheme:dark;
+    }
+    :root[data-theme="storybook"]{
+      --page:#F5F8FC;--stage:#FFFFFF;--surface:#FFFFFF;--surface-2:#EAF0F8;--line:#C7D6EA;--line-strong:#9FB4D3;
+      --text:#16305B;--text-2:#4D6284;--text-3:#5D7090;--accent:#3E55B8;--sel:#16305B;--on-sel:#FFFFFF;
+      --primary:#C53159;--on-primary:#FFFFFF;--gold:#8A6000;--staff:#8296B4;--fade:#5D7090;--hit:#C53159;
+      --chord:#8A6000;--now:#1F6FB8;--today-bg:linear-gradient(135deg,#E6ECFF,#F3E8FA);
+      --pv2-white:#FFFDF9;--pv2-black:#202733;--pv2-mini-bg:#DCE5F1;--pv2-mini-line:#C7D6EA;--pv2-mini-w:#FFFFFF;--pv2-mini-b:#202733;--pv2-win:#C53159;
+      --pv2-shadow:0 6px 18px rgba(22,48,91,.18);
+      color-scheme:light;
+    }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
     body{
-      min-height:100vh;min-height:100dvh;background:#0f0e17;color:#fffffe;
+      min-height:100vh;min-height:100dvh;background:var(--page);color:var(--text);
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       padding:10px 12px;gap:9px;touch-action:manipulation;
@@ -35,54 +55,54 @@
     #headerRow{display:flex;align-items:center;gap:9px;}
     #avatarBadge{
       display:none;width:34px;height:34px;border-radius:8px;object-fit:cover;
-      border:2px solid #2a2a4e;cursor:pointer;transition:border-color .15s;
+      border:2px solid var(--line);cursor:pointer;transition:border-color .15s;
     }
-    #avatarBadge:hover{border-color:#5555cc;}
+    #avatarBadge:hover{border-color:var(--accent);}
 
     /* Avatar onboarding gate */
     #avatarGate{
-      position:fixed;inset:0;z-index:9999;background:#0f0e17;
+      position:fixed;inset:0;z-index:9999;background:var(--page);
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:14px;padding:20px;
     }
     #avatarGate.hidden{display:none;}
-    #avatarGate h2{font-size:1.1rem;font-weight:700;color:#e6e6f5;text-align:center;margin:0;}
+    #avatarGate h2{font-size:1.1rem;font-weight:700;color:var(--text);text-align:center;margin:0;}
     #avatarGate .gate-inner{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:340px;}
     #avatarDropZone{
-      width:100%;border:2px dashed #1e1e38;border-radius:12px;
+      width:100%;border:2px dashed var(--line);border-radius:12px;
       padding:28px 12px;text-align:center;cursor:pointer;
-      transition:border-color .2s,background .2s;color:#8686aa;font-size:.8rem;
+      transition:border-color .2s,background .2s;color:var(--text-2);font-size:.8rem;
       position:relative;
     }
-    #avatarDropZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
+    #avatarDropZone.drag{border-color:var(--accent);background:rgba(40,40,100,.18);}
     #avatarDropZone .zone-icon{font-size:2rem;display:block;margin-bottom:6px;}
     #avatarDropZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-    #avatarPixelCanvas{display:none;width:180px;height:180px;border-radius:14px;background:#06050f;border:1px solid #1e1e38;}
+    #avatarPixelCanvas{display:none;width:180px;height:180px;border-radius:14px;background:var(--stage);border:1px solid var(--line);}
     #avatarControls{display:none;flex-direction:column;align-items:center;gap:10px;width:100%;}
-    #avatarControls label{font-size:.72rem;color:#8686aa;display:flex;align-items:center;gap:6px;}
-    #avatarPalette{background:#0f0e17;color:#e6e6f5;border:1px solid #242440;border-radius:6px;padding:3px 6px;font-size:.72rem;}
+    #avatarControls label{font-size:.72rem;color:var(--text-2);display:flex;align-items:center;gap:6px;}
+    #avatarPalette{background:var(--page);color:var(--text);border:1px solid var(--surface-2);border-radius:6px;padding:3px 6px;font-size:.72rem;}
     #avatarConfirmBtn,#avatarRetakeBtn{padding:8px 20px;font-size:.82rem;}
     #avatarSkipBtn{
-      background:transparent;border:none;color:#8686aa;font-size:.7rem;
+      background:transparent;border:none;color:var(--text-2);font-size:.7rem;
       text-decoration:underline;cursor:pointer;padding:4px;
     }
 
     .tabs{display:flex;gap:7px;width:100%;max-width:400px;}
     .tab{
-      flex:1;padding:8px 4px;border:2px solid #242440;background:transparent;color:#7c7ca8;
+      flex:1;padding:8px 4px;border:2px solid var(--surface-2);background:transparent;color:var(--text-2);
       border-radius:10px;font-size:.78rem;font-weight:700;cursor:pointer;transition:all .15s;
     }
-    .tab.active{background:#242440;color:#fffffe;border-color:#4444aa;}
+    .tab.active{background:var(--surface-2);color:var(--text);border-color:var(--accent);}
 
     .note-card{
-      background:#16213e;border-radius:16px;padding:9px 22px;
+      background:var(--surface);border-radius:16px;padding:9px 22px;
       text-align:center;min-width:185px;transition:box-shadow .25s;
     }
     .note-card.lit{box-shadow:0 0 38px rgba(255,215,0,.38);}
-    .note-big{font-size:clamp(2rem,9.5vw,3.4rem);font-weight:900;line-height:1;color:#e2b714;min-height:1.1em;}
-    .note-sub{font-size:.72rem;color:#8686aa;margin-top:2px;min-height:1.1em;}
-    .cents-wrap{position:relative;height:5px;background:#1e1e38;border-radius:3px;margin-top:6px;}
-    .cents-wrap::after{content:'';position:absolute;left:50%;top:-2px;width:2px;height:9px;background:#2e2e50;transform:translateX(-50%);}
+    .note-big{font-size:clamp(2rem,9.5vw,3.4rem);font-weight:900;line-height:1;color:var(--gold);min-height:1.1em;}
+    .note-sub{font-size:.72rem;color:var(--text-2);margin-top:2px;min-height:1.1em;}
+    .cents-wrap{position:relative;height:5px;background:var(--line);border-radius:3px;margin-top:6px;}
+    .cents-wrap::after{content:'';position:absolute;left:50%;top:-2px;width:2px;height:9px;background:var(--line);transform:translateX(-50%);}
     #centsDot{
       position:absolute;top:50%;width:9px;height:9px;border-radius:50%;
       transform:translate(-50%,-50%);left:50%;background:#555;
@@ -94,7 +114,7 @@
 
     /* Metronome canvas */
     #metroView{width:100%;max-width:580px;display:none;}
-    #metroCanvas{width:100%;height:340px;display:block;border-radius:14px;background:#06060f;}
+    #metroCanvas{width:100%;height:340px;display:block;border-radius:14px;background:var(--stage);}
     @media(max-height:700px){#metroCanvas{height:260px;}}
 
     /* Piano v2 (piano.js renders the keys; these size the host) */
@@ -111,24 +131,30 @@
       body:not(.mode-dj){justify-content:flex-start;padding-top:6px;gap:6px;}
       body:not(.mode-dj) #headerRow{display:none;}
       body:not(.mode-dj) #staffView{display:none !important;}
-      body.mode-songs #pianoBar,body.mode-songs .pv2-mini{display:none !important;}
+      /* keep the overview and − range + so she can still slide / zoom */
+      body.mode-songs #pianoBar > :not(#pbZoom){display:none !important;}
       body.mode-songs #pianoHost{--pv2-h:36vh;}
     }
     #pianoBar{display:none;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;padding:2px 0 6px;}
     #pianoBar.show{display:flex;}
-    .pb-group{display:flex;gap:3px;background:#12112a;border:1px solid #242440;border-radius:10px;padding:2px;}
-    .pb-btn{background:transparent;border:none;color:#8a8ab8;font-size:.78rem;font-weight:700;
+    .pb-group{display:flex;gap:3px;background:var(--surface);border:1px solid var(--surface-2);border-radius:10px;padding:2px;}
+    .pb-btn{background:transparent;border:none;color:var(--text-2);font-size:.78rem;font-weight:700;
       padding:5px 9px;border-radius:8px;cursor:pointer;min-width:34px;}
-    .pb-btn.sel{background:#2c2c5a;color:#fff;}
+    .pb-btn.sel{background:var(--sel);color:#fff;}
     .pb-btn:disabled{opacity:.3;cursor:default;}
-    #pbRec.on{background:#e94560;color:#fff;animation:recblink 1s infinite;}
-    #soundBadge{font-size:.68rem;color:#7a7aa8;min-width:0;}
-    #midiBtn{border:1px solid #2c2c5a;background:#12112a;font-size:.72rem;}
+    #pbRange{align-self:center;min-width:5.6em;text-align:center;font-size:.76rem;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;}
+    #themeSel .pb-btn{font-size:.72rem;padding:4px 9px;}
+    #storyAccent{display:none;}
+    .theme-swap *,.theme-swap *::before,.theme-swap *::after{transition:none !important;}   /* colours swap at once on a theme change */
+    [data-theme="storybook"] #storyAccent:not(:empty){display:block;height:40px;}
+    #pbRec.on{background:var(--primary);color:#fff;animation:recblink 1s infinite;}
+    #soundBadge{font-size:.68rem;color:var(--text-2);min-width:0;}
+    #midiBtn{border:1px solid var(--sel);background:var(--surface);font-size:.72rem;}
     #midiBtn.on{border-color:#2e7d32;background:#16301c;color:#a5e6b0;}
     #midiBtn.na{display:none;}
     #soundBadge:empty{display:none;}
     @keyframes recblink{50%{opacity:.6}}
-    #recToast{align-items:center;justify-content:center;gap:8px;font-size:.75rem;color:#9a9ad0;padding:0 0 6px;}
+    #recToast{align-items:center;justify-content:center;gap:8px;font-size:.75rem;color:var(--text-2);padding:0 0 6px;}
 
     /* Controls */
     #controls{display:flex;flex-direction:column;align-items:center;gap:6px;}
@@ -137,46 +163,46 @@
       border:none;border-radius:50px;cursor:pointer;transition:transform .1s;
     }
     .btn:active{transform:scale(.95);}
-    .btn-start{background:#e94560;color:#fff;box-shadow:0 4px 18px rgba(233,69,96,.45);}
-    .btn-stop{background:#2d2d44;color:#ccc;}
-    .hint{font-size:.68rem;color:#8686aa;text-align:center;}
+    .btn-start{background:var(--primary);color:#fff;box-shadow:0 4px 18px rgba(233,69,96,.45);}
+    .btn-stop{background:var(--surface-2);color:#ccc;}
+    .hint{font-size:.68rem;color:var(--text-2);text-align:center;}
     #hearRow{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
-    #hearRow .pb-btn{border:1px solid #2c2c5a;background:#12112a;}
-    #singRecBtn.on{background:#e94560;color:#fff;border-color:#e94560;animation:recblink 1s infinite;}
+    #hearRow .pb-btn{border:1px solid var(--sel);background:var(--surface);}
+    #singRecBtn.on{background:var(--primary);color:#fff;border-color:var(--primary);animation:recblink 1s infinite;}
 
     /* Play tab */
     #playView{width:100%;max-width:580px;display:none;flex-direction:column;gap:8px;}
-    #scoreScroll{overflow-x:auto;overflow-y:hidden;border-radius:10px;background:#06050f;display:none;border:1px solid #0d0d28;}
+    #scoreScroll{overflow-x:auto;overflow-y:hidden;border-radius:10px;background:var(--stage);display:none;border:1px solid var(--stage);}
     #scoreCanvas{display:block;}
     .play-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;}
-    #playBpmSlider{width:90px;accent-color:#e2b714;}
-    #playBpmVal{font-size:.82rem;color:#e2b714;min-width:2.2em;}
-    .play-chk{font-size:.75rem;color:#8686aa;display:flex;align-items:center;gap:4px;cursor:pointer;}
-    #playStatus{font-size:.72rem;color:#8686aa;text-align:center;min-height:1.2em;}
-    #playLog{font-size:.66rem;color:#8686aa;background:#0a0a18;border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;margin-top:6px;max-height:140px;overflow-y:auto;font-family:ui-monospace,Menlo,monospace;line-height:1.35;display:none;white-space:pre-wrap;word-break:break-word;}
+    #playBpmSlider{width:90px;accent-color:var(--gold);}
+    #playBpmVal{font-size:.82rem;color:var(--gold);min-width:2.2em;}
+    .play-chk{font-size:.75rem;color:var(--text-2);display:flex;align-items:center;gap:4px;cursor:pointer;}
+    #playStatus{font-size:.72rem;color:var(--text-2);text-align:center;min-height:1.2em;}
+    #playLog{font-size:.66rem;color:var(--text-2);background:var(--stage);border:1px solid var(--surface);border-radius:8px;padding:6px 8px;margin-top:6px;max-height:140px;overflow-y:auto;font-family:ui-monospace,Menlo,monospace;line-height:1.35;display:none;white-space:pre-wrap;word-break:break-word;}
     #playLog.show{display:block;}
     #playLog .err{color:#ef4444;}
     #playLog .ok{color:#22c55e;}
 
     /* Sheet upload drop zone */
     #sheetZone{
-      width:100%;border:2px dashed #1e1e38;border-radius:12px;
+      width:100%;border:2px dashed var(--line);border-radius:12px;
       padding:18px 12px;text-align:center;cursor:pointer;
-      transition:border-color .2s,background .2s;color:#8686aa;font-size:.78rem;
+      transition:border-color .2s,background .2s;color:var(--text-2);font-size:.78rem;
       position:relative;
     }
-    #sheetZone.drag{border-color:#5555cc;background:rgba(40,40,100,.18);}
+    #sheetZone.drag{border-color:var(--accent);background:rgba(40,40,100,.18);}
     #sheetZone .zone-icon{font-size:1.8rem;display:block;margin-bottom:4px;}
     #sheetZone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-    #sheetPreview{width:100%;max-height:140px;object-fit:contain;border-radius:8px;display:none;background:#06050f;}
-    .apiKeyWrap{display:flex;align-items:center;gap:6px;font-size:.72rem;color:#8686aa;}
+    #sheetPreview{width:100%;max-height:140px;object-fit:contain;border-radius:8px;display:none;background:var(--stage);}
+    .apiKeyWrap{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--text-2);}
     .apiKeyWrap input{
       flex:1;background:#0a0918;color:#aaa;border:1px solid #1a1a38;
       border-radius:6px;padding:4px 8px;font-size:.72rem;outline:none;
       font-family:monospace;
     }
     #apiKeySave{
-      background:#1a1a40;border:1.5px solid #3a3aaa;color:#8888dd;
+      background:var(--surface);border:1.5px solid #3a3aaa;color:#8888dd;
       border-radius:8px;padding:3px 10px;font-size:.7rem;cursor:pointer;white-space:nowrap;
     }
     #apiKeyStatus{font-size:.68rem;}
@@ -187,26 +213,26 @@
     #instBar{display:none;flex-wrap:wrap;gap:5px;justify-content:center;padding:5px 0 2px;}
     #instBar.show{display:flex;}
     .inst-btn{
-      background:#0e0d1a;border:1.5px solid #1e1e38;color:#8686aa;
+      background:var(--stage);border:1.5px solid var(--line);color:var(--text-2);
       border-radius:18px;padding:3px 11px;font-size:.71rem;cursor:pointer;transition:all .12s;white-space:nowrap;
     }
-    .inst-btn.sel{background:#1a1a40;border-color:#4848cc;color:#8888ee;}
+    .inst-btn.sel{background:var(--surface);border-color:var(--accent);color:var(--accent);}
 
     /* ── Stats Tab ───────────────────────────────────────────────── */
     #statsView{width:100%;max-width:580px;display:none;flex-direction:column;gap:10px;}
     #statsSummary{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
-    .stats-card{background:#0e0d1a;border:1px solid #1e1e38;border-radius:10px;
+    .stats-card{background:var(--stage);border:1px solid var(--line);border-radius:10px;
       padding:8px 14px;text-align:center;min-width:76px;}
     .stats-card .num{font-size:1.15rem;font-weight:700;color:#8888ee;}
-    .stats-card .lbl{font-size:.62rem;color:#8686aa;text-transform:uppercase;letter-spacing:.03em;}
-    #statsCanvas{width:100%;background:#06050f;border-radius:10px;border:1px solid #0d0d28;display:block;}
-    #statsSessionList{font-size:.7rem;color:#8a8ac0;background:#0a0a18;
-      border:1px solid #1a1a30;border-radius:8px;padding:6px 8px;max-height:160px;overflow-y:auto;}
+    .stats-card .lbl{font-size:.62rem;color:var(--text-2);text-transform:uppercase;letter-spacing:.03em;}
+    #statsCanvas{width:100%;background:var(--stage);border-radius:10px;border:1px solid var(--stage);display:block;}
+    #statsSessionList{font-size:.7rem;color:#8a8ac0;background:var(--stage);
+      border:1px solid var(--surface);border-radius:8px;padding:6px 8px;max-height:160px;overflow-y:auto;}
     .stats-row{display:flex;justify-content:space-between;gap:8px;padding:3px 2px;
       border-bottom:1px solid #14142a;}
     .stats-row:last-child{border-bottom:none;}
     .stats-row .rate{font-weight:600;}
-    #statsEmpty{font-size:.75rem;color:#8686aa;text-align:center;padding:20px 10px;}
+    #statsEmpty{font-size:.75rem;color:var(--text-2);text-align:center;padding:20px 10px;}
 
     /* ── DJ / MPC Tab ────────────────────────────────────────────── */
     #djView{width:100%;max-width:580px;display:none;flex-direction:column;gap:9px;}
@@ -216,12 +242,12 @@
 
     /* Bank + TAP */
     .dj-bank-btn{
-      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#8686aa;
+      background:var(--stage);border:1.5px solid var(--line);color:var(--text-2);
       border-radius:7px;padding:5px 11px;font-size:.7rem;font-weight:700;cursor:pointer;transition:all .12s;
     }
-    .dj-bank-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
+    .dj-bank-btn.sel{background:var(--surface);border-color:var(--accent);color:#9999ee;}
     #djTapBtn{
-      background:#1a1a30;border:1.5px solid #3333aa;color:#7777cc;
+      background:var(--surface);border:1.5px solid #3333aa;color:#7777cc;
       border-radius:7px;padding:5px 9px;font-size:.7rem;font-weight:700;cursor:pointer;
       transition:background .08s;touch-action:manipulation;min-width:36px;text-align:center;
     }
@@ -245,9 +271,9 @@
 
     /* Echo (Note Repeat) row */
     .dj-repeat-row{display:flex;align-items:center;gap:6px;justify-content:center;}
-    .dj-rep-lbl{font-size:.63rem;color:#8686aa;}
+    .dj-rep-lbl{font-size:.63rem;color:var(--text-2);}
     .dj-rep-btn{
-      background:#0e0d1a;border:1.5px solid #1e1e3a;color:#8686aa;
+      background:var(--stage);border:1.5px solid var(--surface-2);color:var(--text-2);
       border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
     .dj-rep-btn.sel{background:#2a1540;border-color:#aa55cc;color:#cc88ff;}
@@ -255,7 +281,7 @@
     /* FX row */
     .dj-fx-row{display:flex;align-items:center;gap:6px;justify-content:center;flex-wrap:wrap;}
     .dj-fx-btn{
-      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#5a9fc4;
+      background:var(--stage);border:1.5px solid var(--surface);color:#5a9fc4;
       border-radius:14px;padding:4px 12px;font-size:.67rem;cursor:pointer;
       transition:all .1s;touch-action:manipulation;-webkit-tap-highlight-color:transparent;
     }
@@ -264,7 +290,7 @@
 
     /* Advanced toggle */
     #djAdvBtn{
-      background:transparent;border:none;color:#8686aa;font-size:.62rem;cursor:pointer;
+      background:transparent;border:none;color:var(--text-2);font-size:.62rem;cursor:pointer;
       padding:2px 6px;touch-action:manipulation;align-self:center;
     }
 
@@ -278,41 +304,41 @@
     .seq-mute{
       width:18px;height:18px;flex-shrink:0;
       background:#0e0d20;border:1.5px solid #2a2a3a;border-radius:3px;
-      font-size:.46rem;font-weight:800;color:#8686aa;cursor:pointer;
+      font-size:.46rem;font-weight:800;color:var(--text-2);cursor:pointer;
       display:flex;align-items:center;justify-content:center;transition:all .1s;touch-action:manipulation;
     }
     .seq-mute.muted{background:#300a0a;border-color:#772222;color:#ff7a7a;}
-    .seq-label{font-size:.56rem;color:#8686aa;width:20px;text-align:right;flex-shrink:0;padding-right:2px;}
+    .seq-label{font-size:.56rem;color:var(--text-2);width:20px;text-align:right;flex-shrink:0;padding-right:2px;}
     .seq-steps{display:flex;gap:2px;flex:1;}
     .seq-step{
       flex:1;height:20px;background:#0f0f28;border:1.5px solid #1a1a35;
       border-radius:3px;cursor:pointer;transition:background .07s;touch-action:manipulation;
     }
     .seq-step.seq-on{background:#4422aa;border-color:#6644cc;}
-    .seq-step.seq-current{border-color:#e2b714!important;box-shadow:0 0 5px #e2b714;}
+    .seq-step.seq-current{border-color:var(--gold)!important;box-shadow:0 0 5px var(--gold);}
     .seq-step:nth-child(4n+1){margin-left:3px;}
     .seq-step:first-child{margin-left:0;}
 
     /* Patterns */
     .dj-presets{display:flex;gap:5px;justify-content:center;flex-wrap:wrap;align-items:center;}
-    .dj-pre-lbl{font-size:.63rem;color:#8686aa;}
+    .dj-pre-lbl{font-size:.63rem;color:var(--text-2);}
     .dj-preset-btn{
-      background:#0e0d1a;border:1.5px solid #2a2a4a;color:#8686aa;
+      background:var(--stage);border:1.5px solid var(--line);color:var(--text-2);
       border-radius:14px;padding:3px 11px;font-size:.67rem;cursor:pointer;transition:all .12s;
     }
-    .dj-preset-btn.sel{background:#1a1a40;border-color:#5555cc;color:#9999ee;}
+    .dj-preset-btn.sel{background:var(--surface);border-color:var(--accent);color:#9999ee;}
 
     /* CHOP loader */
     #djChopLoad{display:flex;align-items:center;gap:8px;justify-content:center;}
     #djChopBtn{
-      background:#0e0d1a;border:1.5px solid #1a3a1a;color:#5fae5f;
+      background:var(--stage);border:1.5px solid #1a3a1a;color:#5fae5f;
       border-radius:8px;padding:5px 13px;font-size:.68rem;cursor:pointer;
       position:relative;overflow:hidden;transition:all .12s;
     }
     #djChopBtn:hover,#djChopBtn:active{border-color:#44aa44;color:#77dd77;}
     #djChopBtn input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
     #djDemoBtn{
-      background:#0e0d1a;border:1.5px solid #1a2a3a;color:#5a9fc4;
+      background:var(--stage);border:1.5px solid var(--surface);color:#5a9fc4;
       border-radius:8px;padding:5px 11px;font-size:.68rem;cursor:pointer;transition:all .12s;
     }
     #djDemoBtn:hover,#djDemoBtn:active{border-color:#3388cc;color:#66aaee;}
@@ -325,9 +351,9 @@
     }
     .dj-disc{
       width:88px;height:88px;border-radius:50%;position:relative;
-      background:conic-gradient(#1a1838 0deg,#252448 30deg,#1a1838 60deg,#252448 90deg,
-        #1a1838 120deg,#252448 150deg,#1a1838 180deg,#252448 210deg,
-        #1a1838 240deg,#252448 270deg,#1a1838 300deg,#252448 330deg,#1a1838 360deg);
+      background:conic-gradient(var(--surface) 0deg,var(--surface-2) 30deg,var(--surface) 60deg,var(--surface-2) 90deg,
+        var(--surface) 120deg,var(--surface-2) 150deg,var(--surface) 180deg,var(--surface-2) 210deg,
+        var(--surface) 240deg,var(--surface-2) 270deg,var(--surface) 300deg,var(--surface-2) 330deg,var(--surface) 360deg);
       border:3px solid #4433aa;box-shadow:0 0 10px rgba(80,60,180,.25);
       touch-action:none;cursor:grab;flex-shrink:0;
       transition:box-shadow .06s,border-color .06s;
@@ -348,7 +374,7 @@
   </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 2ba8bae</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING a9ca3a3</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -379,6 +405,11 @@
   <div id="headerRow">
     <h1>🎵 Pitch Trainer</h1>
     <img id="avatarBadge" alt="Your avatar">
+    <div class="pb-group" id="themeSel" role="group" aria-label="Appearance">
+      <button class="pb-btn" data-look="studio">Studio</button>
+      <button class="pb-btn" data-look="storybook">Storybook</button>
+    </div>
+    <span id="storyAccent" aria-hidden="true"></span><!-- Storybook character accent: artwork from Codex (unnamed characters) -->
   </div>
 
   <div class="tabs">
@@ -580,8 +611,11 @@
       <div class="pb-group">
         <button class="pb-btn" id="pbLabels" title="Key labels">🎨</button>
         <button class="pb-btn" id="pbRows" title="Two rows">☰</button>
-        <button class="pb-btn" id="pbZoomOut" title="Show more keys">−</button>
-        <button class="pb-btn" id="pbZoomIn"  title="Bigger keys">＋</button>
+      </div>
+      <div class="pb-group" id="pbZoom">
+        <button class="pb-btn" id="pbZoomOut" title="Show more keys" aria-label="Show more keys">−</button>
+        <span id="pbRange" aria-live="polite"></span>
+        <button class="pb-btn" id="pbZoomIn"  title="Bigger keys" aria-label="Bigger keys">＋</button>
       </div>
       <span id="soundBadge" title="Instrument sound"></span>
       <button class="pb-btn" id="midiBtn" title="Connect her keyboard (USB / Bluetooth MIDI)">🎹 Keyboard</button>
@@ -607,19 +641,19 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=2ba8bae"></script>
-  <script src="piano.js?v=2ba8bae"></script>
-  <script src="songs.js?v=2ba8bae"></script>
-  <script src="hear.js?v=2ba8bae"></script>
-  <script src="sound.js?v=2ba8bae"></script>
-  <script src="midi.js?v=2ba8bae"></script>
-  <script src="songfile.js?v=2ba8bae"></script>
-  <script src="addsong.js?v=2ba8bae"></script>
-  <script src="studio.js?v=2ba8bae"></script>
-  <script src="echo.js?v=2ba8bae"></script>
-  <script src="today.js?v=2ba8bae"></script>
-  <script src="notes.js?v=2ba8bae"></script>
-  <script src="progress.js?v=2ba8bae"></script>
+  <script src="music-core.js?v=a9ca3a3"></script>
+  <script src="piano.js?v=a9ca3a3"></script>
+  <script src="songs.js?v=a9ca3a3"></script>
+  <script src="hear.js?v=a9ca3a3"></script>
+  <script src="sound.js?v=a9ca3a3"></script>
+  <script src="midi.js?v=a9ca3a3"></script>
+  <script src="songfile.js?v=a9ca3a3"></script>
+  <script src="addsong.js?v=a9ca3a3"></script>
+  <script src="studio.js?v=a9ca3a3"></script>
+  <script src="echo.js?v=a9ca3a3"></script>
+  <script src="today.js?v=a9ca3a3"></script>
+  <script src="notes.js?v=a9ca3a3"></script>
+  <script src="progress.js?v=a9ca3a3"></script>
   <script>
   // Live, staging and dev share one origin: staging must never write the keys
   // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
@@ -858,6 +892,36 @@
   const MC=window.MusicCore;
   const LABEL_CYCLE=['color','solfege','letter','none'];
   const LABEL_ICON ={color:'🎨',solfege:'Do',letter:'C',none:'∅'};
+  // ── Practice preferences (v6 handover): view · appearance · Songs keyboard ──
+  // One env-scoped key. Missing or damaged values fall back to the defaults;
+  // changing any of them never touches song progress, stickers or the level.
+  const PREFS_KEY=MC.ns('pitchTrainer_prefs');
+  function loadPrefs(){
+    let p=null; try{ p=JSON.parse(localStorage.getItem(PREFS_KEY)); }catch(e){}
+    p=p&&typeof p==='object'?p:{};
+    const k=p.kb&&typeof p.kb==='object'?p.kb:{};
+    return {
+      view:['lane','score'].includes(p.view)?p.view:'lane',               // Rhythm lane by default
+      theme:['studio','storybook'].includes(p.theme)?p.theme:'studio',
+      kb:{ start:Number.isInteger(k.start)&&k.start>=21&&k.start<=108?k.start:55,     // G3…
+           view:Number.isInteger(k.view)&&k.view>=5&&k.view<=36?k.view:8 },          // …to G4: 8 white keys
+    };
+  }
+  const prefs=loadPrefs();
+  function savePrefs(){ try{ localStorage.setItem(PREFS_KEY,JSON.stringify(prefs)); }catch(e){} }
+  // canvas colours: read the theme tokens ONCE per change, never per frame
+  let palette=null;
+  function applyTheme(t){
+    const root=document.documentElement;
+    root.classList.add('theme-swap'); prefs.theme=t; root.dataset.theme=t;
+    setTimeout(()=>root.classList.remove('theme-swap'),60);
+    const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim();
+    palette={ stage:v('--stage'), staff:v('--staff'), line:v('--line-strong'), line2:v('--line-strong'), grid:v('--line'),
+      text:v('--text'), text2:v('--text-2'), clef:v('--text-2'), gold:v('--gold'), fade:v('--fade'), now:v('--now'), chord:v('--chord') };
+    const meta=document.querySelector('meta[name=theme-color]'); if(meta) meta.setAttribute('content',v('--page'));
+    document.querySelectorAll('#themeSel .pb-btn').forEach(b=>{ const on=b.dataset.look===t; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',String(on)); });
+  }
+  applyTheme(prefs.theme);
   let level=MC.getLevel(), labelOverride=null, twoRow=false, zoomView=null;
   let kb=null;
 
@@ -865,10 +929,13 @@
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
     // Listen, Dad's register in Together, or 🧠 Notes (octave cards need C3–C6)
     const wide=listen||(togetherWide&&currentMode==='songs')||currentMode==='notes';
-    const range=wide?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:level.range;
+    // Songs lesson view: starts at G3–G4 (her saved position after that), over
+    // a wider instrument so the overview and −/+ always work — on Sprout too
+    const lesson=currentMode==='songs'&&!togetherWide;
+    const range=wide?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:lesson?[Math.min(level.range[0],36),Math.max(level.range[1],84)]:level.range;
     // keys narrower than ~30px are too small for a finger
     const fit=Math.max(7,Math.floor((pianoHost.clientWidth||360)/30));
-    const view=level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
+    const view=lesson?Math.min(prefs.kb.view,fit):level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
     const two=twoRow&&level.id!=='sprout'&&!listen;
     pianoHost.classList.toggle('sprout',level.id==='sprout'&&!wide);
     pianoHost.classList.toggle('two',two);
@@ -877,7 +944,8 @@
       // 🧠 Notes asks "which note is this?" — names on the keys would give it away
       labels:isDrum||currentMode==='notes'?'none':(labelOverride||level.labels),
       colorAmt:level.colorAmt,
-      minimap:wide||level.minimap,
+      minimap:wide||lesson||level.minimap,
+      start:lesson?prefs.kb.start:undefined,          // other modes keep wherever the keys are
       levelClass:level.id,
       labelFn:isDrum?(m=>{const b=NOTE_BARE[m%12];return DRUM_LABELS[b]||b;}):null,
     };
@@ -909,10 +977,25 @@
     const cfg=pianoCfg();
     if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
-      kb=PianoV2.create(pianoHost,{...cfg,start:60,onDown:onPianoDown,onUp:onPianoUp,onView:(c,v)=>{ if(!v||!v.auto) rebuildKeyMap(); }});
+      kb=PianoV2.create(pianoHost,{...cfg,start:cfg.start!=null?cfg.start:60,onDown:onPianoDown,onUp:onPianoUp,onView:(c,v)=>{
+        if(!kb) return;                                // still being built
+        if(!v||!v.auto) rebuildKeyMap();
+        // she slid or zoomed the Songs keyboard: remember it (the app scrolling to a note doesn't count)
+        if(lessonKb()&&!(v&&v.auto)){ prefs.kb.start=kb.start; savePrefs(); }
+        drawRange();
+      }});
       rebuildKeyMap();
     } else kb.update(cfg);
-    syncPianoBar();
+    syncPianoBar(); drawRange();
+  }
+  const lessonKb=()=>currentMode==='songs'&&!togetherWide;
+  const KEY_NAME=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'], keyName=m=>KEY_NAME[m%12]+(Math.floor(m/12)-1);
+  // the actual visible ends (G3 – G4 at first), updated on every slide / zoom
+  function drawRange(){
+    const el=document.getElementById('pbRange'); if(!el||!kb) return;
+    const span=kb.view*(pianoHost.classList.contains('two')?2:1);
+    let end=kb.start; for(let i=1;i<span&&end<kb.range[1];i++) end=stepWhite(end,1);
+    el.textContent=keyName(kb.start)+' – '+keyName(end);
   }
   function syncPianoBar(){
     document.querySelectorAll('#pbLevel .pb-btn').forEach(b=>b.classList.toggle('sel',b.dataset.level===level.id));
@@ -920,8 +1003,8 @@
     document.getElementById('pbLabels').textContent=LABEL_ICON[labelOverride||level.labels];
     document.getElementById('pbRows').disabled=sprout;
     document.getElementById('pbRows').classList.toggle('sel',twoRow&&!sprout);
-    document.getElementById('pbZoomOut').disabled=sprout;
-    document.getElementById('pbZoomIn').disabled=sprout;
+    document.getElementById('pbZoomOut').disabled=sprout&&!lessonKb();
+    document.getElementById('pbZoomIn').disabled=sprout&&!lessonKb();
   }
   // Chrome only counts touch *pointerup* (not pointerdown) as a user gesture,
   // so the very first tap may find the context suspended: resume on both edges,
@@ -1005,6 +1088,7 @@
   const songs=Songs.create({
     host:document.getElementById('songsView'),
     getKb:()=>kb, getLevel:()=>level,
+    getView:()=>prefs.view, setView:v=>{ prefs.view=v; savePrefs(); }, palette:()=>palette,
     getLabels:()=>labelOverride||level.labels,
     audio:()=>ensureKbCtx(),
     playNote:(ac,m,when,dur,o)=>Sound.schedule(m,when,dur,o),
@@ -1171,7 +1255,7 @@
   document.getElementById('pbLevel').addEventListener('click',e=>{
     const b=e.target.closest('.pb-btn'); if(!b) return;
     level=MC.setLevel(b.dataset.level); labelOverride=null; zoomView=null;
-    updateKeyLabels(); kb.startAt(60);
+    updateKeyLabels(); if(!lessonKb()) kb.startAt(60);    // Songs keeps her keyboard position
     if(currentMode==='songs') songs.refresh();
   });
   document.getElementById('pbLabels').addEventListener('click',()=>{
@@ -1181,8 +1265,15 @@
     if(currentMode==='songs') songs.refresh();
   });
   document.getElementById('pbRows').addEventListener('click',()=>{ twoRow=!twoRow; updateKeyLabels(); });
-  document.getElementById('pbZoomOut').addEventListener('click',()=>{ zoomView=kb.zoom(+1); });
-  document.getElementById('pbZoomIn') .addEventListener('click',()=>{ zoomView=kb.zoom(-1); });
+  // − = more keys, + = bigger keys (same meanings as before); zoom keeps its centre
+  const zoomKb=dir=>{ const v=kb.zoom(dir); if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); } else zoomView=v; drawRange(); };
+  document.getElementById('pbZoomOut').addEventListener('click',()=>zoomKb(+1));
+  document.getElementById('pbZoomIn') .addEventListener('click',()=>zoomKb(-1));
+  document.getElementById('themeSel').addEventListener('click',e=>{
+    const b=e.target.closest('.pb-btn'); if(!b||b.dataset.look===prefs.theme) return;
+    if(currentMode==='songs'&&songs.running) return;      // keep a running performance stable — Stop first
+    applyTheme(b.dataset.look); savePrefs(); songs.redraw();
+  });
   // iOS fires resize when the URL bar slides; only rebuild on a real width change
   let pianoW=0, pianoRT=0;
   window.addEventListener('resize',()=>{
