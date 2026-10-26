@@ -1087,6 +1087,7 @@
     host:document.getElementById('songsView'),
     getKb:()=>kb, getLevel:()=>level,
     getView:()=>prefs.view, setView:v=>{ prefs.view=v; savePrefs(); }, palette:()=>palette,
+    songRange:()=>[Math.min(level.range[0],36),Math.max(level.range[1],84)],   // = the Songs keyboard: songs keep their octave
     getLabels:()=>labelOverride||level.labels,
     audio:()=>ensureKbCtx(),
     playNote:(ac,m,when,dur,o)=>Sound.schedule(m,when,dur,o),

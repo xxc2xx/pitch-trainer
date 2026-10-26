@@ -193,6 +193,20 @@ loop) are not done yet.
   Stage B's off-screen range cue; yellow noteheads on the white Storybook
   staff need an outline (Stage B).
 
+## Practice length + her book exercises (2026-10-26)
+
+Pitch Trainer is now the child's app (Music Garden being retired). songs.js:
+- `EXERCISES`: her Yamaha book's short phrases (from Garden), shelf section
+  "📘 Her book — exercises", our own titles, no lyrics.
+- `arrangeFor(take, phrase, bpm)`: Listen + Play along play a practice
+  arrangement — exercises ≥ 8 repeats AND ≥ 20 s; other songs repeat whole
+  only when shorter than 20 s; recordings never. Whole bars (closing rest
+  counts), real tempo, one clock, one result after the final bar. Step by
+  step walks the phrase once. "Repeat n of N" / "🔁 8× · 25 s" in `#sgArr`;
+  cards show the length. `node tools/songs-test.mjs`.
+- Songs keep their real octave on the Songs keyboard (`d.songRange()`),
+  instrument input is exact MIDI; only Sing it is octave-forgiving.
+
 ## sound.js 1.0.1 — timed sampled notes (2026-10-26)
 
 smplr 1.1.0's stop function CANCELS a note still waiting in its 200 ms
