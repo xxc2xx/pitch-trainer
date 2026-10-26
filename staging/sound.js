@@ -1,4 +1,4 @@
-/* @shared sound 1.0.0 */
+/* @shared sound 1.0.1 */
 /* sound.js — instrument voices: sampled when available, synth until then.
    Classic script → window.Sound.
 
@@ -100,14 +100,23 @@
     };
   }
 
-  function play(m, when, vel, tag, quiet, id){
+  // dur (seconds) = a timed note's length. Sampled notes get it as smplr's
+  // `duration`: smplr's stop function CANCELS a note still waiting in its
+  // lookahead queue and stops every voice sharing the stopId, so calling it
+  // to set the end of a future note silenced all but the first note of a
+  // tune (iPhone/iPad, any device once the piano samples had loaded).
+  function play(m, when, vel, tag, quiet, id, dur){
     id = id || current;
     const i = (quiet && soft[id]) || inst[id];
     if(i){
       // piano: keep velocity inside the loaded layer, or the note is silent
       const v = id === 'piano' ? Math.max(MF[0], Math.min(MF[1], vel)) : vel;
-      const s = i.start({ note: m, velocity: v, time: when, stopId: tag || undefined });
-      return at => { try{ s({ time: at }); }catch(e){} };
+      const ev = { note: m, velocity: v, time: when, stopId: tag || undefined };
+      if(dur != null) ev.duration = dur;
+      const s = i.start(ev);
+      const stop = at => { try{ s(at); }catch(e){} };     // smplr 1.x: stop(time) takes a NUMBER ({time} threw, so stops did nothing)
+      stop.timed = dur != null;             // ends by itself: never call stop() just to end it
+      return stop;
     }
     let dest = null;
     if(tag){                                  // synth notes of a tag share a bus we can cut
@@ -122,7 +131,7 @@
   const tagBus = new Map();
 
   const Sound = {
-    VERSION: '1.0.0',
+    VERSION: '1.0.1',
     use(c){
       if(ctx !== c){ ctx = c; loader = null; [inst, soft].forEach(o => Object.keys(o).forEach(k => delete o[k])); }
       load(current);
@@ -152,8 +161,8 @@
     schedule(m, when, dur, o){
       if(!ctx) return;
       o = o || {};
-      const s = play(m, when, o.vel || 90, o.tag, !!o.soft);
-      s(when + dur);
+      const s = play(m, when, o.vel || 90, o.tag, !!o.soft, undefined, dur);
+      if(!s.timed) s(when + dur);           // synth voices: schedule their release
       if(o.tag){ if(!tagged.has(o.tag)) tagged.set(o.tag, []); tagged.get(o.tag).push(s); }
     },
     cancel(tag){
