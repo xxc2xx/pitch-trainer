@@ -162,6 +162,37 @@ stores are env-scoped too (`music-eco@stg`, `music-learn@stg`, …).
   never written: rolling back to an old staging build still works (drilled
   in Chrome 2026-10-25).
 
+## Appearance, practice view, Songs keyboard (v6 handover Stage A, 2026-10-26)
+
+Spec: Codex's consolidated handover v6 (Codex owns visuals/assets; we own
+implementation). Stages B–D (Falling notes, mic instrument path, learning
+loop) are not done yet.
+- **Themes**: `Studio` (default, navy) / `Storybook` (light), header switch.
+  Every shell colour is a CSS token on `:root[data-theme]` (index.html top of
+  `<style>`); songs.js / piano.js use the same tokens (piano.js with the old
+  colours as `var()` fallbacks so it still drops into other apps). Canvas
+  colours come from `palette`, read ONCE per theme change (`applyTheme`),
+  never per frame. Pitch colours stay `MusicCore.colorOf()`. Storybook
+  characters: slot `#storyAccent`, artwork pending from Codex — unnamed,
+  never the child's name or likeness (public repo).
+- **Practice view** (Songs, above the canvas): `Rhythm lane` (default) /
+  `Score`, independent of the level (`d.getView()` in songs.js; falls back
+  to `level.see`). Locked while Listen / Play along runs. Falling notes is
+  hidden until its renderer exists (Stage B).
+- **Songs keyboard**: starts at G3–G4 (8 equal white keys, C4 centre at
+  43.75%) over C2–C6 on every level, overview + −/+ enabled even on Sprout;
+  `#pbRange` shows the real ends. Her slide/zoom is saved; app auto-scrolls
+  to a note are not. Other tabs keep their own position.
+- piano.js: black keys cut in half by the view edge are hidden and
+  untappable (`.pv2-cut`); a lit (target) white key no longer covers a
+  black key's tap area.
+- Prefs: one env-scoped key `MC.ns('pitchTrainer_prefs')` =
+  `{view, theme, kb:{start, view}}`; damaged values fall back to defaults.
+- Known follow-ups: the Beat tab canvas stays dark in Storybook; Sprout
+  still folds song notes into its own range (`fitToRange`) — revisit with
+  Stage B's off-screen range cue; yellow noteheads on the white Storybook
+  staff need an outline (Stage B).
+
 ## Music Garden moved out (2026-10-24)
 
 The kid-facing Music Garden now lives in its own repo, `~/music-garden`

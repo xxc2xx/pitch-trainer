@@ -22,37 +22,40 @@
 
   const CSS = `
   .pv2{width:100%;display:flex;flex-direction:column;gap:6px;user-select:none;-webkit-user-select:none;}
-  .pv2-mini{position:relative;height:22px;border-radius:6px;background:#0b0a18;overflow:hidden;
-    touch-action:none;cursor:pointer;border:1px solid #1e1e38;}
+  .pv2-mini{position:relative;height:22px;border-radius:6px;background:var(--pv2-mini-bg,#0b0a18);overflow:hidden;
+    touch-action:none;cursor:pointer;border:1px solid var(--pv2-mini-line,#1e1e38);}
   .pv2-mini i{position:absolute;top:0;bottom:0;}
-  .pv2-mini i.w{background:#3a3a55;border-right:1px solid #0b0a18;}
+  .pv2-mini i.w{background:var(--pv2-mini-w,#3a3a55);border-right:1px solid var(--pv2-mini-bg,#0b0a18);}
   .pv2-mini i.c{background:var(--c);opacity:.85;}
-  .pv2-mini i.b{background:#0b0a18;height:55%;}
-  .pv2-win{position:absolute;top:0;bottom:0;border:2px solid #ffd54f;border-radius:5px;
+  .pv2-mini i.b{background:var(--pv2-mini-b,#0b0a18);height:55%;}
+  .pv2-win{position:absolute;top:0;bottom:0;border:2px solid var(--pv2-win,#ffd54f);border-radius:5px;
     background:rgba(255,213,79,.14);box-shadow:0 0 10px rgba(255,213,79,.35);pointer-events:none;
     transition:left .12s ease,width .12s ease;}
   .pv2-rows{display:flex;flex-direction:column;gap:6px;touch-action:none;height:var(--pv2-h,150px);}
-  .pv2-row{position:relative;flex:1;overflow:hidden;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.55);}
+  .pv2-row{position:relative;flex:1;overflow:hidden;border-radius:10px;box-shadow:var(--pv2-shadow,0 8px 24px rgba(0,0,0,.55));}
   .pv2-track{position:absolute;top:0;bottom:0;left:0;transition:transform .18s ease;}
   .pv2-k{position:absolute;top:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
     gap:3px;cursor:pointer;transition:background .06s,transform .06s,box-shadow .1s;}
   .pv2-w{bottom:0;padding-bottom:7px;border-radius:0 0 8px 8px;border-right:1px solid rgba(0,0,0,.14);
     border-bottom:5px solid rgba(0,0,0,.14);
-    background:color-mix(in srgb,var(--c) calc(var(--amt) * 30%),#f6f2e8);}
+    background:color-mix(in srgb,var(--c) calc(var(--amt) * 30%),var(--pv2-white,#f6f2e8));}
   .pv2-w::after{content:'';position:absolute;left:0;right:0;bottom:-5px;height:5px;
     background:var(--c);opacity:var(--amt);border-radius:0 0 8px 8px;}
-  .pv2-b{height:60%;z-index:2;padding-bottom:5px;border-radius:0 0 6px 6px;background:#1c1b33;
-    box-shadow:0 4px 8px rgba(0,0,0,.6);border-bottom:4px solid color-mix(in srgb,var(--c) calc(var(--amt) * 100%),#1c1b33);}
+  .pv2-b{height:60%;z-index:2;padding-bottom:5px;border-radius:0 0 6px 6px;background:var(--pv2-black,#1c1b33);
+    box-shadow:0 4px 8px rgba(0,0,0,.6);border-bottom:4px solid color-mix(in srgb,var(--c) calc(var(--amt) * 100%),var(--pv2-black,#1c1b33));}
+  .pv2-b.pv2-cut{visibility:hidden;pointer-events:none;}
   .pv2-k.down{transform:translateY(2px);filter:brightness(.92);}
   .pv2-w.down{background:color-mix(in srgb,var(--c) 70%,#fff);}
-  .pv2-b.down{background:color-mix(in srgb,var(--c) 60%,#1c1b33);}
-  .pv2-k.target{animation:pv2pulse .9s ease-in-out infinite;z-index:3;}
+  .pv2-b.down{background:color-mix(in srgb,var(--c) 60%,var(--pv2-black,#1c1b33));}
+  .pv2-k.target{animation:pv2pulse .9s ease-in-out infinite;}
+  .pv2-w.target{z-index:1;}                 /* a lit white key never covers a black key's tap area */
+  .pv2-b.target{z-index:3;}
   .pv2-w.target{background:color-mix(in srgb,var(--c) 55%,#fff);}
-  .pv2-b.target{background:color-mix(in srgb,var(--c) 75%,#1c1b33);}
+  .pv2-b.target{background:color-mix(in srgb,var(--c) 75%,var(--pv2-black,#1c1b33));}
   @keyframes pv2pulse{0%,100%{box-shadow:inset 0 0 0 3px var(--c),0 0 8px var(--c);}
     50%{box-shadow:inset 0 0 0 5px var(--c),0 0 26px var(--c);}}
   .pv2-k.dad{outline:3px dashed #7ec8ff;outline-offset:-5px;}
-  .pv2-w.dad{background:color-mix(in srgb,#7ec8ff 28%,#f6f2e8);}
+  .pv2-w.dad{background:color-mix(in srgb,#7ec8ff 28%,var(--pv2-white,#f6f2e8));}
   .pv2-k.flash{animation:pv2flash .45s ease-out;}
   @keyframes pv2flash{0%{box-shadow:0 0 0 0 var(--c),0 0 30px #fff;}100%{box-shadow:0 0 0 0 transparent;}}
   .pv2-k.wobble{animation:pv2wob .3s ease;}
@@ -191,6 +194,14 @@
         const off = Math.min(startW + (rows.length - 1 - idx) * o.view, Math.max(0, total - o.view));
         r.track.style.transition = animate === false ? 'none' : '';
         r.track.style.transform = `translateX(${-off / total * 100}%)`;
+        r.off = off;
+      });
+      // a black key cut in half by the edge of the view is hidden and can't be
+      // tapped: G3–G4 shows its 5 whole black keys, not 7 slivers
+      keyEls.forEach((els, m) => {
+        if(!MC.isBlack(m)) return;
+        const li = wIndex.get(m - 1);
+        els.forEach((el, ri) => { const off = rows[ri] ? rows[ri].off : 0; el.classList.toggle('pv2-cut', li === off - 1 || li === off + o.view - 1); });
       });
       if(win){
         win.style.left = (startW / total * 100) + '%';
@@ -293,6 +304,7 @@
     return {
       get range(){ return [lo, hi]; },
       get start(){ return whites[startW]; },
+      get view(){ return o.view; },                       // white keys per row, after clamping
       update(next){
         const keepStart = whites[startW];
         Object.assign(o, next || {});

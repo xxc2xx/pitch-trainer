@@ -36,40 +36,43 @@
 
   const CSS = `
   #songsView{width:100%;max-width:1100px;display:none;flex-direction:column;gap:8px;}
-  .sg-shelf h3{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:#6a6a9a;margin:6px 2px;}
+  .sg-shelf h3{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--text-2);margin:6px 2px;}
   .sg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;}
-  .sg-card{background:#16213e;border:2px solid #242448;border-radius:14px;padding:12px 8px;cursor:pointer;
-    display:flex;flex-direction:column;align-items:center;gap:4px;color:#e6e6f5;font-weight:700;font-size:.8rem;
+  .sg-card{background:var(--surface);border:2px solid var(--line);border-radius:14px;padding:12px 8px;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--text);font-weight:700;font-size:.8rem;
     text-align:center;transition:transform .1s,border-color .15s;position:relative;}
   .sg-card:active{transform:scale(.96);}
   .sg-card .ic{font-size:2rem;line-height:1;}
   .sg-practice{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));}
-  .sg-card.sg-today{background:linear-gradient(135deg,#2a1f5a,#1b2f5a);border-color:#6a6ad0;grid-column:span 2;}
-  .sg-card.sg-add{border-style:dashed;border-color:#4a4a8a;background:#121230;}
-  .sg-card .st{font-size:.68rem;color:#ffd54f;min-height:1em;}
+  .sg-card.sg-today{background:var(--today-bg,linear-gradient(135deg,#2a1f5a,#1b2f5a));border-color:var(--accent);grid-column:span 2;}
+  .sg-card.sg-add{border-style:dashed;border-color:var(--line-strong);background:var(--surface);}
+  .sg-card .st{font-size:.68rem;color:var(--gold);min-height:1em;}
   .sg-card .dots{display:flex;gap:2px;justify-content:center;flex-wrap:wrap;max-width:100%;}
   .sg-card .dots i{width:7px;height:7px;border-radius:50%;}
-  .sg-card .del{position:absolute;top:4px;right:6px;font-size:.7rem;color:#5a5a8a;padding:2px 4px;}
-  .sg-empty{font-size:.74rem;color:#4a4a72;padding:4px 2px;}
+  .sg-card .del{position:absolute;top:4px;right:6px;font-size:.7rem;color:var(--text-3);padding:2px 4px;}
+  .sg-empty{font-size:.74rem;color:var(--text-3);padding:4px 2px;}
   .sg-top{display:flex;align-items:center;gap:6px 8px;flex-wrap:wrap;}
-  .sg-top .t{flex:1 1 55%;font-weight:800;font-size:.95rem;color:#e6e6f5;text-align:center;}
+  .sg-top .t{flex:1 1 55%;font-weight:800;font-size:.95rem;color:var(--text);text-align:center;}
   .sg-top .sg-ctrl{flex:1 1 100%;}
   @media(min-width:700px){.sg-top .sg-ctrl{flex:0 1 auto;} .sg-top .t{flex:1 1 auto;}}
   @media(orientation:landscape) and (max-height:500px){
     .sg-top .t{display:none;} .sg-top .sg-ctrl{flex:1 1 auto;justify-content:flex-start;}
     .sg-btn{padding:5px 10px;} .sg-ctrl label{display:none;}
   }
-  .sg-btn{background:#1e1e3a;border:2px solid #34346a;color:#c8c8f0;border-radius:12px;padding:7px 12px;
+  .sg-btn{background:var(--surface-2);border:2px solid var(--line-strong);color:var(--text);border-radius:12px;padding:7px 12px;
     font-size:.8rem;font-weight:700;cursor:pointer;}
-  .sg-btn.sel{background:#3a3a7a;color:#fff;border-color:#6a6ad0;}
-  .sg-btn.go{background:#e94560;border-color:#e94560;color:#fff;}
+  .sg-btn.sel{background:var(--sel);color:var(--on-sel);border-color:var(--accent);}
+  .sg-btn.go{background:var(--primary);border-color:var(--primary);color:var(--on-primary);}
+  .sg-btn:disabled{opacity:.45;cursor:default;}
+  .sg-views{display:flex;gap:4px;justify-content:center;}
+  .sg-views .sg-btn{padding:5px 12px;font-size:.76rem;}
   .sg-media video{display:block;max-height:28vh;max-width:100%;margin:0 auto;border-radius:10px;background:#000;}
   @media(orientation:landscape) and (max-height:500px){.sg-media video{max-height:22vh;}}
-  .sg-canvas{width:100%;display:block;border-radius:12px;background:#06050f;border:1px solid #14142c;touch-action:pan-y;}
+  .sg-canvas{width:100%;display:block;border-radius:12px;background:var(--stage);border:1px solid var(--line);touch-action:pan-y;}
   .sg-ctrl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
-  .sg-ctrl label{font-size:.72rem;color:#7a7aa8;display:flex;gap:4px;align-items:center;}
-  .sg-ctrl input[type=range]{width:90px;accent-color:#ffd54f;}
-  .sg-prog{height:6px;border-radius:3px;background:#14142c;overflow:hidden;}
+  .sg-ctrl label{font-size:.72rem;color:var(--text-2);display:flex;gap:4px;align-items:center;}
+  .sg-ctrl input[type=range]{width:90px;accent-color:var(--gold);}
+  .sg-prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden;}
   .sg-prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#e53935,#fb8c00,#fdd835,#43a047,#8e24aa);transition:width .25s;}
   .sg-done{position:fixed;inset:0;z-index:50;background:rgba(8,8,20,.86);display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:14px;animation:sgfade .25s;}
@@ -77,7 +80,7 @@
     animation:sgdance .5s ease-in-out infinite alternate;font-size:90px;line-height:120px;text-align:center;}
   .sg-done .stars{font-size:2.4rem;letter-spacing:.2em;}
   .sg-done .msg{font-size:1.1rem;font-weight:800;color:#fff;text-align:center;padding:0 16px;}
-  .sg-strip{display:flex;flex-direction:column;align-items:center;gap:4px;background:#11112a;border-radius:12px;padding:8px 10px;}
+  .sg-strip{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface);border-radius:12px;padding:8px 10px;}
   .sg-conf{position:fixed;top:-40px;font-size:26px;pointer-events:none;animation:sgfall linear forwards;z-index:51;}
   @keyframes sgfade{from{opacity:0}to{opacity:1}}
   @keyframes sgdance{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-14px) rotate(6deg)}}
@@ -165,12 +168,12 @@
       shelfTakes = new Map([...builtin, ...mine].map(t => [t.id, t]));
       const fromClass = mine.filter(t => t.tag === 'class'), own = mine.filter(t => t.tag !== 'class');
       const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
-        <span class="st" style="color:#8a8ab8">video · music · MIDI</span></div>` : '';
+        <span class="st" style="color:var(--text-2)">video · music · MIDI</span></div>` : '';
       // her songs lead; the built-ins are just a starter set
       // 🌟 Today (daily path) and 🎤 Echo lead the shelf when wired in
       const practice = (d.todayCard ? d.todayCard() : '') +
         (d.openEcho ? `<div class="sg-card" id="sgEcho"><span class="ic">🎤</span><span>Echo</span>
-          <span class="st" style="color:#8a8ab8">sing it, then play it</span></div>` : '');
+          <span class="st" style="color:var(--text-2)">sing it, then play it</span></div>` : '');
       host.innerHTML = `<div class="sg-shelf">
         ${practice ? `<h3>🌟 Practice</h3><div class="sg-grid sg-practice">${practice}</div>` : ''}
         <h3>🎒 From class</h3>
@@ -239,17 +242,27 @@
         <div id="sgExRow" class="sg-ctrl" style="display:none">
           <button class="sg-btn" id="sgExXml" title="Open in MuseScore (free) to print the score">🎼 Sheet music (.musicxml)</button>
           <button class="sg-btn" id="sgExMid">🎹 MIDI (.mid)</button>
-          <span style="font-size:.72rem;color:#8a8ab8">Print it from <b>MuseScore</b> (free): File → Open → Print / Export PDF</span></div>
+          <span style="font-size:.72rem;color:var(--text-2)">Print it from <b>MuseScore</b> (free): File → Open → Print / Export PDF</span></div>
         <div id="sgAnRow" class="sg-ctrl" style="display:none">
-          <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:#0c0c1e;border:1px solid #2c2c5a;border-radius:8px;color:#fff;padding:6px 8px">
+          <input id="sgAnUrl" type="text" placeholder="https://<you>-song-analyzer.hf.space" style="flex:1;min-width:220px;background:var(--stage);border:1px solid var(--line-strong);border-radius:8px;color:var(--text);padding:6px 8px">
           <button class="sg-btn go" id="sgAnGo">Analyze</button></div>
-        ${partOnly ? `<div class="sg-ctrl" style="font-size:.75rem;color:#ffd54f">⟦ Practice part: bars ${Math.floor(t.section.from / bpbOf(t)) + 1}–${Math.ceil(t.section.to / bpbOf(t))} ⟧ <button class="sg-btn" id="sgWhole">Whole song</button></div>` : ''}
+        ${partOnly ? `<div class="sg-ctrl" style="font-size:.75rem;color:var(--gold)">⟦ Practice part: bars ${Math.floor(t.section.from / bpbOf(t)) + 1}–${Math.ceil(t.section.to / bpbOf(t))} ⟧ <button class="sg-btn" id="sgWhole">Whole song</button></div>` : ''}
         <div class="sg-prog"><i id="sgProg"></i></div>
         <div id="sgMedia" class="sg-media"></div>
+        <div class="sg-views" role="group" aria-label="Practice view">
+          <button class="sg-btn" data-view="lane" title="Notes slide to the line">〰 Rhythm lane</button>
+          <button class="sg-btn" data-view="score" title="The notes on a staff">𝄞 Score</button></div>
         <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
       canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d');
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
+      // switching view keeps the song, place, tempo and results — only the
+      // drawing changes; not mid-run (Stop first) so the performance stays put
+      host.querySelectorAll('.sg-views .sg-btn').forEach(b => b.onclick = () => {
+        if(timed || demo || viewOf() === b.dataset.view) return;
+        d.setView && d.setView(b.dataset.view);
+        setBtns(); sizeCanvas(); pulse(true);
+      });
       host.querySelector('#sgRestart').onclick = () => startMode(mode);
       // stopping Listen goes back to step-by-step from the top, guide key lit
       host.querySelector('#sgDemo').onclick = () => { if(demo) startMode('wait'); else startDemo(); };
@@ -436,9 +449,18 @@
       }
     }
 
+    // practice view: 'lane' (rhythm lane) | 'score' (staff). Chosen in Songs
+    // and saved by the app (d.getView); falls back to the level's own view.
+    function viewOf(){
+      const v = d.getView && d.getView();
+      return v === 'lane' || v === 'score' ? v : d.getLevel().see === 'lane' ? 'lane' : 'score';
+    }
+    // canvas colours come from the theme tokens, read once per theme change
+    const PAL0 = { stage: '#06050f', staff: '#2c2c52', line: '#3a3a66', line2: '#4a4a78', grid: '#2a2a50', text: '#ffffff', text2: '#9a9ac0', clef: '#6a6aa0', gold: '#ffd54f', fade: '#e6e6f0', now: '#7ec8ff', chord: 'rgba(255,213,79,.9)' };
+    const pal = () => (d.palette && d.palette()) || PAL0;
     function sizeCanvas(){
       if(!canvas) return;
-      const lane = d.getLevel().see === 'lane';
+      const lane = viewOf() === 'lane';
       // short landscape phones: keep the keyboard on screen
       const short = window.innerHeight < 500;
       const w = canvas.clientWidth || 360, h = lane ? (short ? 92 : 150) : (short ? 120 : 170);
@@ -457,6 +479,12 @@
       q('#sgDemo') && (q('#sgDemo').textContent = demo ? '⏹ Stop' : '👂 Listen');
       q('#sgTimed') && (q('#sgTimed').textContent = timed ? '⏹ Stop' : '🎵 Play along');
       ['#sgDemo', '#sgTimed'].forEach(id => { const b = q(id); if(b){ b.disabled = mediaLoading; b.style.opacity = mediaLoading ? '.5' : ''; } });
+      const v = viewOf(), busy = !!(timed || demo);
+      host.querySelectorAll('.sg-views .sg-btn').forEach(b => {
+        const on = b.dataset.view === v;
+        b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); b.disabled = busy && !on;
+        b.title = busy && !on ? 'Stop first to change the view' : b.dataset.view === 'lane' ? 'Notes slide to the line' : 'The notes on a staff';
+      });
     }
 
     function stopAll(){
@@ -555,7 +583,7 @@
           if(idx >= notes.length){ stopSing(); later(finish, 450); }
         }
       } else hold = Math.max(0, hold - 15);
-      if(d.getLevel().see !== 'lane') return;
+      if(viewOf() !== 'lane') return;
     }
 
     // ── Clock: Listen and Play along both scroll with the music ─────────
@@ -668,17 +696,17 @@
       const n = per.length, x = i => 10 + (n > 1 ? i / (n - 1) : 0.5) * (W - 20);
       const r = Math.max(1.8, Math.min(4.5, (W - 20) / Math.max(1, n - 1) / 2.4));   // long songs: smaller dots
       const dots = per.map(p => p.dtMs == null
-        ? `<circle cx="${x(p.i).toFixed(1)}" cy="${mid}" r="${(r * 0.8).toFixed(1)}" fill="none" stroke="#55557a" stroke-width="1.2"/>`
+        ? `<circle cx="${x(p.i).toFixed(1)}" cy="${mid}" r="${(r * 0.8).toFixed(1)}" fill="none" stroke="var(--text-3)" stroke-width="1.2"/>`
         : `<circle cx="${x(p.i).toFixed(1)}" cy="${(mid + Math.max(-1, Math.min(1, p.dtMs / win)) * (mid - 7)).toFixed(1)}" r="${r.toFixed(1)}" fill="${col[p.res] || '#fb8c00'}"/>`).join('');
       const say = st.hit < 2 ? 'Keep going — you\'ll find the beat! 🎵'
         : Math.abs(st.biasMs) <= 40 && st.evennessMs <= 60 ? 'Right on the beat! 🎯'
         : st.biasMs < -40 ? 'A little quick — wait for the beat 🐢'
         : st.biasMs > 40 ? 'A little late — get ready early 🐇'
         : 'Nice — now make it extra steady 🐘';
-      const nums = level.id === 'grow' ? `<br><small style="color:#8a8ab8">avg ${st.meanAbsMs} ms · ${st.biasMs < 0 ? 'rushing' : 'dragging'} ${Math.abs(st.biasMs)} ms · spread ${st.evennessMs} ms</small>` : '';
+      const nums = level.id === 'grow' ? `<br><small style="color:var(--text-2)">avg ${st.meanAbsMs} ms · ${st.biasMs < 0 ? 'rushing' : 'dragging'} ${Math.abs(st.biasMs)} ms · spread ${st.evennessMs} ms</small>` : '';
       return `<div class="sg-strip"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="timing">
-          <text x="2" y="10" font-size="8" fill="#6a6a9a">early</text><text x="2" y="${H - 3}" font-size="8" fill="#6a6a9a">late</text>
-          <line x1="8" y1="${mid}" x2="${W - 8}" y2="${mid}" stroke="#6a6ad0" stroke-width="1.5" stroke-dasharray="4 3"/>${dots}</svg>
+          <text x="2" y="10" font-size="8" fill="var(--text-2)">early</text><text x="2" y="${H - 3}" font-size="8" fill="var(--text-2)">late</text>
+          <line x1="8" y1="${mid}" x2="${W - 8}" y2="${mid}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>${dots}</svg>
         <div class="msg" style="font-size:.9rem">${say}${nums}</div></div>`;
     }
 
@@ -758,14 +786,14 @@
       const W = canvas.clientWidth, H = parseFloat(canvas.style.height) || 160, g = ctx2;
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
-      if(level.see === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
+      if(viewOf() === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
       const chords = together ? dadChords : (take && take.parts && take.parts.chords);
       if(chords && chords.length){
         g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
         chords.forEach(c => {
           const x = xOf(c.t) - camX; if(x < 44 || x > W) return;
           const now = together && c === dadAt;
-          g.fillStyle = now ? '#7ec8ff' : 'rgba(255,213,79,.9)';
+          g.fillStyle = now ? pal().now : pal().chord;
           g.fillText((now ? '👨 ' : '') + c.label, x, 13);
         });
       }
@@ -781,7 +809,7 @@
     // Sprout: big colour shapes on a contour lane — higher notes sit higher.
     function drawLane(g, W, H, beat){
       const hitX = camLead(), P = ppb(), mid = H / 2;
-      g.strokeStyle = '#2a2a50'; g.setLineDash([4, 6]); g.lineWidth = 2;
+      g.strokeStyle = pal().grid; g.setLineDash([4, 6]); g.lineWidth = 2;
       g.beginPath(); g.moveTo(hitX, 8); g.lineTo(hitX, H - 8); g.stroke(); g.setLineDash([]);
       const ms = notes.map(n => n.m), lo = Math.min(...ms), hi = Math.max(...ms);
       const span = Math.min(34, H / 2 - 26);
@@ -809,7 +837,7 @@
       if(sing && sungM != null && notes[idx]){
         const t = notes[idx].m, diff = ((sungM - t) % 12 + 18) % 12 - 6;
         const close = Math.abs(diff) <= 1, vy = yOf(t) - diff * 6;
-        g.fillStyle = close ? '#7CFC9A' : '#ffffff';
+        g.fillStyle = close ? '#2FAE5A' : pal().text;
         g.shadowColor = g.fillStyle; g.shadowBlur = 14;
         g.beginPath(); g.arc(hitX - 34, vy, 7 + Math.min(6, hold / 40), 0, Math.PI * 2); g.fill();
         g.shadowBlur = 0;
@@ -820,7 +848,7 @@
     let pulseT = 0;
     function pulse(on){
       clearInterval(pulseT); pulseT = 0;
-      if(on && d.getLevel().see === 'lane') pulseT = setInterval(() => { if(take && !timed) draw(); }, 70);
+      if(on && viewOf() === 'lane') pulseT = setInterval(() => { if(take && !timed) draw(); }, 70);
     }
 
     // Bloom / Grow: treble staff, colour noteheads fading by level.
@@ -832,7 +860,7 @@
       // bar lines
       const bpb = take && take.timeSig ? take.timeSig[0] * 4 / take.timeSig[1] : 4;
       const len = MC.takeLength({ notes });
-      g.strokeStyle = '#2c2c52'; g.lineWidth = 1.4;
+      g.strokeStyle = pal().staff; g.lineWidth = 1.4;
       for(let b = bpb; b < len + 0.01; b += bpb){
         const x = xOf(b) - camX - P * 0.32; if(x < 40 || x > W) continue;
         g.beginPath(); g.moveTo(x, yOf(8)); g.lineTo(x, yOf(0)); g.stroke();
@@ -841,12 +869,12 @@
       const cur = notes[idx];
       if(cur && (mode === 'wait' || demo)){
         const x = xOf(cur.t) - camX;
-        g.fillStyle = mix(MC.colorOf(cur.m), '#06050f', 0.28);
+        g.fillStyle = mix(MC.colorOf(cur.m), pal().stage, 0.28);
         g.beginPath(); (g.roundRect ? g.roundRect(x - 20, 10, 40, H - 20, 10) : g.rect(x - 20, 10, 40, H - 20)); g.fill();
       }
       if(mode === 'timed' && timed){
         const x = xOf(beat) - camX;
-        g.strokeStyle = '#ffd54f'; g.lineWidth = 2;
+        g.strokeStyle = pal().gold; g.lineWidth = 2;
         g.beginPath(); g.moveTo(x, 12); g.lineTo(x, H - 12); g.stroke();
       }
       notes.forEach((n, i) => {
@@ -856,10 +884,10 @@
         const step = (oct - 4) * 7 + DIATONIC[letter] - 2, y = yOf(step);
         const done = i < idx || judged.has(i);
         const verdict = judged.get(i);
-        let col = mix(MC.colorOf(n.m), '#e6e6f0', amt);
+        let col = mix(MC.colorOf(n.m), pal().fade, amt);
         g.globalAlpha = done && mode === 'wait' ? 0.45 : 1;
         // ledger lines
-        g.strokeStyle = '#4a4a78'; g.lineWidth = 1.4;
+        g.strokeStyle = pal().line2; g.lineWidth = 1.4;
         for(let s = -2; s >= step; s -= 2){ g.beginPath(); g.moveTo(x - 12, yOf(s)); g.lineTo(x + 12, yOf(s)); g.stroke(); }
         for(let s = 10; s <= step; s += 2){ g.beginPath(); g.moveTo(x - 12, yOf(s)); g.lineTo(x + 12, yOf(s)); g.stroke(); }
         // head
@@ -886,19 +914,19 @@
         if(labels === 'solfege' || labels === 'letter' || labels === 'color'){
           const txt = labels === 'letter' ? letter + (acc || '') : labels === 'solfege' ? MC.label(n.m, 'solfege') : '';
           if(labels === 'color'){ g.fillStyle = MC.colorOf(n.m); shapePath(g, MC.shapeOf(n.m), x, H - 18, 6); g.fill(); }
-          else { g.fillStyle = mix(MC.colorOf(n.m), '#9a9ac0', Math.max(amt, .5)); g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText(txt, x, H - 12); }
+          else { g.fillStyle = mix(MC.colorOf(n.m), pal().text2, Math.max(amt, .5)); g.font = 'bold 11px sans-serif'; g.textAlign = 'center'; g.fillText(txt, x, H - 12); }
         }
         if(verdict && mode === 'timed'){
-          g.fillStyle = { tight:'#22c55e', loose:'#e2b714', ok:'#e2b714', miss:'#ef4444' }[verdict];
+          g.fillStyle = { tight:'#22c55e', loose:pal().gold, ok:pal().gold, miss:'#ef4444' }[verdict];
           g.beginPath(); g.arc(x, yOf(-5), 4, 0, Math.PI * 2); g.fill();
         }
         g.globalAlpha = 1;
       });
       // staff lines + clef on top, clef panel masks notes scrolling under it
-      g.fillStyle = '#06050f'; g.fillRect(0, 0, 42, H);
-      g.strokeStyle = '#3a3a66'; g.lineWidth = 1.3;
+      g.fillStyle = pal().stage; g.fillRect(0, 0, 42, H);
+      g.strokeStyle = pal().line; g.lineWidth = 1.3;
       for(let s = 0; s <= 8; s += 2){ g.beginPath(); g.moveTo(4, yOf(s)); g.lineTo(W - 4, yOf(s)); g.stroke(); }
-      g.fillStyle = '#6a6aa0'; g.font = '58px "Times New Roman",serif'; g.textAlign = 'left';
+      g.fillStyle = pal().clef; g.font = '58px "Times New Roman",serif'; g.textAlign = 'left';
       g.fillText('𝄞', 2, base + 9);
     }
 
@@ -912,6 +940,9 @@
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
       refresh(){ if(d.busy && d.busy()) return; if(take) open(take); else renderShelf(); },
+      redraw(){ if(take && canvas){ setBtns(); draw(); } },        // theme changed: same take, new colours
+      get view(){ return viewOf(); },
+      get running(){ return !!(timed || demo); },
       shelf(){ take = null; renderShelf(); },
       // a lesson step: open the song in a mode; onDone(result) replaces the
       // sticker screen. Play along waits for her recording to load first.
