@@ -458,9 +458,21 @@
       d.onTogether && d.onTogether(on);
       updateDad(curBeat()); draw();
     }
+    // chords follow the practice arrangement: the phrase's chords, repeated on
+    // each repeat (cached so chord identity — and dadAt — stays stable)
+    let chordCache = { src: null, arr: null, out: [] };
+    function chordsFor(src){
+      if(!src || !src.length || !arr || arr.reps < 2 || notes !== arr.notes) return src;
+      if(chordCache.src !== src || chordCache.arr !== arr){
+        const out = [];
+        for(let r = 0; r < arr.reps; r++) src.forEach(c => { if(c.t < arr.beats) out.push({ ...c, t: c.t + r * arr.beats }); });
+        chordCache = { src, arr, out };
+      }
+      return chordCache.out;
+    }
     function updateDad(beat){
       const kb = d.getKb(); if(!kb) return;
-      const c = together ? MC.chordAt(dadChords, beat) : null;
+      const c = together ? MC.chordAt(chordsFor(dadChords), beat) : null;
       if(c === dadAt) return;
       dadAt = c; kb.setDad(c ? c.ms : []);
     }
@@ -856,7 +868,7 @@
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
       if(viewOf() === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
-      const chords = together ? dadChords : (take && take.parts && take.parts.chords);
+      const chords = chordsFor(together ? dadChords : (take && take.parts && take.parts.chords));
       if(chords && chords.length){
         g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
         chords.forEach(c => {
@@ -1005,6 +1017,7 @@
       show(){ host.style.display = 'flex'; if(d.busy && d.busy()) return; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
       hide(){
         stopAll(); pulse(false); stopSing(); host.style.display = 'none';
+        if(take && notes !== phrase){ useArr(false); idx = 0; judged.clear(); hits.clear(); }   // back to the phrase for Step by step
         if(window.Studio) Studio.pause();
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
