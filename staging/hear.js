@@ -1,4 +1,4 @@
-/* @shared hear 1.0.0 */
+/* @shared hear 1.1.0 */
 /* hear.js — Hear: microphone/audio → notes → Take.
    Classic script → window.Hear. Depends on music-core.js.
 
@@ -21,7 +21,11 @@
    Hear.transcribeBlob(blob, { bpm, onProgress })  → Promise<Take>
        Offline, polyphonic, on-device: Spotify basic-pitch (TF.js), loaded
        lazily from jsDelivr only when first used (~1 MB model + TF.js).
-       Best on a voice or one instrument; a full band mix comes out messy.
+       Best on a voice or one instrument. A full band mix is reduced to one
+       tune by Hear.melodyLine (voice range, louder × longer × nearer wins);
+       separating the singer first (✨ Better notes) is still more accurate.
+
+   Hear.melodyLine(notesInSeconds, opts?)  → one line, no overlaps
 */
 (function(){
   'use strict';
@@ -245,6 +249,45 @@
     });
     return out;
   }
+  // Full-band mix → one tune. basic-pitch hears bass, chords and voice at
+  // once; lighting all of them makes the key jump octaves several times a
+  // second. Keep notes in a voice range, and where two overlap keep the one
+  // that is louder × longer and closer to where the tune just was; then
+  // fold octave slips and drop lone blips. Notes in seconds {m,on,off,v}.
+  // tuned on 4 pop songs against the separated vocal; F3 up keeps low male voices
+  const LINE = { lo: 53, hi: 88, minDur: 0.06, overlap: 0.03, jumpCost: 0.1 };
+  function melodyLine(raw, o){
+    o = Object.assign({}, LINE, o || {});
+    const ns = raw.filter(n => n.m >= o.lo && n.m <= o.hi && n.off - n.on >= o.minDur)
+                  .map(n => ({ ...n })).sort((a, b) => a.on - b.on || b.m - a.m);
+    const score = (n, ref) => (n.v || 0.5) * Math.min(0.6, n.off - n.on) * (ref ? Math.max(0.2, 1 - o.jumpCost * Math.min(12, Math.abs(n.m - ref.m))) : 1);
+    const line = [];
+    ns.forEach(n => {
+      const last = line[line.length - 1];
+      if(!last || n.on >= last.off - o.overlap){ line.push(n); return; }
+      const ref = line[line.length - 2];
+      if(score(n, ref) > score(last, ref)){
+        last.off = n.on;
+        if(last.off - last.on < o.minDur) line.pop();
+        line.push(n);
+      } else if(n.off - last.off >= o.minDur && n.m !== last.m){
+        line.push({ ...n, on: last.off });          // its tail outlasts the kept note
+      }
+    });
+    const out = mergeFragments(line);
+    // octave slip: far from both neighbours, but an octave away it fits
+    for(let i = 1; i < out.length - 1; i++){
+      const a = out[i - 1].m, b = out[i + 1].m, m = out[i].m;
+      if(Math.abs(m - a) < 9 || Math.abs(m - b) < 9) continue;
+      const f = [m - 12, m + 12].find(x => Math.abs(x - a) <= 5 && Math.abs(x - b) <= 5);
+      if(f != null) out[i].m = f;
+    }
+    // a short note leaping away and straight back is a blip, not the tune
+    return out.filter((n, i) => {
+      const a = out[i - 1], b = out[i + 1];
+      return !(a && b && n.off - n.on < 0.15 && Math.abs(n.m - a.m) > 7 && Math.abs(n.m - b.m) > 7);
+    });
+  }
   // Melody reading: close gaps under half a beat so the staff isn't littered
   // with tiny rests between sung/played notes; real pauses survive.
   function legato(notes, maxGap){
@@ -347,7 +390,7 @@
                    .sort((a,b) => a.on - b.on);
     prog(1, 'Done');
     // melody line for the follow engine; keep poly only when asked
-    const line = o.poly ? raw : MC.skyline(raw.map(n => ({ ...n, t: n.on }))).map(n => ({ m:n.m, on:n.on, off:n.off, v:n.v }));
+    const line = o.poly ? raw : melodyLine(raw);
     if(!line.length) throw new Error('No notes heard in that recording');
     // tempo from the onsets unless the caller knows it (Beat Hive passes djBpm)
     const bpm = o.bpm || MC.estimateTempo(line.map(n => n.on));
@@ -411,6 +454,6 @@
     return res;
   }
 
-  window.Hear = { VERSION: '1.0.0', mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, legato,
+  window.Hear = { VERSION: '1.1.0', mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, melodyLine, legato,
                   gradioCall, analyzeRemote };
 })();

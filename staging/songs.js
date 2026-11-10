@@ -719,7 +719,10 @@
         updateDad(beat);
         if(i !== run.last && i >= 0){
           run.last = i; idx = i; progress();
-          const kb = d.getKb(); kb && (kb.setTarget(notes[i].m), kb.flash(notes[i].m));
+          // a blip (< 0.12 s, e.g. a sliver from a song recording) keeps the
+          // key that's lit: the eye can't follow it, it just reads as flicker
+          const kb = d.getKb();
+          if(kb && notes[i].d * 60 / run.bpm >= 0.12){ kb.setTarget(notes[i].m); kb.flash(notes[i].m); }
         }
         if(keepLoop(run, beat)) run.last = -1;
         camX = xOf(Math.max(-1, beat)) - camLead();
