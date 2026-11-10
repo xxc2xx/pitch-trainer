@@ -296,6 +296,20 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(!nr || nr.clarity < 0.8, 'mpm: noise is low clarity (' + (nr ? nr.clarity.toFixed(2) : 'null') + ')');
   ok(H.mpm(new Float32Array(2048), SR) === null, 'mpm: silence → null');
 
+  // full-band song → one tune (Listen lit keys jumped octaves several times a second)
+  {
+    const N = (m, on, d, v = 0.8) => ({ m, on, off: on + d, v });
+    const band = [N(36, 0, 1.2), N(43, 0.6, 0.6), N(67, 0, 1.2, 0.3),      // bass + a quiet pad above the voice
+                  N(60, 0, 0.4), N(62, 0.4, 0.4), N(64, 0.8, 0.4)];        // the sung C D E
+    ok(JSON.stringify(H.melodyLine(band).map(n => n.m)) === '[60,62,64]', 'melodyLine: bass and pad dropped, the sung line kept');
+    const slip = H.melodyLine([N(60, 0, 0.3), N(74, 0.3, 0.3), N(62, 0.6, 0.3)]).map(n => n.m);
+    ok(slip.join() === '60,62,62', 'melodyLine: octave slip folded back (' + slip + ')');
+    const blip = H.melodyLine([N(60, 0, 0.3), N(79, 0.3, 0.08), N(62, 0.38, 0.3)]).map(n => n.m);
+    ok(blip.join() === '60,62', 'melodyLine: a lone leap-and-back blip dropped (' + blip + ')');
+    const line = H.melodyLine(band);
+    ok(line.every((n, i) => !i || n.on >= line[i - 1].off - 0.031), 'melodyLine: no overlapping notes');
+  }
+
   // wobbly E4 (±45 cents vibrato) + an octave-slip frame + a dropout → stays E4
   const tr = H.pitchTracker(), f = m => 440 * Math.pow(2, (m - 69) / 12);
   const shown = [];

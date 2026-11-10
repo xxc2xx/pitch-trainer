@@ -48,7 +48,7 @@ try{
 
   // 3 — code changed, version untouched
   const e3 = engineCopy('e3');
-  edit(path.join(e3, 'hear.js'), "window.Hear = { VERSION: '1.0.0',", "window.Hear = { VERSION: '1.0.0', /* changed */");
+  edit(path.join(e3, 'hear.js'), 'window.Hear = { VERSION:', 'window.Hear = { /* changed */ VERSION:');   // any version
   const r3 = run([path.join(e3, 'tools', 'shared.mjs'), 'check']);
   ok(r3.status !== 0 && /version must be bumped/.test(r3.stdout), '3 producer: a code change with no version bump fails check');
 

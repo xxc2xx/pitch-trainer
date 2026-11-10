@@ -74,14 +74,15 @@
   },
   "hear.js": {
     "global": "Hear",
-    "version": "1.0.0",
-    "sha256": "c1b691403bb53654d5f2b59c1895b5dd9ac8a00307553cf557c8b7850e1473a2",
+    "version": "1.1.0",
+    "sha256": "5570b95d4a516bafdb8abba3a1b4b7ad2d876545ca375b3dcc123659156645ea",
     "api": {
       "VERSION": "string",
       "analyzeRemote": "fn/3",
       "decode": "fn/1",
       "gradioCall": "fn/4",
       "legato": "fn/2",
+      "melodyLine": "fn/2",
       "mergeFragments": "fn/1",
       "mpm": "fn/3",
       "normaliseOctave": "fn/1",
