@@ -3,7 +3,9 @@
    Depends on music-core.js (MusicCore).
 
    SongFile.parseMidi(arrayBuffer, meta)   → Song (Take)
-   SongFile.parseMusicXML(doc|text, meta)  → Song (Take)   (uncompressed .musicxml/.xml)
+   SongFile.parseMusicXML(doc|text, meta)  → Song (Take)   (one staff: the melody's)
+   SongFile.musicXMLText(arrayBuffer)      → Promise<text>  (.musicxml, .xml or zipped .mxl)
+   SongFile.fromOmr(tokens, xml, meta)     → Song (Take)   (a read sheet photo: MusicXML, else tokens)
 
    These are the "no transcription errors" path: a public-domain MIDI or
    MusicXML of her song gives exact notes; the audio path (hear.js) guesses.
@@ -99,9 +101,18 @@
     }
     const names = {};
     all(score, 'score-part').forEach(sp => { names[sp.getAttribute('id')] = (txt(sp, 'part-name') || '') + ' ' + (txt(sp, 'part-abbreviation') || ''); });
-    const parts = kids(score, 'part').map(part => {
+    // Each part splits into one candidate per staff: a piano part (or a sheet
+    // read by OMR) keeps both hands in one <part>, and flattening it mixed the
+    // left hand into the tune. On each staff only its first voice counts (in
+    // MuseScore files staff 2 starts at voice 5); chord notes are kept so
+    // MC.skyline picks the top note — skipping them kept the first-written
+    // note, often the lowest.
+    const parts = [];
+    kids(score, 'part').forEach(part => {
       let div = 1, pos = 0, bpm = null, timeSig = null, fifths = null;
-      const notes = []; let lastStart = 0;
+      const staves = {};                                   // staff no → { notes, clef, voice }
+      const staff = n => staves[n] || (staves[n] = { notes: [], clef: null, voice: null });
+      let lastStart = 0;
       kids(part, 'measure').forEach(meas => {
         Array.from(meas.childNodes).forEach(el => {
           if(el.nodeType !== 1) return;
@@ -109,6 +120,7 @@
             const dv = txt(el, 'divisions'); if(dv) div = +dv;
             const tm = kid(el, 'time'); if(tm && !timeSig) timeSig = [+txt(tm, 'beats'), +txt(tm, 'beat-type')];
             const ky = kid(el, 'key'); if(ky && fifths == null) fifths = +txt(ky, 'fifths');
+            kids(el, 'clef').forEach(c => { const s = staff(c.getAttribute('number') || '1'); if(!s.clef) s.clef = txt(c, 'sign'); });
           } else if(el.nodeName === 'direction' || el.nodeName === 'sound'){
             const snd = el.nodeName === 'sound' ? el : all(el, 'sound')[0];
             if(snd && snd.getAttribute('tempo') && !bpm) bpm = Math.round(+snd.getAttribute('tempo'));
@@ -117,26 +129,33 @@
           else if(el.nodeName === 'note'){
             if(kid(el, 'grace')) return;                       // ornaments carry no time
             const dur = (+txt(el, 'duration') || 0) / div;
-            const voice = txt(el, 'voice') || '1';
             const isChord = !!kid(el, 'chord');
             const start = isChord ? lastStart : pos;
-            if(!isChord) pos += dur;
-            if(voice !== '1' || isChord || kid(el, 'rest')) { if(!isChord) lastStart = start; return; }
-            lastStart = start;
+            if(!isChord){ pos += dur; lastStart = start; }
+            const s = staff(txt(el, 'staff') || '1'), voice = txt(el, 'voice') || '1';
+            if(s.voice == null) s.voice = voice;
+            if(voice !== s.voice || kid(el, 'rest')) return;
             const pt = kid(el, 'pitch'); if(!pt) return;
             const m = 12 * (+txt(pt, 'octave') + 1) + STEP[txt(pt, 'step')] + (+(txt(pt, 'alter') || 0));
             const ties = kids(el, 'tie').map(t => t.getAttribute('type'));
-            const prev = notes[notes.length - 1];
-            if(ties.includes('stop') && prev && prev.m === m && Math.abs(prev.t + prev.d - start) < 1e-6){ prev.d += dur; return; }
-            notes.push({ m, t: start, d: dur, v: 0.8 });
+            const prev = s.notes.slice().reverse().find(n => n.m === m);
+            if(ties.includes('stop') && prev && Math.abs(prev.t + prev.d - start) < 1e-6){ prev.d += dur; return; }
+            s.notes.push({ m, t: start, d: dur, v: 0.8 });
           }
         });
       });
-      return { id: part.getAttribute('id'), name: names[part.getAttribute('id')] || '', notes, bpm, timeSig, fifths };
-    }).filter(p => p.notes.length);
+      const name = names[part.getAttribute('id')] || '';
+      Object.keys(staves).sort().forEach((no, i) => {
+        const s = staves[no];
+        if(s.notes.length) parts.push({ id: part.getAttribute('id') + '/' + no, name, upper: i === 0, clef: s.clef,
+          notes: s.notes.sort((a, b) => a.t - b.t), bpm, timeSig, fifths });
+      });
+    });
     if(!parts.length) throw new Error('No notes found in this score');
     const avg = p => p.notes.reduce((s, n) => s + n.m, 0) / p.notes.length;
-    const pick = parts.find(p => MELODY_NAME.test(p.name)) || parts.slice().sort((a, b) => avg(b) - avg(a))[0];
+    // a melody-named part's upper staff, else the highest-sounding staff
+    // (an F-clef-only score — her left-hand pieces — is then its only staff)
+    const pick = parts.find(p => MELODY_NAME.test(p.name) && p.upper) || parts.slice().sort((a, b) => avg(b) - avg(a))[0];
     const fifths = pick.fifths || 0;
     const key = ['Cb','Gb','Db','Ab','Eb','Bb','F','C','G','D','A','E','B','F#','C#'][fifths + 7] || 'C';
     const workTitle = all(score, 'work-title')[0] || all(score, 'movement-title')[0];
@@ -261,7 +280,62 @@
 <part id="P1">${body}</part></score-partwise>`;
   }
 
-  const SongFile = { parseMidi, parseMusicXML, writeMidi, writeMusicXML };
+  // ── .mxl (zipped MusicXML, MuseScore's default export) ────────────────
+  // A minimal ZIP reader: central directory → META-INF/container.xml names
+  // the score → inflate it with the browser's own DecompressionStream
+  // ('deflate-raw'; Safari 16.4+, Chrome 80+, Node 18+). No library.
+  async function unzipMxl(buf){
+    const u8 = new Uint8Array(buf), dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    let eocd = -1;
+    for(let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+    if(eocd < 0) throw new Error('Not a .mxl file (no zip directory)');
+    const entries = {};
+    let p = dv.getUint32(eocd + 16, true);
+    for(let k = dv.getUint16(eocd + 10, true); k > 0; k--){
+      if(dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true), size = dv.getUint32(p + 20, true);
+      const nlen = dv.getUint16(p + 28, true), xlen = dv.getUint16(p + 30, true), clen = dv.getUint16(p + 32, true);
+      const local = dv.getUint32(p + 42, true);
+      entries[new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nlen))] = { method, size, local };
+      p += 46 + nlen + xlen + clen;
+    }
+    const read = async name => {
+      const e = entries[name]; if(!e) return null;
+      const start = e.local + 30 + dv.getUint16(e.local + 26, true) + dv.getUint16(e.local + 28, true);
+      const data = u8.subarray(start, start + e.size);
+      if(e.method === 0) return new TextDecoder().decode(data);
+      if(e.method !== 8) throw new Error('Unsupported .mxl compression');
+      const out = new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw')));
+      return out.text();
+    };
+    const container = await read('META-INF/container.xml');
+    const root = container && (container.match(/full-path="([^"]+)"/) || [])[1];
+    const name = root || Object.keys(entries).find(n => /\.(musicxml|xml)$/i.test(n) && !/^META-INF\//.test(n));
+    const xml = name && await read(name);
+    if(!xml) throw new Error('No score inside this .mxl');
+    return xml;
+  }
+  // a file's text: plain MusicXML as is, .mxl unzipped (zip files start "PK")
+  async function musicXMLText(buf){
+    const u8 = new Uint8Array(buf);
+    return u8[0] === 0x50 && u8[1] === 0x4b ? unzipMxl(buf) : new TextDecoder().decode(u8);
+  }
+
+  // A sheet photo read by the OMR server: its MusicXML keeps key, time and
+  // ties; the token string ("C4:1 R:0.5 …") is the fallback for old servers
+  // or MusicXML that doesn't parse.
+  function fromOmr(tokens, xml, meta){
+    meta = { source: 'omr', ...(meta || {}) };
+    if(xml){
+      try{
+        const song = parseMusicXML(xml, meta);
+        if(song.notes && song.notes.length) return song;
+      }catch(e){ /* fall through to the tokens */ }
+    }
+    return MC.fromTokens(tokens || '', meta);
+  }
+
+  const SongFile = { parseMidi, parseMusicXML, musicXMLText, fromOmr, writeMidi, writeMusicXML };
   if(typeof module !== 'undefined' && module.exports) module.exports = SongFile;
   else root.SongFile = SongFile;
 })(typeof window !== 'undefined' ? window : globalThis);

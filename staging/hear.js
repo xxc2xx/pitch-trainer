@@ -1,4 +1,4 @@
-/* @shared hear 1.1.0 */
+/* @shared hear 1.1.2 */
 /* hear.js — Hear: microphone/audio → notes → Take.
    Classic script → window.Hear. Depends on music-core.js.
 
@@ -258,7 +258,16 @@
   const LINE = { lo: 53, hi: 88, minDur: 0.06, overlap: 0.03, jumpCost: 0.1 };
   function melodyLine(raw, o){
     o = Object.assign({}, LINE, o || {});
-    const ns = raw.filter(n => n.m >= o.lo && n.m <= o.hi && n.off - n.on >= o.minDur)
+    // the voice range only sorts a MIX. One line at a time (a low voice, a
+    // cello, a bass line on its own) or almost nothing in range → keep it all.
+    // A band keeps the range even when its bass outlasts the singer.
+    const dur = ns0 => ns0.reduce((t, n) => t + (n.off - n.on), 0);
+    const long = raw.filter(n => n.off - n.on >= o.minDur);
+    const inRange = long.filter(n => n.m >= o.lo && n.m <= o.hi);
+    let overlap = 0, end = -Infinity;
+    long.slice().sort((a, b) => a.on - b.on).forEach(n => { overlap += Math.max(0, Math.min(n.off, end) - n.on); end = Math.max(end, n.off); });
+    const oneLine = overlap < 0.1 * dur(long);
+    const ns = (oneLine || dur(inRange) < 0.2 * dur(long) ? long : inRange)
                   .map(n => ({ ...n })).sort((a, b) => a.on - b.on || b.m - a.m);
     const score = (n, ref) => (n.v || 0.5) * Math.min(0.6, n.off - n.on) * (ref ? Math.max(0.2, 1 - o.jumpCost * Math.min(12, Math.abs(n.m - ref.m))) : 1);
     const line = [];
@@ -454,6 +463,6 @@
     return res;
   }
 
-  window.Hear = { VERSION: '1.1.0', mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, melodyLine, legato,
+  window.Hear = { VERSION: '1.1.2', mpm, pitchTracker, decode, pitchStream, singRecorder, transcribeBlob, snapToKey, normaliseOctave, secondsToTake, mergeFragments, melodyLine, legato,
                   gradioCall, analyzeRemote };
 })();

@@ -2,13 +2,16 @@
    Classic script → window.AddSong. Depends on music-core.js, hear.js,
    songfile.js.
 
-   AddSong.open({ detectPitch, onSaved(song) })
+   AddSong.open({ detectPitch, onSaved(song), sheet })
+     sheet = { url() → the OMR server address or '', setUrl(address),
+               read(file) → Promise<{tokens, xml}> }   (index.html's OMR client)
 
    Ways in:
    📁 Video / audio file  → on-device transcription (basic-pitch), original kept
    🎬 Capture a Chrome tab → record the audio of a video playing in another tab
                              (Chrome desktop: share a TAB and tick "share tab audio")
    📄 MIDI / MusicXML      → exact notes, no guessing
+   📷 Sheet photo          → the OMR server reads the page (one page of printed music)
    🎤 Sing it              → live voice → notes
    The original recording is saved with the song (IndexedDB) so the player
    can show the notes in sync with it.
@@ -63,6 +66,7 @@
           <small>${canCapture ? 'record a video playing in another tab' : 'needs Chrome on a computer'}</small></button>
         <label class="as-opt"><span class="ic">📄</span>MIDI / MusicXML<small>exact notes — no guessing</small>
           <input type="file" id="asSheetFile" accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,audio/x-midi"></label>
+        <span id="asPhotoSlot" style="display:contents"></span>
         <button class="as-opt" id="asSing"><span class="ic">🎤</span>Sing it<small>your voice → notes</small></button>
       </div>
       <div id="asWork" style="display:none;flex-direction:column;gap:8px">
@@ -136,13 +140,48 @@
       work('Reading the sheet…', 0.5);
       try{
         let song;
-        if(/\.mxl$/i.test(f.name)) throw new Error('That’s compressed MusicXML (.mxl) — export as “uncompressed .musicxml” instead.');
         if(/\.(mid|midi)$/i.test(f.name) || /midi/.test(f.type)) song = SongFile.parseMidi(await f.arrayBuffer());
-        else song = SongFile.parseMusicXML(await f.text());
+        else song = SongFile.parseMusicXML(await SongFile.musicXMLText(await f.arrayBuffer()));
         if(!$('asTitle').value.trim() && (!song.title || /MIDI song|Sheet song/.test(song.title))) song.title = f.name.replace(/\.[^.]+$/, '');
         await save(song, null);
       }catch(err){ fail(err.message); }
     };
+
+    // 📷 sheet music photo → OMR server → MusicXML (or tokens) → song.
+    // No server address yet → the option asks for it first.
+    const sheet = o.sheet;
+    const photoOpt = () => {
+      const ready = sheet && sheet.url();
+      $('asPhotoSlot').innerHTML = !sheet ? '' : ready
+        ? `<label class="as-opt"><span class="ic">📷</span>Sheet music photo<small>a photo of one page of printed music</small>
+             <input type="file" id="asPhoto" accept="image/*"></label>`
+        : `<button class="as-opt" id="asPhotoSet"><span class="ic">📷</span>Sheet music photo<small>grown-ups: connect the reader once</small></button>`;
+      if(!sheet) return;
+      if(ready) $('asPhoto').onchange = readPhoto;
+      else $('asPhotoSet').onclick = () => {
+        if(busy) return;
+        work('', null);
+        $('asMsg').innerHTML = 'Paste the address of the sheet-music reader (the “Pitch Trainer OMR” Hugging Face Space):';
+        $('asAct').innerHTML = '<input type="text" id="asOmrUrl" placeholder="https://…hf.space"><button class="as-btn go" id="asOmrSave">Save</button><button class="as-btn" id="asOmrBack">← Back</button>';
+        const back = () => { $('asWork').style.display = 'none'; $('asOpts').style.display = 'grid'; $('asAct').innerHTML = ''; photoOpt(); };
+        $('asOmrBack').onclick = back;
+        $('asOmrSave').onclick = () => {
+          try{ sheet.setUrl($('asOmrUrl').value); back(); }
+          catch(err){ $('asMsg').className = 'as-msg as-err'; $('asMsg').textContent = '⚠ ' + err.message; }
+        };
+      };
+    };
+    async function readPhoto(e){
+      const f = e.target.files && e.target.files[0]; e.target.value = '';
+      if(!f || busy) return; busy = true;
+      work('📷 Reading the sheet… (the first read can take a minute while the server wakes up)', 0.3);
+      try{
+        const { tokens, xml } = await sheet.read(f);
+        const name = title(/^(image|IMG_|photo)/i.test(f.name) ? 'Sheet song' : f.name.replace(/\.[^.]+$/, ''));
+        await save(SongFile.fromOmr(tokens, xml, { title: name }), null);
+      }catch(err){ fail('Couldn’t read that page — ' + (err.message || err) + '. Try a flatter, brighter photo of one page.'); }
+    }
+    photoOpt();
 
     // 🎬 capture a Chrome tab's audio
     $('asTab').onclick = async () => {
