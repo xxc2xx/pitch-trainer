@@ -209,7 +209,7 @@
       shelfTakes = new Map([...exercises, ...builtin, ...mine].map(t => [t.id, t]));
       const fromClass = mine.filter(t => t.tag === 'class'), own = mine.filter(t => t.tag !== 'class');
       const addCard = d.addSong ? `<div class="sg-card sg-add" id="sgAdd"><span class="ic">➕</span><span>Add a song</span>
-        <span class="st" style="color:var(--text-2)">video · music · MIDI</span></div>` : '';
+        <span class="st" style="color:var(--text-2)">video · music · sheet</span></div>` : '';
       // her songs lead; the built-ins are just a starter set
       // 🌟 Today (daily path) and 🎤 Echo lead the shelf when wired in
       const practice = (d.todayCard ? d.todayCard() : '') +

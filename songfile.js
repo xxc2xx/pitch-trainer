@@ -5,6 +5,7 @@
    SongFile.parseMidi(arrayBuffer, meta)   → Song (Take)
    SongFile.parseMusicXML(doc|text, meta)  → Song (Take)   (one staff: the melody's)
    SongFile.musicXMLText(arrayBuffer)      → Promise<text>  (.musicxml, .xml or zipped .mxl)
+   SongFile.fromOmr(tokens, xml, meta)     → Song (Take)   (a read sheet photo: MusicXML, else tokens)
 
    These are the "no transcription errors" path: a public-domain MIDI or
    MusicXML of her song gives exact notes; the audio path (hear.js) guesses.
@@ -320,7 +321,21 @@
     return u8[0] === 0x50 && u8[1] === 0x4b ? unzipMxl(buf) : new TextDecoder().decode(u8);
   }
 
-  const SongFile = { parseMidi, parseMusicXML, musicXMLText, writeMidi, writeMusicXML };
+  // A sheet photo read by the OMR server: its MusicXML keeps key, time and
+  // ties; the token string ("C4:1 R:0.5 …") is the fallback for old servers
+  // or MusicXML that doesn't parse.
+  function fromOmr(tokens, xml, meta){
+    meta = { source: 'omr', ...(meta || {}) };
+    if(xml){
+      try{
+        const song = parseMusicXML(xml, meta);
+        if(song.notes && song.notes.length) return song;
+      }catch(e){ /* fall through to the tokens */ }
+    }
+    return MC.fromTokens(tokens || '', meta);
+  }
+
+  const SongFile = { parseMidi, parseMusicXML, musicXMLText, fromOmr, writeMidi, writeMusicXML };
   if(typeof module !== 'undefined' && module.exports) module.exports = SongFile;
   else root.SongFile = SongFile;
 })(typeof window !== 'undefined' ? window : globalThis);

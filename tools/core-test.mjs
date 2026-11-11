@@ -125,6 +125,15 @@ if(DOMParser){
   const mxl = await zip({ 'META-INF/container.xml': '<container><rootfiles><rootfile full-path="score/song.musicxml"/></rootfiles></container>', 'score/song.musicxml': grand });
   ok(C.toTokens(parse(await SF.musicXMLText(mxl))) === 'E4:1 R:1 C4:2', '.mxl unzipped (container.xml → rootfile) reads like the plain file');
   ok((await SF.musicXMLText(new TextEncoder().encode(grand).buffer)).startsWith('<?xml'), 'plain .musicxml bytes pass through musicXMLText');
+  // 📷 sheet photo: the OMR server's MusicXML (real homr output for a rendered
+  // Hot Cross Buns page) → song; tokens when the MusicXML is missing or broken
+  globalThis.DOMParser = globalThis.DOMParser || DOMParser;     // fromOmr takes the text
+  const homrXml = require('fs').readFileSync(new URL('./fixtures/homr-hot-cross-buns.musicxml', import.meta.url), 'utf8');
+  const hcb = 'E4:1 D4:1 C4:1 R:1 E4:1 D4:1 C4:1 R:1 C4:1 C4:1 D4:1 D4:1 E4:1 D4:1 C4:1';
+  const fo = SF.fromOmr('C4:1', homrXml, { title: 'Buns' });
+  ok(C.toTokens(fo) === hcb && fo.title === 'Buns' && fo.source === 'omr', 'fromOmr: homr MusicXML → the tune, titled, source omr → ' + C.toTokens(fo));
+  ok(C.toTokens(SF.fromOmr('E4:1 D4:1 C4:2', '', { title: 'x' })) === 'E4:1 D4:1 C4:2', 'fromOmr: no MusicXML (old server) → the tokens');
+  ok(C.toTokens(SF.fromOmr('E4:1 D4:1 C4:2', '<score-partwise><part', {})) === 'E4:1 D4:1 C4:2', 'fromOmr: broken MusicXML → the tokens');
 }
 
 // ── Export: MusicXML / MIDI round-trips ───────────────────────────────
