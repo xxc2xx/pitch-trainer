@@ -74,8 +74,8 @@
   },
   "hear.js": {
     "global": "Hear",
-    "version": "1.1.1",
-    "sha256": "02b760a9ae623d2afb973f30ab565f9ca7c0697407c2ab1de1378d80fea57d4c",
+    "version": "1.1.2",
+    "sha256": "c39c58fbea4875bcdfa832137560741b3f4f08e3835bb914b2ec635dce4dcac9",
     "api": {
       "VERSION": "string",
       "analyzeRemote": "fn/3",

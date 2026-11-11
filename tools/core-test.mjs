@@ -362,6 +362,10 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
     ok(line.every((n, i) => !i || n.on >= line[i - 1].off - 0.031), 'melodyLine: no overlapping notes');
     const low = H.melodyLine([N(40, 0, 0.4), N(43, 0.4, 0.4), N(45, 0.8, 0.4)]).map(n => n.m);
     ok(low.join() === '40,43,45', 'melodyLine: a bass/cello line below the voice range is kept (' + low + ')');
+    const heavy = H.melodyLine([N(40, 0, 2), N(64, 0.2, 0.4), N(65, 1.0, 0.4)]).map(n => n.m);
+    ok(heavy.join() === '64,65', 'melodyLine: a long bass note under the singer still loses (' + heavy + ')');
+    const wide = H.melodyLine([N(45, 0, 0.4), N(50, 0.4, 0.4), N(55, 0.8, 0.4), N(57, 1.2, 0.4)]).map(n => n.m);
+    ok(wide.join() === '45,50,55,57', 'melodyLine: a low voice crossing into the range keeps every note (' + wide + ')');
   }
 
   // wobbly E4 (±45 cents vibrato) + an octave-slip frame + a dropout → stays E4
