@@ -82,7 +82,50 @@ const xml = `<?xml version="1.0"?><score-partwise version="3.1"><work><work-titl
 if(!DOMParser) console.log('skip MusicXML tests (npm i -g @xmldom/xmldom or set XMLDOM_PATH)');
 const mx = DOMParser ? SF.parseMusicXML(new DOMParser().parseFromString(xml, 'application/xml')) : null;
 if(mx) ok(mx.title === 'Test Tune' && mx.bpm === 88 && mx.key === 'G' && mx.timeSig[0] === 3, 'MusicXML header: title, tempo, key, time');
-if(mx) ok(C.toTokens(mx) === 'G4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord skipped, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
+if(mx) ok(C.toTokens(mx) === 'B4:1 R:0.5 F#4:0.5 E4:3', 'MusicXML notes: chord → top note, rest, sharp, tie merged, voice 2 ignored → ' + C.toTokens(mx));
+
+// ── MusicXML as OMR writes it: both hands in one part (sheet-photo import) ──
+if(DOMParser){
+  const parse = x => SF.parseMusicXML(new DOMParser().parseFromString(x, 'application/xml'));
+  const head = (attrs) => `<?xml version="1.0"?><score-partwise version="3.1"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time>${attrs}</attributes>`;
+  const n = (step, oct, dur, extra = '') => `<note>${extra.includes('<chord/>') ? '<chord/>' : ''}<pitch><step>${step}</step>${/alter/.test(extra) ? extra.match(/<alter>-?\d+<\/alter>/)[0] : ''}<octave>${oct}</octave></pitch><duration>${dur}</duration>${extra.replace(/<chord\/>|<alter>-?\d+<\/alter>/g, '')}</note>`;
+  // grand staff as oemer writes it: every note voice 1, hands split only by <staff>
+  const grand = head('<staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef>')
+    + n('E', 4, 1, '<voice>1</voice><staff>1</staff>') + '<note><rest/><duration>1</duration><voice>1</voice><staff>1</staff></note>' + n('C', 4, 2, '<voice>1</voice><staff>1</staff>')
+    + '<backup><duration>4</duration></backup>' + n('C', 3, 1, '<voice>1</voice><staff>2</staff>') + n('G', 2, 3, '<voice>1</voice><staff>2</staff>')
+    + '</measure></part></score-partwise>';
+  ok(C.toTokens(parse(grand)) === 'E4:1 R:1 C4:2', 'grand staff in one part: the left hand under a right-hand rest stays out → ' + C.toTokens(parse(grand)));
+  // a chord written low note first keeps the TOP note
+  const chord = head('') + n('C', 4, 2, '<voice>1</voice>') + n('E', 4, 2, '<chord/><voice>1</voice>') + n('G', 4, 2, '<voice>1</voice>') + '</measure></part></score-partwise>';
+  ok(C.toTokens(parse(chord)) === 'E4:2 G4:2', 'chord written low-first → top note: ' + C.toTokens(parse(chord)));
+  // double flat spelled by alter -2, tie across the barline
+  const dbl = head('') + n('B', 4, 2, '<alter>-2</alter><voice>1</voice>') + n('C', 5, 2, '<voice>1</voice><tie type="start"/>')
+    + '</measure><measure number="2">' + n('C', 5, 2, '<voice>1</voice><tie type="stop"/>') + '</measure></part></score-partwise>';
+  ok(C.toTokens(parse(dbl)) === 'A4:2 C5:4', 'double flat (Bbb = A) and a tie across the bar: ' + C.toTokens(parse(dbl)));
+  // her left-hand pieces: an F-clef-only score is its own tune
+  const low = head('<clef><sign>F</sign><line>4</line></clef>') + n('C', 3, 1, '<voice>1</voice>') + n('D', 3, 1, '<voice>1</voice>') + n('E', 3, 2, '<voice>1</voice>') + '</measure></part></score-partwise>';
+  ok(C.toTokens(parse(low)) === 'C3:1 D3:1 E3:2', 'F-clef-only score reads as the tune: ' + C.toTokens(parse(low)));
+  // .mxl: zipped MusicXML (MuseScore's default) → same Take as the plain file
+  const zip = async (files) => {           // tiny deflate zip writer for the test
+    const enc = new TextEncoder(), parts = [], cd = []; let off = 0;
+    for(const [name, text] of Object.entries(files)){
+      const raw = enc.encode(text);
+      const comp = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+      const nm = enc.encode(name), h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(8, 8, true); h.setUint32(18, comp.length, true); h.setUint32(22, raw.length, true); h.setUint16(26, nm.length, true);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(10, 8, true); c.setUint32(20, comp.length, true); c.setUint32(24, raw.length, true); c.setUint16(28, nm.length, true); c.setUint32(42, off, true);
+      parts.push(new Uint8Array(h.buffer), nm, comp); cd.push(new Uint8Array(c.buffer), nm); off += 30 + nm.length + comp.length;
+    }
+    const cdLen = cd.reduce((s, a) => s + a.length, 0), e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, cd.length / 2, true); e.setUint16(10, cd.length / 2, true); e.setUint32(12, cdLen, true); e.setUint32(16, off, true);
+    const all = [...parts, ...cd, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((s, a) => s + a.length, 0));
+    let p = 0; for(const a of all){ out.set(a, p); p += a.length; } return out.buffer;
+  };
+  const mxl = await zip({ 'META-INF/container.xml': '<container><rootfiles><rootfile full-path="score/song.musicxml"/></rootfiles></container>', 'score/song.musicxml': grand });
+  ok(C.toTokens(parse(await SF.musicXMLText(mxl))) === 'E4:1 R:1 C4:2', '.mxl unzipped (container.xml → rootfile) reads like the plain file');
+  ok((await SF.musicXMLText(new TextEncoder().encode(grand).buffer)).startsWith('<?xml'), 'plain .musicxml bytes pass through musicXMLText');
+}
 
 // ── Export: MusicXML / MIDI round-trips ───────────────────────────────
 if(DOMParser){

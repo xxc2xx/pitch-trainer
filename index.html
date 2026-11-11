@@ -3015,7 +3015,26 @@
     if(!tokens) throw new Error('OMR returned empty tokens');
     if(tokens.startsWith('ERROR:')){ logPlay(tokens,'err'); throw new Error(tokens); }
     logPlay(`✓ ${tokens.split(/\s+/).length} tokens from oemer`,'ok');
+    // newer servers also send the MusicXML (key, time, ties, one staff) — kept
+    // for saving the song; the token string still drives the Play preview
+    lastOmrXml=typeof result[1]==='string'&&result[1].includes('<score-partwise')?result[1]:null;
     return tokens;
+  }
+  let lastOmrXml=null;
+  // the one place the browser's sheet-reading fallback names a Claude model
+  // (owner setting `pitchy_vision_model` overrides it)
+  const VISION_MODEL=(()=>{ try{ return localStorage.getItem('pitchy_vision_model')||'claude-opus-4-7'; }catch(e){ return 'claude-opus-4-7'; } })();
+  // A read sheet becomes a song in 🎵 Songs (it used to live only in this
+  // preview): from the server's MusicXML when there is one, else the tokens.
+  async function saveSheetAsSong(tokens, file){
+    const title=(file&&file.name||'Sheet song').replace(/\.[^.]+$/,'').slice(0,40)||'Sheet song';
+    let take=null;
+    try{ if(lastOmrXml&&window.SongFile) take=SongFile.parseMusicXML(lastOmrXml,{title,source:'omr'}); }
+    catch(e){ logPlay(`MusicXML not usable (${e.message}) — saving the notes only`); }
+    if(!take) take=MC.fromTokens(tokens,{title,source:'omr'});
+    if(!take.notes||!take.notes.length) return;
+    try{ await MC.store.saveTake(take); logPlay(`💾 saved “${take.title}” to 🎵 Songs (${take.notes.length} notes)`,'ok'); }
+    catch(e){ logPlay(`could not save to Songs: ${e.message}`,'err'); }
   }
 
   async function analyzeSheetImage(base64,mime){
@@ -3036,7 +3055,7 @@
         'anthropic-dangerous-direct-browser-access':'true',
       },
       body:JSON.stringify({
-        model:'claude-opus-4-7',
+        model:VISION_MODEL,
         max_tokens:2048,
         system:'You are a music transcription engine. You output ONLY space-separated note tokens in the format Letter+Accidental+Octave:Beats (e.g. F4:1 Bb4:0.5 R:1). Never output chord symbols, lyrics, dynamics, or any explanatory text.',
         messages:[
@@ -3280,6 +3299,7 @@ Output the token list now, nothing else:`
           : await analyzeFullScore(originalUrl,mime);
         const parsed=parseNoteList(notes);
         lastParsedNotes=parsed;
+        if(omrUrl&&parsed.length) saveSheetAsSong(notes,file);
         renderScore(parsed);
         logPlay(`📋 parsed ${parsed.length} notes from ${notes.split(/\s+/).length} tokens`,parsed.length?'ok':'err');
 

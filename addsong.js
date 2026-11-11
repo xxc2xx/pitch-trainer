@@ -136,9 +136,8 @@
       work('Reading the sheet…', 0.5);
       try{
         let song;
-        if(/\.mxl$/i.test(f.name)) throw new Error('That’s compressed MusicXML (.mxl) — export as “uncompressed .musicxml” instead.');
         if(/\.(mid|midi)$/i.test(f.name) || /midi/.test(f.type)) song = SongFile.parseMidi(await f.arrayBuffer());
-        else song = SongFile.parseMusicXML(await f.text());
+        else song = SongFile.parseMusicXML(await SongFile.musicXMLText(await f.arrayBuffer()));
         if(!$('asTitle').value.trim() && (!song.title || /MIDI song|Sheet song/.test(song.title))) song.title = f.name.replace(/\.[^.]+$/, '');
         await save(song, null);
       }catch(err){ fail(err.message); }
