@@ -39,6 +39,14 @@ const res = { bpm: 100, key: 'C', beatTimes: Array.from({ length: 40 }, (_, i) =
 const an = C.songFromAnalysis(C.makeTake({ title: 'x', sync: { audioId: 'a1', kind: 'video' } }), res);
 ok(an.notes[0].t === 2 && an.notes[1].t === 4 && an.parts.chords[0].t === 2 && an.parts.chords[0].d === 4 && an.sync.audioId === 'a1' && an.sync.beatTimes.length === 40,
    'songFromAnalysis: seconds → beats on the beat map, chords in beats, sync kept');
+// Add a song → video + song.json (score mode): a fresh take, notes only from the file
+{
+  const res2 = { bpm: 100, key: 'G', melodyModel: 'score', beatTimes: [2, 2.6, 3.2, 3.8, 4.4, 5.0, 5.6, 6.2],
+                 melody: [{ m: 67, on: 2.0, off: 2.6 }, { m: 69, on: 2.6, off: 3.2 }, { m: 71, on: 3.2, off: 4.4 }], chords: [] };
+  const s2 = C.songFromAnalysis(C.makeTake({ title: 'clip', source: 'video', notes: [] }), res2);
+  ok(C.toTokens(s2) === 'G4:1 A4:1 B4:2' && s2.key === 'G' && s2.sync.offsetSec === 2,
+     'song.json import: score-mode melody becomes the song (offset at the first beat) → ' + C.toTokens(s2));
+}
 ok(Math.abs(C.beatToSec(an, an.notes[0].t) - 1.3) < 1e-9, 'analyzed note plays back at its audio time');
 
 // ── Song files ────────────────────────────────────────────────────────

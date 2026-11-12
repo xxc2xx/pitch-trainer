@@ -7,7 +7,8 @@
                read(file) → Promise<{tokens, xml}> }   (index.html's OMR client)
 
    Ways in:
-   📁 Video / audio file  → on-device transcription (basic-pitch), original kept
+   📁 Video / audio file  → on-device transcription (basic-pitch), original kept;
+                            picked with a song.json (nueava-listen) → its notes instead
    🎬 Capture a Chrome tab → record the audio of a video playing in another tab
                              (Chrome desktop: share a TAB and tick "share tab audio")
    📄 MIDI / MusicXML      → exact notes, no guessing
@@ -61,7 +62,7 @@
         <label><input type="checkbox" id="asClass" checked> 🎒 From class</label></div>
       <div class="as-grid" id="asOpts">
         <label class="as-opt"><span class="ic">📁</span>Video or music file<small>mp4 · mov · mp3 · m4a</small>
-          <input type="file" id="asFile" accept="audio/*,video/*,.mp4,.mov,.m4a,.mp3,.wav,.webm"></label>
+          <input type="file" id="asFile" multiple accept="audio/*,video/*,.mp4,.mov,.m4a,.mp3,.wav,.webm,.json,application/json"></label>
         <button class="as-opt${canCapture ? '' : ' off'}" id="asTab"><span class="ic">🎬</span>Capture a Chrome tab
           <small>${canCapture ? 'record a video playing in another tab' : 'needs Chrome on a computer'}</small></button>
         <label class="as-opt"><span class="ic">📄</span>MIDI / MusicXML<small>exact notes — no guessing</small>
@@ -125,12 +126,25 @@
     }
 
     // 📁 audio / video file
-    $('asFile').onchange = e => {
-      const f = e.target.files && e.target.files[0]; e.target.value = '';
+    // picked together with the recording, a song.json (from nueava-listen —
+    // e.g. its score mode: notes from the sheet, timing from the recording)
+    // gives the notes; no transcription on the device
+    $('asFile').onchange = async e => {
+      const files = [...(e.target.files || [])]; e.target.value = '';
+      const isJson = x => /\.json$/i.test(x.name) || /json/.test(x.type);
+      const f = files.find(x => !isJson(x)), notesFile = files.find(isJson);
       if(!f || busy) return; busy = true;
       if(f.size > 400e6) return fail('That file is very big (over 400 MB) — trim it to the song first.');
       const kind = /^video\//.test(f.type) || /\.(mp4|mov|webm|m4v)$/i.test(f.name) ? 'video' : 'audio';
-      transcribe(f, kind, title(f.name.replace(/\.[^.]+$/, '')));
+      const name = title(f.name.replace(/\.[^.]+$/, ''));
+      if(!notesFile) return transcribe(f, kind, name);
+      work('Reading the notes file…', 0.5);
+      try{
+        const res = JSON.parse(await notesFile.text());
+        const song = MC.songFromAnalysis(MC.makeTake({ title: name, source: kind === 'video' ? 'video' : 'audio-file', notes: [] }), res);
+        if(res.melodyModel) song.notesFrom = res.melodyModel;
+        await save(song, f, kind);
+      }catch(err){ fail('That notes file can’t be used here — ' + err.message); }
     };
 
     // 📄 MIDI / MusicXML
