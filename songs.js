@@ -88,7 +88,9 @@
     border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;font-size:1.05rem;font-weight:600;color:var(--text);text-align:left;}
   .sg-list .sg-card.sg-song:last-child{border-bottom:none;}
   .sg-list .sg-song .go{margin-left:auto;background:var(--gold);color:var(--on-sel);border-radius:5px;padding:3px 14px;font-size:.85rem;}
-  .sg-list .sg-song .del{position:static;margin-left:4px;}
+  .sg-list .sg-rowwrap{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line);}
+  .sg-list .sg-rowwrap:last-child{border-bottom:none;} .sg-list .sg-rowwrap .sg-card.sg-song{border-bottom:none;}
+  .sg-list .sg-delbtn{flex:none;min-width:44px;min-height:44px;background:transparent;border:none;color:var(--text-3);font:inherit;font-size:.9rem;cursor:pointer;}
   #songsView.sg-fallview .sg-cue{display:flex;align-items:center;gap:12px;padding:2px 4px;}
   .sg-cue b{font-size:1rem;letter-spacing:.06em;color:var(--text);white-space:nowrap;}
   .sg-cue b em{font-style:normal;color:var(--gold);}
@@ -261,8 +263,10 @@
       const practice = listShelf ? '' : (d.todayCard ? d.todayCard() : '') +
         (d.openEcho ? `<div class="sg-card" id="sgEcho"><span class="ic">🎤</span><span>Echo</span>
           <span class="st" style="color:var(--text-2)">sing it, then play it</span></div>` : '');
-      const row = (t, del) => `<button type="button" class="sg-card sg-song" data-id="${esc(t.id)}">${esc(t.title)}`
-        + `<span class="go" aria-hidden="true">▶</span>${del ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}</button>`;
+      // the row opens the song; delete is its own named button beside it (no button inside a button)
+      const row = (t, del) => `<div class="sg-rowwrap"><button type="button" class="sg-card sg-song" data-id="${esc(t.id)}">${esc(t.title)}`
+        + `<span class="go" aria-hidden="true">▶</span></button>`
+        + (del ? `<button type="button" class="sg-delbtn" data-del-id="${esc(t.id)}" aria-label="Delete ${esc(t.title)}" title="Delete">✕</button>` : '') + '</div>';
       const folder = (label, body, open) => `<details${open ? ' open' : ''}><summary>${label}<span class="chev" aria-hidden="true">›</span></summary><div class="sg-songs">${body}</div></details>`;
       if(listShelf){
         host.innerHTML = `<div class="sg-list">
@@ -300,6 +304,13 @@
           renderShelf(); return;
         }
         open(t);
+      }));
+      host.querySelectorAll('.sg-delbtn').forEach(b => b.addEventListener('click', async () => {
+        const t = shelfTakes.get(b.dataset.delId); if(!t) return;
+        b.closest('.sg-rowwrap').style.opacity = .3;
+        try{ await MC.store.deleteTake(t.id); }catch(_){}
+        if(t.audioId){ try{ await MC.store.deleteAudio(t.audioId); }catch(_){} }
+        renderShelf();
       }));
     }
 

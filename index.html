@@ -1214,7 +1214,7 @@
     const span=kb.view*(pianoHost.classList.contains('two')?2:1);
     let end=kb.start; for(let i=1;i<span&&end<kb.range[1];i++) end=stepWhite(end,1);
     el.textContent=keyName(kb.start)+' – '+keyName(end);
-    const zin=document.getElementById('pbZoomIn'); if(zin) zin.disabled=sproutLessonKb()&&kb.view-7<8;
+    const zin=document.getElementById('pbZoomIn'); if(zin) zin.disabled=sproutLessonKb()&&kb.view<=8;
   }
   function syncPianoBar(){
     document.querySelectorAll('#pbLevel .pb-btn').forEach(b=>b.classList.toggle('sel',b.dataset.level===level.id));
@@ -1519,7 +1519,11 @@
   // − = more keys, + = bigger keys (same meanings as before); zoom keeps its centre
   const zoomKb=dir=>{
     // Sprout lesson: bigger keys stop at eight (C4–C5 must stay on screen)
-    if(sproutLessonKb()&&dir<0&&kb.view-7<8){ drawRange(); return; }
+    // (a step that would go below eight lands on eight instead)
+    if(sproutLessonKb()&&dir<0){
+      if(kb.view>8){ prefs.kb.view=Math.max(8,kb.view-7); savePrefs(); updateKeyLabels(); }
+      drawRange(); retargetSongs&&retargetSongs(); return;
+    }
     const v=kb.zoom(dir);
     if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); if(sproutLessonKb()) updateKeyLabels(); } else zoomView=v;
     drawRange(); retargetSongs&&retargetSongs();
