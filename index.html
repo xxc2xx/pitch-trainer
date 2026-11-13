@@ -1125,6 +1125,7 @@
   let level=MC.getLevel(), labelOverride=null, twoRow=false, zoomView=null;
   let kb=null;
   let keyGeo=null;                                   // Falling notes key geometry (see keyRects)
+  let retargetSongs=null;                            // set once Songs exists: re-lights + scrolls to the current target
 
   function pianoCfg(){
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
@@ -1137,7 +1138,10 @@
     // keys narrower than ~30px are too small for a finger
     const fit=Math.max(7,Math.floor((pianoHost.clientWidth||360)/30));
     const mlListen=listen&&prefs.theme==='musicland';                 // Musicland Listen: one octave beside the staff
-    const view=mlListen?8:lesson?Math.min(prefs.kb.view,fit):level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
+    // Sprout songs live in C4–C5 (the classroom bell set): the lesson keyboard always shows
+    // all eight of those white keys, whatever zoom or width, so the target is never cut off
+    const sproutLesson=lesson&&level.id==='sprout';
+    const view=mlListen?8:sproutLesson?Math.max(8,Math.min(prefs.kb.view,fit)):lesson?Math.min(prefs.kb.view,fit):level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
     const two=twoRow&&level.id!=='sprout'&&!listen;
     pianoHost.classList.toggle('sprout',level.id==='sprout'&&!wide);
     pianoHost.classList.toggle('two',two);
@@ -1147,7 +1151,7 @@
       labels:isDrum||currentMode==='notes'?'none':(labelOverride||(prefs.theme==='musicland'?'solfege':level.labels)),
       colorAmt:level.colorAmt,
       minimap:wide||lesson||level.minimap,
-      start:lesson?prefs.kb.start:mlListen?60:undefined,          // other modes keep wherever the keys are
+      start:sproutLesson?sproutStart(view):lesson?prefs.kb.start:mlListen?60:undefined,          // other modes keep wherever the keys are
       levelClass:level.id,
       labelFn:isDrum?(m=>{const b=NOTE_BARE[m%12];return DRUM_LABELS[b]||b;}):null,
     };
@@ -1191,8 +1195,18 @@
       rebuildKeyMap();
     } else kb.update(cfg);
     syncPianoBar(); drawRange();
+    if(currentMode==='songs'&&retargetSongs) retargetSongs();      // zoom/resize/rebuild: bring the needed key back
   }
   const lessonKb=()=>currentMode==='songs'&&!togetherWide;
+  const sproutLessonKb=()=>lessonKb()&&level.id==='sprout';
+  // first visible white key so that C4 and C5 are both on screen with `view` white keys
+  function sproutStart(view){
+    let s=prefs.kb.start; while(MC.isBlack(s)) s++;
+    if(s>60) s=60;
+    let n=0; for(let m=s;m<=72;m++) if(!MC.isBlack(m)) n++;     // white keys from s to C5
+    while(n>view){ s++; while(MC.isBlack(s)) s++; n--; }
+    return s;
+  }
   const KEY_NAME=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'], keyName=m=>KEY_NAME[m%12]+(Math.floor(m/12)-1);
   // the actual visible ends (G3 – G4 at first), updated on every slide / zoom
   function drawRange(){
@@ -1200,6 +1214,7 @@
     const span=kb.view*(pianoHost.classList.contains('two')?2:1);
     let end=kb.start; for(let i=1;i<span&&end<kb.range[1];i++) end=stepWhite(end,1);
     el.textContent=keyName(kb.start)+' – '+keyName(end);
+    const zin=document.getElementById('pbZoomIn'); if(zin) zin.disabled=sproutLessonKb()&&kb.view-7<8;
   }
   function syncPianoBar(){
     document.querySelectorAll('#pbLevel .pb-btn').forEach(b=>b.classList.toggle('sel',b.dataset.level===level.id));
@@ -1345,6 +1360,7 @@
       }
     },
   });
+  retargetSongs=()=>songs.retarget();
 
   // ── 🎤 Echo: hear a tune, sing it back, find it on the keyboard ───────
   // Renders into the Songs view (the piano stays below it); keys go to Echo
@@ -1501,7 +1517,13 @@
   });
   document.getElementById('pbRows').addEventListener('click',()=>{ twoRow=!twoRow; updateKeyLabels(); });
   // − = more keys, + = bigger keys (same meanings as before); zoom keeps its centre
-  const zoomKb=dir=>{ const v=kb.zoom(dir); if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); } else zoomView=v; drawRange(); };
+  const zoomKb=dir=>{
+    // Sprout lesson: bigger keys stop at eight (C4–C5 must stay on screen)
+    if(sproutLessonKb()&&dir<0&&kb.view-7<8){ drawRange(); return; }
+    const v=kb.zoom(dir);
+    if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); if(sproutLessonKb()) updateKeyLabels(); } else zoomView=v;
+    drawRange(); retargetSongs&&retargetSongs();
+  };
   document.getElementById('pbZoomOut').addEventListener('click',()=>zoomKb(+1));
   document.getElementById('pbZoomIn') .addEventListener('click',()=>zoomKb(-1));
   document.getElementById('themeSel').addEventListener('click',e=>{
@@ -3006,6 +3028,8 @@
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k=e.code;
+    // Enter / Space on a focused button or folder row activate it (Tab + Enter through the song list)
+    if((k==='Enter'||k==='NumpadEnter'||k==='Space')&&e.target&&e.target.closest&&e.target.closest('button,summary,a[href]')) return;
     const m=KEY_MAP[k];
     if(m==null) return;
     e.preventDefault();

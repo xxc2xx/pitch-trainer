@@ -84,7 +84,7 @@
   .sg-list details[open]{border:2px solid var(--line-strong);border-radius:7px;}
   .sg-list details[open]>summary{border:none;border-bottom:2px solid var(--line);border-radius:0;background:var(--surface-2);}
   .sg-list .sg-songs{display:flex;flex-direction:column;padding:2px 10px 6px 30px;}
-  .sg-list .sg-card.sg-song{flex-direction:row;justify-content:flex-start;gap:12px;padding:8px 6px;min-height:44px;background:transparent;border:none;
+  .sg-list .sg-card.sg-song{width:100%;font:inherit;flex-direction:row;justify-content:flex-start;gap:12px;padding:8px 6px;min-height:44px;background:transparent;border:none;
     border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;font-size:1.05rem;font-weight:600;color:var(--text);text-align:left;}
   .sg-list .sg-card.sg-song:last-child{border-bottom:none;}
   .sg-list .sg-song .go{margin-left:auto;background:var(--gold);color:var(--on-sel);border-radius:5px;padding:3px 14px;font-size:.85rem;}
@@ -92,6 +92,8 @@
   #songsView.sg-fallview .sg-cue{display:flex;align-items:center;gap:12px;padding:2px 4px;}
   .sg-cue b{font-size:1rem;letter-spacing:.06em;color:var(--text);white-space:nowrap;}
   .sg-cue b em{font-style:normal;color:var(--gold);}
+  .sg-oct{display:inline-block;width:18px;height:18px;margin-left:10px;vertical-align:-2px;background:var(--c);}
+  .sg-oct.circle{border-radius:50%;} .sg-oct.square{border-radius:3px;} .sg-oct.triangle{clip-path:polygon(50% 4%,100% 96%,0 96%);}
   .sg-cue .pips{margin-left:auto;display:grid;grid-auto-flow:column;gap:3px;}
   .sg-cue .pips i{width:clamp(9px,2vw,15px);height:14px;border:1px solid var(--line-strong);border-radius:2px;}
   .sg-cue .pips i[data-lit]{background:var(--now);border-color:var(--now);}
@@ -259,8 +261,8 @@
       const practice = listShelf ? '' : (d.todayCard ? d.todayCard() : '') +
         (d.openEcho ? `<div class="sg-card" id="sgEcho"><span class="ic">🎤</span><span>Echo</span>
           <span class="st" style="color:var(--text-2)">sing it, then play it</span></div>` : '');
-      const row = (t, del) => `<div class="sg-card sg-song" data-id="${esc(t.id)}">${esc(t.title)}`
-        + `<span class="go" aria-hidden="true">▶</span>${del ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}</div>`;
+      const row = (t, del) => `<button type="button" class="sg-card sg-song" data-id="${esc(t.id)}">${esc(t.title)}`
+        + `<span class="go" aria-hidden="true">▶</span>${del ? '<span class="del" data-del="1" title="Delete">✕</span>' : ''}</button>`;
       const folder = (label, body, open) => `<details${open ? ' open' : ''}><summary>${label}<span class="chev" aria-hidden="true">›</span></summary><div class="sg-songs">${body}</div></details>`;
       if(listShelf){
         host.innerHTML = `<div class="sg-list">
@@ -268,7 +270,7 @@
           ${d.openEcho ? '<button class="sg-row" id="sgEcho">Echo<span class="chev" aria-hidden="true">›</span></button>' : ''}
           ${folder('Starter songs', builtin.map(t => row(t, false)).join(''), true)}
           ${folder('Book exercises', exercises.map(t => row(t, false)).join(''), false)}
-          ${folder('From class', (d.addSong ? '<div class="sg-card sg-song" id="sgAdd">Add a song<span class="go" aria-hidden="true">+</span></div>' : '') + fromClass.map(t => row(t, true)).join(''), false)}
+          ${folder('From class', (d.addSong ? '<button type="button" class="sg-card sg-song" id="sgAdd">Add a song<span class="go" aria-hidden="true">+</span></button>' : '') + fromClass.map(t => row(t, true)).join(''), false)}
           ${own.length ? folder('My songs', own.map(t => row(t, true)).join(''), false) : ''}
         </div>`;
       } else
@@ -705,7 +707,9 @@
         const key = (demo ? 'L' : timed ? 'T' : mode) + ':' + (timed ? '' : m == null ? '' : m);
         if(key !== cueKey){
           cueKey = key;
-          cueEl.innerHTML = m == null ? '' : demo ? 'LISTEN' : timed ? 'PLAY ALONG' : `PLAY <em>${esc(MC.label(m, 'solfege').toUpperCase())}</em>`;
+          const oct = m == null ? '' : MC.octaveOf(m) <= 3 ? 'low' : MC.octaveOf(m) === 4 ? 'middle' : 'high';
+          cueEl.innerHTML = m == null ? '' : demo ? 'LISTEN' : timed ? 'PLAY ALONG'
+            : `PLAY <em>${esc(MC.label(m, 'solfege').toUpperCase())}</em><i class="sg-oct ${MC.shapeOf(m)}" style="--c:${MC.colorOf(m)}" role="img" aria-label="${oct}"></i>`;
         }
       }
     }
@@ -1204,7 +1208,8 @@
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
       refresh(){ if(d.busy && d.busy()) return; if(take) open(take); else renderShelf(); },
-      redraw(){ if(take && canvas){ setBtns(); draw(); } },        // theme changed: same take, new colours
+      redraw(){ if(take && canvas){ setBtns(); draw(); } },
+      retarget(){ if(take && canvas && !demo){ target(); draw(); } },   // keyboard rebuilt: target lit and scrolled into view        // theme changed: same take, new colours
       get view(){ return viewOf(); },
       get running(){ return !!(timed || demo); },
       shelf(){ take = null; renderShelf(); },
