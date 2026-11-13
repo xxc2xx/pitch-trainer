@@ -303,6 +303,7 @@
 
     // ── Player ──────────────────────────────────────────────────────────
     function open(t){
+      stopAll(); stopSing();             // a refresh mid-song must not leave the old clock, notes or media running
       take = t;
       const level = d.getLevel();
       // the Songs keyboard spans at least C2–C6 (d.songRange): a song keeps its real octave
@@ -1049,14 +1050,13 @@
     function fallBeat(beat){ return beat != null ? beat : (camX + camLead() - 70) / ppb(); }
     function drawFall(g, W, H, beat){
       const P = Math.max(56, Math.min(120, H / 4.2)), hitY = H - 14, b = fallBeat(beat);
-      const cr = canvas.getBoundingClientRect(), rects = d.keyRects ? d.keyRects() : [];
-      const col = new Map();
-      rects.forEach(r => col.set(r.m, { x: r.left - cr.left + r.width / 2, w: r.width }));
+      // key columns, cached by the app (no per-frame layout reads)
+      const geo = d.keyRects ? d.keyRects(canvas) : null;
+      const col = geo ? geo.map : new Map(), lo = geo ? geo.lo : 0;
       // lane guides at the white-key edges
       g.strokeStyle = pal().grid; g.lineWidth = 1; g.globalAlpha = .55;
-      rects.forEach(r => { if(!r.black){ const x = Math.round(r.left - cr.left) + .5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, hitY); g.stroke(); } });
+      if(geo) geo.edges.forEach(e => { const x = Math.round(e) + .5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, hitY); g.stroke(); });
       g.globalAlpha = 1;
-      const lo = rects.length ? Math.min(...rects.map(r => r.m)) : 0;
       const pulseK = 1 + 0.06 * Math.sin(performance.now() / 160);
       const labels = d.getLabels ? d.getLabels() : d.getLevel().labels;
       notes.forEach((n, i) => {

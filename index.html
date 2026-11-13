@@ -1124,6 +1124,7 @@
   applyTheme(prefs.theme);
   let level=MC.getLevel(), labelOverride=null, twoRow=false, zoomView=null;
   let kb=null;
+  let keyGeo=null;                                   // Falling notes key geometry (see keyRects)
 
   function pianoCfg(){
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
@@ -1175,11 +1176,13 @@
     KEY_MAP=map; kb.setHints(hints);
   }
   function updateKeyLabels(){
+    keyGeo=null;
     const cfg=pianoCfg();
     if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
       kb=PianoV2.create(pianoHost,{...cfg,start:cfg.start!=null?cfg.start:60,onDown:onPianoDown,onUp:onPianoUp,onView:(c,v)=>{
         if(!kb) return;                                // still being built
+        keyGeo=null;
         if(!v||!v.auto) rebuildKeyMap();
         // she slid or zoomed the Songs keyboard: remember it (the app scrolling to a note doesn't count)
         if(lessonKb()&&!(v&&v.auto)){ prefs.kb.start=kb.start; savePrefs(); }
@@ -1290,14 +1293,23 @@
     host:document.getElementById('songsView'),
     getKb:()=>kb, getLevel:()=>level,
     getView:()=>prefs.view, setView:v=>{ prefs.view=v; savePrefs(); }, palette:()=>palette,
-    // Falling notes: the visible keys' screen boxes (first row; the half-cut edge key is skipped)
-    keyRects:()=>{
-      const hr=pianoHost.getBoundingClientRect(), row=pianoHost.querySelector('.pv2-row'); if(!row) return [];
-      const out=[]; row.querySelectorAll('.pv2-k').forEach(el=>{
-        if(el.classList.contains('pv2-cut')) return;
-        const r=el.getBoundingClientRect(); if(r.right<=hr.left+1||r.left>=hr.right-1) return;
-        out.push({m:+el.dataset.m,left:r.left,width:r.width,black:el.classList.contains('pv2-b')});
-      }); return out;
+    // Falling notes: where each visible key sits, relative to the note canvas (first row;
+    // the half-cut edge key is skipped). Measured once and reused every frame; dropped
+    // when the keyboard is rebuilt, slid/zoomed or resized, and re-read at most every 300 ms.
+    keyRects:cv=>{
+      const now=performance.now();
+      if(keyGeo&&keyGeo.cv===cv&&now-keyGeo.at<300) return keyGeo;
+      const row=pianoHost.querySelector('.pv2-row'), map=new Map(), edges=[]; let lo=Infinity;
+      if(row){
+        const hr=pianoHost.getBoundingClientRect(), cl=cv.getBoundingClientRect().left;
+        row.querySelectorAll('.pv2-k').forEach(el=>{
+          if(el.classList.contains('pv2-cut')) return;
+          const r=el.getBoundingClientRect(); if(r.right<=hr.left+1||r.left>=hr.right-1) return;
+          const m=+el.dataset.m; map.set(m,{x:r.left-cl+r.width/2,w:r.width}); lo=Math.min(lo,m);
+          if(!el.classList.contains('pv2-b')) edges.push(r.left-cl);
+        });
+      }
+      return keyGeo={cv,at:now,map,edges,lo:lo===Infinity?0:lo};
     },
     // room the keyboard (and anything between it and the field) needs under the canvas
     belowField:cv=>{ const low=[pianoHost,document.getElementById('songsBelow'),document.getElementById('sunsetFooter')].filter(e=>e&&e.offsetParent).map(e=>e.getBoundingClientRect().bottom);
