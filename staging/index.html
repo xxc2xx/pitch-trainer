@@ -543,7 +543,7 @@
   </style>
 </head>
 <body data-tab="listen">
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 14df3ac</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 62a8c6f</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -819,19 +819,19 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=14df3ac"></script>
-  <script src="piano.js?v=14df3ac"></script>
-  <script src="songs.js?v=14df3ac"></script>
-  <script src="hear.js?v=14df3ac"></script>
-  <script src="sound.js?v=14df3ac"></script>
-  <script src="midi.js?v=14df3ac"></script>
-  <script src="songfile.js?v=14df3ac"></script>
-  <script src="addsong.js?v=14df3ac"></script>
-  <script src="studio.js?v=14df3ac"></script>
-  <script src="echo.js?v=14df3ac"></script>
-  <script src="today.js?v=14df3ac"></script>
-  <script src="notes.js?v=14df3ac"></script>
-  <script src="progress.js?v=14df3ac"></script>
+  <script src="music-core.js?v=62a8c6f"></script>
+  <script src="piano.js?v=62a8c6f"></script>
+  <script src="songs.js?v=62a8c6f"></script>
+  <script src="hear.js?v=62a8c6f"></script>
+  <script src="sound.js?v=62a8c6f"></script>
+  <script src="midi.js?v=62a8c6f"></script>
+  <script src="songfile.js?v=62a8c6f"></script>
+  <script src="addsong.js?v=62a8c6f"></script>
+  <script src="studio.js?v=62a8c6f"></script>
+  <script src="echo.js?v=62a8c6f"></script>
+  <script src="today.js?v=62a8c6f"></script>
+  <script src="notes.js?v=62a8c6f"></script>
+  <script src="progress.js?v=62a8c6f"></script>
   <script>
   // Live, staging and dev share one origin: staging must never write the keys
   // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
@@ -1613,8 +1613,11 @@
   // ── Note card ─────────────────────────────────────────────────────────
   function updateCents(c){
     const ctr=c==null?null:4+Math.round(Math.max(-50,Math.min(50,c))/12.5);
-    const segs=updateCents.segs||(updateCents.segs=[...document.querySelectorAll('#mlMeter i')]);
-    segs.forEach((s,i)=>s.toggleAttribute('data-lit',ctr!=null&&Math.abs(i-ctr)<2));
+    if(prefs.theme==='musicland'&&ctr!==updateCents.ctr){           // segmented meter: only when its lit block moves
+      updateCents.ctr=ctr;
+      const segs=updateCents.segs||(updateCents.segs=[...document.querySelectorAll('#mlMeter i')]);
+      segs.forEach((s,i)=>s.toggleAttribute('data-lit',ctr!=null&&Math.abs(i-ctr)<2));
+    }
     if(c==null){centsDot.style.background='#555';centsDot.style.left='50%';return;}
     centsDot.style.left=`${Math.max(4,Math.min(96,50+(c/50)*44))}%`;
     centsDot.style.background=Math.abs(c)<10?'#22c55e':Math.abs(c)<25?'#eab308':'#ef4444';
@@ -2206,14 +2209,22 @@
     metroCanvas.height=(rect.height ||340)*dpr;
   }
 
-  // Musicland Beat: the four outlined cells follow currentBeat (written only on change)
+  // Musicland Beat: the four outlined cells follow currentBeat. The frame loop only
+  // compares two numbers; the DOM is written later, off the frame, and only on a change
+  const beatShown={beat:-2,bpm:-1,pending:false,st:null};
   function paintBeatCells(){
-    const st=paintBeatCells.st||(paintBeatCells.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
-      status:document.getElementById('mlBeatStatus'),beat:-2,bpm:''});
-    if(currentBeat!==st.beat){ st.beat=currentBeat;
+    beatShown.pending=false;
+    const st=beatShown.st||(beatShown.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
+      status:document.getElementById('mlBeatStatus')});
+    const bpm=smoothedBPM?Math.round(smoothedBPM):0;
+    if(currentBeat!==beatShown.beat){ beatShown.beat=currentBeat;
       st.cells.forEach((c,i)=>c.toggleAttribute('data-active',i===currentBeat)); st.ticks.forEach((t,i)=>t.toggleAttribute('data-active',i===currentBeat)); }
-    const txt=smoothedBPM?Math.round(smoothedBPM)+' BPM':'';
-    if(txt!==st.bpm){ st.bpm=txt; if(st.status) st.status.textContent=txt; }
+    if(bpm!==beatShown.bpm){ beatShown.bpm=bpm; if(st.status) st.status.textContent=bpm?bpm+' BPM':''; }
+  }
+  function beatCellsChanged(){
+    if(beatShown.pending||prefs.theme!=='musicland') return;
+    if(currentBeat===beatShown.beat&&(smoothedBPM?Math.round(smoothedBPM):0)===beatShown.bpm) return;
+    beatShown.pending=true; setTimeout(paintBeatCells,0);
   }
   function drawMetronome(){
     const dpr=window.devicePixelRatio||1;
@@ -2241,7 +2252,7 @@
       }
     }
 
-    paintBeatCells();
+    beatCellsChanged();
     // Flash states
     const sinceFlash=now-beatFlashAt;
     const sinceBg=now-bgFlashAt;

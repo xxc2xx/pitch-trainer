@@ -1,11 +1,12 @@
-const CACHE = 'staging-pt-v37';
+const CACHE = 'staging-pt-v38';
 // Both apps (live AND staging) share Cache Storage on xxc2xx.github.io: only
 // ever delete OUR caches (same prefix). The old 'pitch-vN' names are still
 // LIVE Pitch Trainer's current cache until go-live — never touch them.
 const PREFIX = CACHE.replace(/v\d+$/, '');
 
 const STATIC = ['./icon-192.png', './icon-512.png', './manifest.json', './pixel-avatar.js', './songs.js', './hear.js', './sound.js', './midi.js', './songfile.js', './addsong.js', './studio.js',
-                './music-core.js', './piano.js', './echo.js', './today.js', './notes.js', './progress.js'];
+                './music-core.js', './piano.js', './echo.js', './today.js', './notes.js', './progress.js',
+                './assets/bunny.png', './assets/sunset.webp', './assets/pixelify.woff2'];
 
 self.addEventListener('install', e => {
   e.waitUntil(
