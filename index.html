@@ -1611,8 +1611,11 @@
   // ── Note card ─────────────────────────────────────────────────────────
   function updateCents(c){
     const ctr=c==null?null:4+Math.round(Math.max(-50,Math.min(50,c))/12.5);
-    const segs=updateCents.segs||(updateCents.segs=[...document.querySelectorAll('#mlMeter i')]);
-    segs.forEach((s,i)=>s.toggleAttribute('data-lit',ctr!=null&&Math.abs(i-ctr)<2));
+    if(prefs.theme==='musicland'&&ctr!==updateCents.ctr){           // segmented meter: only when its lit block moves
+      updateCents.ctr=ctr;
+      const segs=updateCents.segs||(updateCents.segs=[...document.querySelectorAll('#mlMeter i')]);
+      segs.forEach((s,i)=>s.toggleAttribute('data-lit',ctr!=null&&Math.abs(i-ctr)<2));
+    }
     if(c==null){centsDot.style.background='#555';centsDot.style.left='50%';return;}
     centsDot.style.left=`${Math.max(4,Math.min(96,50+(c/50)*44))}%`;
     centsDot.style.background=Math.abs(c)<10?'#22c55e':Math.abs(c)<25?'#eab308':'#ef4444';
@@ -2204,14 +2207,22 @@
     metroCanvas.height=(rect.height ||340)*dpr;
   }
 
-  // Musicland Beat: the four outlined cells follow currentBeat (written only on change)
+  // Musicland Beat: the four outlined cells follow currentBeat. The frame loop only
+  // compares two numbers; the DOM is written later, off the frame, and only on a change
+  const beatShown={beat:-2,bpm:-1,pending:false,st:null};
   function paintBeatCells(){
-    const st=paintBeatCells.st||(paintBeatCells.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
-      status:document.getElementById('mlBeatStatus'),beat:-2,bpm:''});
-    if(currentBeat!==st.beat){ st.beat=currentBeat;
+    beatShown.pending=false;
+    const st=beatShown.st||(beatShown.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
+      status:document.getElementById('mlBeatStatus')});
+    const bpm=smoothedBPM?Math.round(smoothedBPM):0;
+    if(currentBeat!==beatShown.beat){ beatShown.beat=currentBeat;
       st.cells.forEach((c,i)=>c.toggleAttribute('data-active',i===currentBeat)); st.ticks.forEach((t,i)=>t.toggleAttribute('data-active',i===currentBeat)); }
-    const txt=smoothedBPM?Math.round(smoothedBPM)+' BPM':'';
-    if(txt!==st.bpm){ st.bpm=txt; if(st.status) st.status.textContent=txt; }
+    if(bpm!==beatShown.bpm){ beatShown.bpm=bpm; if(st.status) st.status.textContent=bpm?bpm+' BPM':''; }
+  }
+  function beatCellsChanged(){
+    if(beatShown.pending||prefs.theme!=='musicland') return;
+    if(currentBeat===beatShown.beat&&(smoothedBPM?Math.round(smoothedBPM):0)===beatShown.bpm) return;
+    beatShown.pending=true; setTimeout(paintBeatCells,0);
   }
   function drawMetronome(){
     const dpr=window.devicePixelRatio||1;
@@ -2239,7 +2250,7 @@
       }
     }
 
-    paintBeatCells();
+    beatCellsChanged();
     // Flash states
     const sinceFlash=now-beatFlashAt;
     const sinceBg=now-bgFlashAt;
