@@ -71,6 +71,47 @@
   .sg-media video{display:block;max-height:28vh;max-width:100%;margin:0 auto;border-radius:10px;background:#000;}
   @media(orientation:landscape) and (max-height:500px){.sg-media video{max-height:22vh;}}
   .sg-canvas{width:100%;display:block;border-radius:12px;background:var(--stage);border:1px solid var(--line);touch-action:pan-y;}
+  .sg-field{position:relative;}
+  .sg-field.fall .sg-canvas{border-radius:12px 12px 0 0;border-bottom:none;}
+  .sg-cue,.sg-gear{display:none;}
+  /* list shelf (Sunset Stage): Today / Echo rows, folders of songs, amber ▶ */
+  .sg-list{display:flex;flex-direction:column;gap:8px;width:100%;max-width:780px;margin:0 auto;}
+  .sg-list .sg-row,.sg-list summary{display:flex;align-items:center;gap:12px;width:100%;min-height:46px;padding:6px 14px;cursor:pointer;
+    background:transparent;border:2px solid var(--line-strong);border-radius:7px;color:var(--text);font:inherit;font-size:1.1rem;font-weight:600;text-align:left;list-style:none;}
+  .sg-list summary::-webkit-details-marker{display:none;}
+  .sg-list .chev{margin-left:auto;font-size:1.3rem;transition:transform .15s;}
+  .sg-list details[open]>summary .chev{transform:rotate(90deg);}
+  .sg-list details[open]{border:2px solid var(--line-strong);border-radius:7px;}
+  .sg-list details[open]>summary{border:none;border-bottom:2px solid var(--line);border-radius:0;background:var(--surface-2);}
+  .sg-list .sg-songs{display:flex;flex-direction:column;padding:2px 10px 6px 30px;}
+  .sg-list .sg-card.sg-song{width:100%;font:inherit;flex-direction:row;justify-content:flex-start;gap:12px;padding:8px 6px;min-height:44px;background:transparent;border:none;
+    border-bottom:1px solid var(--line);border-radius:0;box-shadow:none;font-size:1.05rem;font-weight:600;color:var(--text);text-align:left;}
+  .sg-list .sg-card.sg-song:last-child{border-bottom:none;}
+  .sg-list .sg-song .go{margin-left:auto;background:var(--gold);color:var(--on-sel);border-radius:5px;padding:3px 14px;font-size:.85rem;}
+  .sg-list .sg-rowwrap{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line);}
+  .sg-list .sg-rowwrap:last-child{border-bottom:none;} .sg-list .sg-rowwrap .sg-card.sg-song{border-bottom:none;}
+  .sg-list .sg-delbtn{flex:none;min-width:44px;min-height:44px;background:transparent;border:none;color:var(--text-3);font:inherit;font-size:.9rem;cursor:pointer;}
+  #songsView.sg-fallview .sg-cue{display:flex;align-items:center;gap:12px;padding:2px 4px;}
+  .sg-cue b{font-size:1rem;letter-spacing:.06em;color:var(--text);white-space:nowrap;}
+  .sg-cue b em{font-style:normal;color:var(--gold);}
+  .sg-oct{display:inline-block;width:18px;height:18px;margin-left:10px;vertical-align:-2px;background:var(--c);}
+  .sg-oct.circle{border-radius:50%;} .sg-oct.square{border-radius:3px;} .sg-oct.triangle{clip-path:polygon(50% 4%,100% 96%,0 96%);}
+  .sg-cue .pips{margin-left:auto;display:grid;grid-auto-flow:column;gap:3px;}
+  .sg-cue .pips i{width:clamp(9px,2vw,15px);height:14px;border:1px solid var(--line-strong);border-radius:2px;}
+  .sg-cue .pips i[data-lit]{background:var(--now);border-color:var(--now);}
+  #songsView.sg-fallview .sg-prog{display:none;}
+  .sg-stop{visibility:hidden;min-width:160px;min-height:52px;font-size:1rem;}
+  .sg-stop.on{visibility:visible;}
+  .sg-kid{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+  .sg-kid .sg-btn{min-height:52px;font-size:.95rem;padding:8px 16px;}
+  #songsView.sg-fallview .sg-kid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+  #songsView.sg-fallview .sg-kid .sg-btn{min-height:46px;padding:6px 4px;font-size:.86rem;white-space:nowrap;}
+  @media(min-width:700px){#songsView.sg-fallview .sg-kid .sg-btn{min-height:54px;font-size:1.05rem;} #songsView.sg-fallview .sg-cue b{font-size:1.2rem;}}
+  details.sg-grown{align-self:center;}
+  details.sg-grown>summary{list-style:none;cursor:pointer;font-size:.74rem;font-weight:700;color:var(--text-3);padding:6px 10px;border-radius:8px;}
+  details.sg-grown>summary::-webkit-details-marker{display:none;}
+  details.sg-grown[open]>summary{color:var(--text);}
+  details.sg-grown .sg-ctrl{margin-top:6px;}
   .sg-ctrl{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;align-items:center;}
   .sg-ctrl label{font-size:.72rem;color:var(--text-2);display:flex;gap:4px;align-items:center;}
   .sg-ctrl input[type=range]{width:90px;accent-color:var(--gold);}
@@ -174,7 +215,10 @@
     // 👨‍👧 Together: her MIDI keyboard plays the tune; the screen is Dad's chords
     let together = false, dadChords = [], dadAt = null;
     function later(fn, ms){ clearTimeout(finishT); finishT = setTimeout(fn, ms); }
-    let canvas = null, ctx2 = null, progEl = null;
+    // Musicland draws its controls as plain words; other looks keep the emoji
+    const plain = () => !!(d.plainLabels && d.plainLabels());
+    const lab = (emo, txt) => plain() ? txt : emo + ' ' + txt;
+    let canvas = null, ctx2 = null, progEl = null, stopEl = null, cueEl = null, pipEl = null, pipLit = -1, cueKey = '';
     const judged = new Map();     // note index → 'tight'|'loose'|'miss'|'ok'
     const hits = new Map();       // note index → { dtMs (− early, + late), vel } — Play along only
     let runStart = 0;             // performance.now() when the run began (practice log)
@@ -200,6 +244,9 @@
     }
     let shelfTakes = new Map();
     async function renderShelf(){
+      host.classList.remove('sg-open', 'sg-fallview');
+      if(d.kbSettings) d.kbSettings(null);
+      if(d.belowHost) d.belowHost.innerHTML = '';
       if(together){ together = false; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
       stopAll(); pulse(false); stopSing(); dropMedia(); take = null; d.onClose && d.onClose();
       onDone = null;                         // back on the shelf = the lesson path was left
@@ -212,9 +259,25 @@
         <span class="st" style="color:var(--text-2)">video · music · sheet</span></div>` : '';
       // her songs lead; the built-ins are just a starter set
       // 🌟 Today (daily path) and 🎤 Echo lead the shelf when wired in
-      const practice = (d.todayCard ? d.todayCard() : '') +
+      const listShelf = !!(d.shelfList && d.shelfList());     // Musicland list: plain Today row, no card to fill
+      const practice = listShelf ? '' : (d.todayCard ? d.todayCard() : '') +
         (d.openEcho ? `<div class="sg-card" id="sgEcho"><span class="ic">🎤</span><span>Echo</span>
           <span class="st" style="color:var(--text-2)">sing it, then play it</span></div>` : '');
+      // the row opens the song; delete is its own named button beside it (no button inside a button)
+      const row = (t, del) => `<div class="sg-rowwrap"><button type="button" class="sg-card sg-song" data-id="${esc(t.id)}">${esc(t.title)}`
+        + `<span class="go" aria-hidden="true">▶</span></button>`
+        + (del ? `<button type="button" class="sg-delbtn" data-del-id="${esc(t.id)}" aria-label="Delete ${esc(t.title)}" title="Delete">✕</button>` : '') + '</div>';
+      const folder = (label, body, open) => `<details${open ? ' open' : ''}><summary>${label}<span class="chev" aria-hidden="true">›</span></summary><div class="sg-songs">${body}</div></details>`;
+      if(listShelf){
+        host.innerHTML = `<div class="sg-list">
+          ${d.todayCard ? '<button class="sg-row" id="sgToday">Today<span class="chev" aria-hidden="true">›</span></button>' : ''}
+          ${d.openEcho ? '<button class="sg-row" id="sgEcho">Echo<span class="chev" aria-hidden="true">›</span></button>' : ''}
+          ${folder('Starter songs', builtin.map(t => row(t, false)).join(''), true)}
+          ${folder('Book exercises', exercises.map(t => row(t, false)).join(''), false)}
+          ${folder('From class', (d.addSong ? '<button type="button" class="sg-card sg-song" id="sgAdd">Add a song<span class="go" aria-hidden="true">+</span></button>' : '') + fromClass.map(t => row(t, true)).join(''), false)}
+          ${own.length ? folder('My songs', own.map(t => row(t, true)).join(''), false) : ''}
+        </div>`;
+      } else
       host.innerHTML = `<div class="sg-shelf">
         ${practice ? `<h3>🌟 Practice</h3><div class="sg-grid sg-practice">${practice}</div>` : ''}
         <h3>🎒 From class</h3>
@@ -242,10 +305,18 @@
         }
         open(t);
       }));
+      host.querySelectorAll('.sg-delbtn').forEach(b => b.addEventListener('click', async () => {
+        const t = shelfTakes.get(b.dataset.delId); if(!t) return;
+        b.closest('.sg-rowwrap').style.opacity = .3;
+        try{ await MC.store.deleteTake(t.id); }catch(_){}
+        if(t.audioId){ try{ await MC.store.deleteAudio(t.audioId); }catch(_){} }
+        renderShelf();
+      }));
     }
 
     // ── Player ──────────────────────────────────────────────────────────
     function open(t){
+      stopAll(); stopSing();             // a refresh mid-song must not leave the old clock, notes or media running
       take = t;
       const level = d.getLevel();
       // the Songs keyboard spans at least C2–C6 (d.songRange): a song keeps its real octave
@@ -265,14 +336,19 @@
       bpm = Math.round((t.bpm || 90) * (level.id === 'sprout' ? 0.8 : 1)); idx = 0; wrong = 0; judged.clear();
       phrase = notes; arr = partOnly ? null : arrangeFor(t, phrase, bpm); shownRep = -1;
       mode = 'wait';
+      host.classList.add('sg-open');
       d.onOpen && d.onOpen({ ...t, notes });
       host.innerHTML = `
-        <div class="sg-top"><button class="sg-btn" id="sgBack">←</button>
-          <span class="t">${esc(t.icon || '🎵')} ${esc(t.title)}</span>
+        <div class="sg-top"><button class="sg-btn" id="sgBack" aria-label="Back to songs">←</button>
+          <span class="t">${plain() ? '' : esc(t.icon || '🎵') + ' '}${esc(t.title)}</span>
+          <button class="sg-btn sg-gear" id="sgGear" aria-label="Grown-ups" aria-expanded="false">⚙︎</button>
+          </div>
+        <div class="sg-kid">
+            <button class="sg-btn" id="sgDemo" title="Hear it and watch the notes">${lab('👂', 'Listen')}</button>
+            <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">${lab('🎵', 'Play along')}</button>
+            <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">${lab('👆', 'Step by step')}</button></div>
+        <details class="sg-grown"><summary>Grown-ups ⋯</summary>
           <div class="sg-ctrl">
-            <button class="sg-btn" id="sgDemo" title="Hear it and watch the notes">👂 Listen</button>
-            <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">🎵 Play along</button>
-            <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">👆 Step by step</button>
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>
             <button class="sg-btn" id="sgJam" title="Open this song on Beat Hive's pads, at its tempo">🥁 Jam</button>
@@ -284,7 +360,12 @@
             ${window.Studio ? '<button class="sg-btn" id="sgEdit" title="Fix wrong notes, set the practice part">✏️ Fix</button>' : ''}
             <label>🐢<input type="range" id="sgTempo" min="40" max="160" value="${bpm}">🐇 <span id="sgBpm">${bpm}</span></label>
             <span class="sg-arr" id="sgArr" aria-live="polite"></span>
-          </div></div>
+          </div>
+          <div class="sg-views" role="group" aria-label="Practice view" style="margin-top:6px">
+            <button class="sg-btn" data-view="fall" title="Notes fall onto their keys">⬇ Falling notes</button>
+            <button class="sg-btn" data-view="lane" title="Notes slide to the line">〰 Rhythm lane</button>
+            <button class="sg-btn" data-view="score" title="The notes on a staff">𝄞 Score</button></div>
+        </details>
         <div id="sgExRow" class="sg-ctrl" style="display:none">
           <button class="sg-btn" id="sgExXml" title="Open in MuseScore (free) to print the score">🎼 Sheet music (.musicxml)</button>
           <button class="sg-btn" id="sgExMid">🎹 MIDI (.mid)</button>
@@ -295,10 +376,12 @@
         ${partOnly ? `<div class="sg-ctrl" style="font-size:.75rem;color:var(--gold)">⟦ Practice part: bars ${Math.floor(t.section.from / bpbOf(t)) + 1}–${Math.ceil(t.section.to / bpbOf(t))} ⟧ <button class="sg-btn" id="sgWhole">Whole song</button></div>` : ''}
         <div class="sg-prog"><i id="sgProg"></i></div>
         <div id="sgMedia" class="sg-media"></div>
-        <div class="sg-views" role="group" aria-label="Practice view">
-          <button class="sg-btn" data-view="lane" title="Notes slide to the line">〰 Rhythm lane</button>
-          <button class="sg-btn" data-view="score" title="The notes on a staff">𝄞 Score</button></div>
-        <canvas class="sg-canvas" id="sgCanvas"></canvas>`;
+        <div class="sg-cue" aria-live="polite"><b id="sgCueTxt"></b><span class="pips" role="progressbar" aria-label="Song progress">${'<i></i>'.repeat(8)}</span></div>
+        <div class="sg-field" id="sgField"><canvas class="sg-canvas" id="sgCanvas"></canvas></div>`;
+      // one Stop, below the piano, outside the note field (falling notes)
+      stopEl = null;
+      if(d.belowHost){ d.belowHost.innerHTML = '<button class="sg-btn sg-stop" id="sgStop">⏹ Stop</button>'; stopEl = d.belowHost.querySelector('#sgStop'); }
+      cueEl = host.querySelector('#sgCueTxt'); pipEl = [...host.querySelectorAll('.sg-cue .pips i')]; cueKey = ''; pipLit = -1;
       canvas = host.querySelector('#sgCanvas'); ctx2 = canvas.getContext('2d'); arrEl = host.querySelector('#sgArr');
       progEl = host.querySelector('#sgProg');
       host.querySelector('#sgBack').onclick = renderShelf;
@@ -310,6 +393,16 @@
         setBtns(); sizeCanvas(); pulse(true);
       });
       host.querySelector('#sgRestart').onclick = () => startMode(mode);
+      if(stopEl) stopEl.onclick = () => startMode('wait');
+      // Grown-ups: the ⚙︎ in the song header opens the same panel; while it is
+      // open the keyboard settings (range, MIDI, ⚙︎ hold) live inside it
+      const grown = host.querySelector('details.sg-grown'), gear = host.querySelector('#sgGear');
+      gear.onclick = () => { grown.open = !grown.open; };
+      grown.addEventListener('toggle', () => {
+        gear.setAttribute('aria-expanded', String(grown.open));
+        if(d.kbSettings) d.kbSettings(grown.open ? grown : null);
+        if(viewOf() === 'fall') sizeCanvas();
+      });
       // stopping Listen goes back to step-by-step from the top, guide key lit
       host.querySelector('#sgDemo').onclick = () => { if(demo) startMode('wait'); else startDemo(); };
       host.querySelector('#sgWait').onclick = () => startMode('wait');
@@ -494,6 +587,7 @@
     }
     // tap the note strip: jump there (playing) or move the next step there (step mode)
     function seekTo(e){
+      if(viewOf() === 'fall') return;
       if(!take) return;
       const x = e.clientX - canvas.getBoundingClientRect().left;   // offsetX is unreliable
       const beat = (x + camX - 70) / ppb();
@@ -511,17 +605,28 @@
     // and saved by the app (d.getView); falls back to the level's own view.
     function viewOf(){
       const v = d.getView && d.getView();
-      return v === 'lane' || v === 'score' ? v : d.getLevel().see === 'lane' ? 'lane' : 'score';
+      return v === 'fall' || v === 'lane' || v === 'score' ? v : d.getLevel().see === 'lane' ? 'lane' : 'score';
     }
     // canvas colours come from the theme tokens, read once per theme change
     const PAL0 = { stage: '#06050f', staff: '#2c2c52', line: '#3a3a66', line2: '#4a4a78', grid: '#2a2a50', text: '#ffffff', text2: '#9a9ac0', clef: '#6a6aa0', gold: '#ffd54f', fade: '#e6e6f0', now: '#7ec8ff', chord: 'rgba(255,213,79,.9)' };
     const pal = () => (d.palette && d.palette()) || PAL0;
     function sizeCanvas(){
       if(!canvas) return;
-      const lane = viewOf() === 'lane';
+      const v = viewOf(), lane = v === 'lane';
+      // classes first: the shell compacts around Falling notes, then we measure
+      const field = host.querySelector('#sgField'); field && field.classList.toggle('fall', v === 'fall');
+      host.classList.toggle('sg-fallview', v === 'fall');
       // short landscape phones: keep the keyboard on screen
       const short = window.innerHeight < 500;
-      const w = canvas.clientWidth || 360, h = lane ? (short ? 92 : 150) : (short ? 120 : 170);
+      const w = canvas.clientWidth || 360;
+      let h = lane ? (short ? 92 : 150) : (short ? 120 : 170);
+      // Falling notes: the field takes the room left above the keyboard, so
+      // the hit line, the keys and Stop are on screen together
+      if(v === 'fall'){
+        const top = canvas.getBoundingClientRect().top;
+        const below = d.belowField ? d.belowField(canvas) : 220;
+        h = Math.round(Math.max(short ? 110 : window.innerHeight < 720 ? 130 : 170, Math.min(460, window.innerHeight - top - below - 10)));
+      }
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
       canvas.style.height = h + 'px';
@@ -534,15 +639,20 @@
       const q = id => host.querySelector(id);
       q('#sgWait') && q('#sgWait').classList.toggle('sel', mode === 'wait');
       q('#sgTimed') && q('#sgTimed').classList.toggle('sel', mode === 'timed');
-      q('#sgDemo') && (q('#sgDemo').textContent = demo ? '⏹ Stop' : '👂 Listen');
-      q('#sgTimed') && (q('#sgTimed').textContent = timed ? '⏹ Stop' : '🎵 Play along');
+      const fallV = viewOf() === 'fall';    // falling notes: modes keep their names, Stop sits under the piano
+      q('#sgDemo') && (q('#sgDemo').textContent = demo && !fallV ? lab('⏹', 'Stop') : lab('👂', 'Listen'));
+      q('#sgTimed') && (q('#sgTimed').textContent = timed && !fallV ? lab('⏹', 'Stop') : lab('🎵', 'Play along'));
+      q('#sgDemo') && q('#sgDemo').classList.toggle('sel', !!demo);
+      q('#sgTimed') && q('#sgTimed').classList.toggle('sel', mode === 'timed' && !demo);
+      q('#sgWait') && q('#sgWait').classList.toggle('sel', mode === 'wait' && !demo);
       ['#sgDemo', '#sgTimed'].forEach(id => { const b = q(id); if(b){ b.disabled = mediaLoading; b.style.opacity = mediaLoading ? '.5' : ''; } });
       const v = viewOf(), busy = !!(timed || demo);
       host.querySelectorAll('.sg-views .sg-btn').forEach(b => {
         const on = b.dataset.view === v;
         b.classList.toggle('sel', on); b.setAttribute('aria-pressed', String(on)); b.disabled = busy && !on;
-        b.title = busy && !on ? 'Stop first to change the view' : b.dataset.view === 'lane' ? 'Notes slide to the line' : 'The notes on a staff';
+        b.title = busy && !on ? 'Stop first to change the view' : { fall:'Notes fall onto their keys', lane:'Notes slide to the line', score:'The notes on a staff' }[b.dataset.view];
       });
+      stopEl && stopEl.classList.toggle('on', busy);
     }
 
     function stopAll(){
@@ -598,7 +708,22 @@
       kb.setTarget(idx < notes.length ? notes[idx].m : null);
       if(together && notes[idx]) updateDad(notes[idx].t);
     }
-    function progress(){ if(progEl) progEl.style.width = (notes.length ? idx / notes.length * 100 : 0) + '%'; }
+    function progress(){
+      const pct = (notes.length ? idx / notes.length * 100 : 0) + '%';
+      if(progEl) progEl.style.width = pct;
+      const lit = notes.length ? Math.floor(8 * idx / notes.length) : 0;
+      if(pipEl && lit !== pipLit){ pipLit = lit; pipEl.forEach((p, k) => p.toggleAttribute('data-lit', k < lit)); }
+      if(cueEl){
+        const m = notes[idx] && notes[idx].m;
+        const key = (demo ? 'L' : timed ? 'T' : mode) + ':' + (timed ? '' : m == null ? '' : m);
+        if(key !== cueKey){
+          cueKey = key;
+          const oct = m == null ? '' : MC.octaveOf(m) <= 3 ? 'low' : MC.octaveOf(m) === 4 ? 'middle' : 'high';
+          cueEl.innerHTML = m == null ? '' : demo ? 'LISTEN' : timed ? 'PLAY ALONG'
+            : `PLAY <em>${esc(MC.label(m, 'solfege').toUpperCase())}</em><i class="sg-oct ${MC.shapeOf(m)}" style="--c:${MC.colorOf(m)}" role="img" aria-label="${oct}"></i>`;
+        }
+      }
+    }
 
     // ── Input from the keyboard ─────────────────────────────────────────
     function onKey(m, vel){
@@ -607,7 +732,7 @@
       if(mode === 'wait'){
         if(idx >= notes.length) return;
         if(m === notes[idx].m){
-          kb && kb.flash(m); judged.set(idx, 'ok');
+          kb && kb.flash(m); judged.set(idx, 'ok'); lastOk = { m, at: performance.now() };
           idx++; progress(); target(); animateTo();
           if(idx >= notes.length) later(finish, 450);
         } else { wrong++; kb && kb.wobble(m); }
@@ -625,7 +750,7 @@
         if(best >= 0 && bestDt <= W[2]){
           judged.set(best, bestDt <= W[0] ? 'tight' : bestDt <= W[1] ? 'loose' : 'ok');
           hits.set(best, { dtMs: Math.round((beat - notes[best].t) * 60 / timed.bpm * 1000), vel: vel == null ? null : vel });
-          kb && kb.flash(m);
+          kb && kb.flash(m); lastOk = { m, at: performance.now() };
         } else { kb && kb.wobble(m); }
       }
     }
@@ -870,7 +995,9 @@
       const W = canvas.clientWidth, H = parseFloat(canvas.style.height) || 160, g = ctx2;
       g.clearRect(0, 0, W, H);
       const level = d.getLevel();
-      if(viewOf() === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
+      const v = viewOf();
+      if(v === 'fall'){ drawFall(g, W, H, beat); return; }
+      if(v === 'lane') drawLane(g, W, H, beat); else drawStaff(g, W, H, level, beat);
       const chords = chordsFor(together ? dadChords : (take && take.parts && take.parts.chords));
       if(chords && chords.length){
         g.font = 'bold 12px sans-serif'; g.textAlign = 'left';
@@ -928,11 +1055,77 @@
         g.font = '15px sans-serif'; g.textAlign = 'center'; g.fillText('🎤', hitX - 34, vy - 14);
       }
     }
+    // Falling notes: each note drops down its key's column onto a fixed hit
+    // line just above the keyboard. Columns come from the real key geometry
+    // (d.keyRects), so the note, the key, its colour and its octave agree
+    // whatever the range, zoom or scroll. Same clock as the rhythm lane:
+    // Listen / Play along pass the beat; Step by step holds the current note
+    // on the line (the camera's beat) until she plays it.
+    let lastOk = null;
+    function fallBeat(beat){ return beat != null ? beat : (camX + camLead() - 70) / ppb(); }
+    function drawFall(g, W, H, beat){
+      const P = Math.max(56, Math.min(120, H / 4.2)), hitY = H - 14, b = fallBeat(beat);
+      // key columns, cached by the app (no per-frame layout reads)
+      const geo = d.keyRects ? d.keyRects(canvas) : null;
+      const col = geo ? geo.map : new Map(), lo = geo ? geo.lo : 0;
+      // lane guides at the white-key edges
+      g.strokeStyle = pal().grid; g.lineWidth = 1; g.globalAlpha = .55;
+      if(geo) geo.edges.forEach(e => { const x = Math.round(e) + .5; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, hitY); g.stroke(); });
+      g.globalAlpha = 1;
+      const pulseK = 1 + 0.06 * Math.sin(performance.now() / 160);
+      const labels = d.getLabels ? d.getLabels() : d.getLevel().labels;
+      notes.forEach((n, i) => {
+        const bottom = hitY - (n.t - b) * P, hgt = Math.max(26, n.d * P - 6), top = bottom - hgt;
+        if(bottom < -10 || top > H) return;
+        const verdict = timed ? judged.get(i) : null;
+        const done = timed ? judged.has(i) : i < idx;
+        const cur = i === idx && !done;
+        const c = col.get(n.m), off = !c;
+        // a note whose key is scrolled away: a small pill at that edge
+        const x = off ? (n.m < lo ? 22 : W - 22) : c.x;
+        const w = off ? 34 : Math.max(26, Math.min(c.w - 6, 96)) * (cur ? pulseK : 1);
+        const fill = MC.colorOf(n.m);
+        g.globalAlpha = done ? (verdict === 'miss' ? .18 : .3) : 1;
+        if(cur){ g.shadowColor = fill; g.shadowBlur = 22; }
+        g.fillStyle = fill; g.beginPath();
+        g.roundRect ? g.roundRect(x - w / 2, top, w, hgt, 9) : g.rect(x - w / 2, top, w, hgt); g.fill();
+        g.shadowBlur = 0;
+        g.lineWidth = cur ? 4 : 2.5; g.strokeStyle = cur ? '#ffffff' : 'rgba(20,18,30,.85)'; g.stroke();
+        if(cur){ g.lineWidth = 2; g.strokeStyle = 'rgba(20,18,30,.9)'; g.beginPath();
+          g.roundRect ? g.roundRect(x - w / 2 - 4, top - 4, w + 8, hgt + 8, 12) : g.rect(x - w / 2 - 4, top - 4, w + 8, hgt + 8); g.stroke(); }
+        // octave shape + name, never colour alone
+        if(!off && hgt >= 26){
+          const dark = [0, 7, 9, 11, 10, 8].includes(MC.pc(n.m));
+          g.fillStyle = dark ? '#ffffff' : '#14121e';
+          shapePath(g, MC.shapeOf(n.m), x, bottom - 13, 6); g.fill();
+          if(labels !== 'none' && hgt >= 44){
+            g.font = 'bold 14px sans-serif'; g.textAlign = 'center';
+            g.fillText(labels === 'letter' ? MC.label(n.m, 'letter') : MC.label(n.m, 'solfege'), x, bottom - 26);
+          }
+        }
+        if(off){ g.fillStyle = '#14121e'; g.font = 'bold 16px sans-serif'; g.textAlign = 'center'; g.fillText(n.m < lo ? '◀' : '▶', x, top + hgt / 2 + 6); }
+        g.globalAlpha = 1;
+      });
+      // the hit line
+      g.strokeStyle = pal().now; g.lineWidth = 5; g.shadowColor = pal().now; g.shadowBlur = 12;
+      g.beginPath(); g.moveTo(4, hitY); g.lineTo(W - 4, hitY); g.stroke(); g.shadowBlur = 0;
+      // gentle confirmation at the key she just got right
+      if(lastOk && performance.now() - lastOk.at < 450){
+        const c = col.get(lastOk.m); if(c){ g.globalAlpha = 1 - (performance.now() - lastOk.at) / 450;
+          g.fillStyle = pal().now; g.beginPath(); g.arc(c.x, hitY, 16, 0, Math.PI * 2); g.fill(); g.globalAlpha = 1; }
+      }
+      // the target's key is scrolled away: say which way (the cue row names the note)
+      if(mode === 'wait' && !demo && notes[idx] && !col.get(notes[idx].m)){
+        const m = notes[idx].m; g.fillStyle = pal().text; g.font = 'bold 14px sans-serif';
+        g.textAlign = m < lo ? 'left' : 'right'; g.fillText(m < lo ? '◀ slide the keys' : 'slide the keys ▶', m < lo ? 12 : W - 12, 24);
+      }
+    }
+
     // Keep the Sprout lane's current-note pulse breathing (cheap redraw).
     let pulseT = 0;
     function pulse(on){
       clearInterval(pulseT); pulseT = 0;
-      if(on && viewOf() === 'lane') pulseT = setInterval(() => { if(take && !timed) draw(); }, 70);
+      if(on && viewOf() !== 'score') pulseT = setInterval(() => { if(take && !timed && !demo) draw(); }, 70);
     }
 
     // Bloom / Grow: treble staff, colour noteheads fading by level.
@@ -1020,12 +1213,14 @@
       show(){ host.style.display = 'flex'; if(d.busy && d.busy()) return; if(!take) renderShelf(); else { sizeCanvas(); pulse(true); setBtns(); progress(); target(); } },
       hide(){
         stopAll(); pulse(false); stopSing(); host.style.display = 'none';
+        if(d.kbSettings) d.kbSettings(null);
         if(take && notes !== phrase){ useArr(false); idx = 0; judged.clear(); hits.clear(); }   // back to the phrase for Step by step
         if(window.Studio) Studio.pause();
         if(mode === 'timed'){ mode = 'wait'; idx = 0; judged.clear(); }   // timed can't resume mid-song
       },
       refresh(){ if(d.busy && d.busy()) return; if(take) open(take); else renderShelf(); },
-      redraw(){ if(take && canvas){ setBtns(); draw(); } },        // theme changed: same take, new colours
+      redraw(){ if(take && canvas){ setBtns(); draw(); } },
+      retarget(){ if(take && canvas && !demo){ target(); draw(); } },   // keyboard rebuilt: target lit and scrolled into view        // theme changed: same take, new colours
       get view(){ return viewOf(); },
       get running(){ return !!(timed || demo); },
       shelf(){ take = null; renderShelf(); },

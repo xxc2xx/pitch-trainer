@@ -32,6 +32,175 @@
       --pv2-shadow:0 6px 18px rgba(22,48,91,.18);
       color-scheme:light;
     }
+    /* Musicland — ported from Codex's Musicland component pack (2026-11-13,
+       musicland.css). Its rendered screens are the visual target; the app's own
+       controllers, canvas, piano and inputs are styled in place, not replaced.
+       Pixelify Sans is self-hosted (assets/pixelify-OFL.txt). */
+    @font-face{font-family:Pixelify;src:url(assets/pixelify.woff2) format("woff2");font-display:swap;font-weight:400 700;}
+    :root[data-theme="musicland"]{
+      --page:#11183F;--stage:#171F51;--surface:#171F51;--surface-2:#222E65;--line:#455789;--line-strong:#8396D0;
+      --text:#FFF7DF;--text-2:#C5D1F8;--text-3:#AAB5DC;--accent:#FFD067;--sel:#FFD067;--on-sel:#11183F;
+      --primary:#FFD067;--on-primary:#11183F;--gold:#FFD067;--staff:#FFF1CE;--fade:#C5D1F8;--hit:#5EE7E3;
+      --chord:#FFD067;--now:#5EE7E3;--today-bg:transparent;--cream:#FFF1CE;
+      --pv2-white:#FFF1CE;--pv2-black:#202952;--pv2-mini-bg:#11183F;--pv2-mini-line:#455789;--pv2-mini-w:#222E65;--pv2-mini-b:#11183F;--pv2-win:#FFD067;
+      --pv2-shadow:none;
+      color-scheme:dark;
+    }
+    html[data-theme="musicland"]{background:#194858;}
+    [data-theme="musicland"] body{width:min(100%,1100px);max-width:1100px;margin:0 auto;justify-content:flex-start;align-items:stretch;
+      background:var(--page);padding:0 clamp(12px,3.4vw,36px) 24px;gap:12px;font:500 16px/1.35 system-ui,sans-serif;}
+    [data-theme="musicland"] :focus-visible{outline:3px solid var(--now);outline-offset:2px;}
+    #sunsetBanner{display:none;}
+    [data-theme="musicland"] #sunsetBanner{display:block;position:relative;flex:none;height:clamp(88px,14vw,150px);
+      margin:0 calc(-1 * clamp(12px,3.4vw,36px));background:#403DB2 url(assets/sunset.webp) center 67%/cover no-repeat;}
+    #sunsetBanner img{position:absolute;right:10%;bottom:10px;width:clamp(48px,7vw,80px);image-rendering:pixelated;}
+    [data-theme="musicland"] #headerRow{width:100%;min-height:63px;justify-content:space-between;flex-wrap:nowrap;gap:12px;padding-block:8px;border-bottom:1px solid var(--line-strong);}
+    [data-theme="musicland"] h1{font-family:Pixelify,ui-monospace,monospace;font-weight:700;font-size:clamp(1.35rem,4vw,2.15rem);letter-spacing:.015em;color:var(--text);}
+    [data-theme="musicland"] #avatarBadge,[data-theme="musicland"] #storyAccent{display:none !important;}
+    [data-theme="musicland"] #headerRow .tabs{margin:0;gap:5px;flex-wrap:nowrap;width:auto;}
+    /* every control: pack button (1px line, 5px radius, system bold, ≥42px) */
+    [data-theme="musicland"] #instSel{font:700 1rem/1.2 system-ui,sans-serif;background:var(--surface);color:var(--text);border:1px solid var(--line-strong);border-radius:5px;min-height:42px;padding:8px 12px;}
+    [data-theme="musicland"] :is(.tab,.sg-btn,.pb-btn,.inst-btn,.btn){font:700 1rem/1.2 system-ui,sans-serif;background:var(--surface);color:var(--text);
+      border:1px solid var(--line-strong);border-radius:5px;box-shadow:none;min-height:42px;padding:8px 12px;text-shadow:none;}
+    [data-theme="musicland"] .tab{padding-inline:10px;flex-direction:row;white-space:nowrap;}
+    [data-theme="musicland"] body[data-tab="keys"] #pbRec::after{content:' Record';}
+    [data-theme="musicland"] :is(.tab.active,.sg-btn.sel,.pb-btn.sel,.btn-start){background:var(--gold);color:var(--on-sel);border-color:var(--gold);}
+    [data-theme="musicland"] .sg-btn.go:not(.sel){background:var(--surface);color:var(--text);border-color:var(--line-strong);}
+    [data-theme="musicland"] :is(.tab,.sg-btn,.pb-btn,.btn):hover:not(:disabled){filter:brightness(1.15);}
+    [data-theme="musicland"] .pb-group{background:transparent;border:none;}
+    /* Listen: tuner + controls left, staff + piano right (stacks on phones) */
+    [data-theme="musicland"] body[data-tab="listen"]{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);column-gap:clamp(16px,5vw,54px);
+      grid-template-areas:"banner banner" "head head" "note staff" "ctrl kb";align-content:start;}
+    [data-theme="musicland"] body[data-tab="listen"] #sunsetBanner{grid-area:banner;}
+    [data-theme="musicland"] body[data-tab="listen"] #headerRow{grid-area:head;}
+    [data-theme="musicland"] body[data-tab="listen"] #noteCard{grid-area:note;align-self:end;}
+    [data-theme="musicland"] body[data-tab="listen"] #controls{grid-area:ctrl;align-self:start;}
+    [data-theme="musicland"] body[data-tab="listen"] #staffView{grid-area:staff;align-self:end;padding-left:clamp(12px,4vw,42px);border-left:1px solid var(--line-strong);}
+    [data-theme="musicland"] body[data-tab="listen"] #pianoArea{grid-area:kb;align-self:start;padding-left:clamp(12px,4vw,42px);border-left:1px solid var(--line-strong);}
+    [data-theme="musicland"] body[data-tab="listen"] #pianoHost{--pv2-h:93px;}
+    [data-theme="musicland"] body[data-tab="listen"] .pv2-mini{display:none;}
+    @media(max-width:620px){
+      [data-theme="musicland"] body[data-tab="listen"]{grid-template-columns:minmax(0,1fr);grid-template-areas:"banner" "head" "note" "ctrl" "staff" "kb";}
+      [data-theme="musicland"] body[data-tab="listen"] :is(#staffView,#pianoArea){padding-left:0;border-left:0;}
+      [data-theme="musicland"] body[data-tab="listen"] #staffView{border-top:1px solid var(--line);padding-top:12px;}
+    }
+    [data-theme="musicland"] .note-card{background:transparent;border:none;box-shadow:none;}
+    [data-theme="musicland"] .note-big{font-family:Pixelify,ui-monospace,monospace;font-weight:700;font-size:clamp(3rem,8vw,5.25rem);line-height:1;color:var(--text);}
+    [data-theme="musicland"] .note-sub{color:var(--text-2);}
+    [data-theme="musicland"] .cents-wrap{display:none;}
+    .ml-pitch-meter{display:none;}
+    [data-theme="musicland"] .ml-pitch-meter{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;color:var(--text);font-weight:700;}
+    .ml-meter{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;}
+    .ml-meter i{width:clamp(9px,2vw,15px);height:14px;border:1px solid var(--line-strong);border-radius:2px;}
+    .ml-meter i[data-lit]{background:var(--now);border-color:var(--now);}
+    [data-theme="musicland"] #staffSvg g[stroke],[data-theme="musicland"] #ledgerG{stroke:var(--cream);}
+    [data-theme="musicland"] #staffSvg text[font-size="64"]{fill:var(--cream);}
+    [data-theme="musicland"] #controls{display:flex;flex-direction:column;align-items:center;gap:12px;}
+    #practiceLink{display:none;background:none;border:0;color:var(--text);text-decoration:underline;text-underline-offset:3px;font:700 1rem system-ui,sans-serif;cursor:pointer;padding:8px;}
+    [data-theme="musicland"] body[data-tab="listen"] #practiceLink{display:inline-block;}
+    /* piano: cream keys, pitch marker + Pixelify name; the target takes its classroom colour */
+    [data-theme="musicland"] .pv2-row{border-radius:0 0 5px 5px;}
+    [data-theme="musicland"] .pv2-w{background:var(--cream);border:1px solid #192354;border-top:none;border-radius:0 0 5px 5px;box-shadow:inset 0 -4px #D6C8A5;padding-bottom:10px;gap:4px;}
+    [data-theme="musicland"] .pv2-w::after{display:none;}
+    [data-theme="musicland"] :is(.pv2-w.target,.pv2-w.down){background:color-mix(in srgb,var(--c) 42%,var(--cream));outline:2px solid var(--c);outline-offset:-3px;}
+    [data-theme="musicland"] .pv2-b{background:#202952;box-shadow:inset 0 -3px #0E1538;border-bottom:none;}
+    [data-theme="musicland"] .pv2 .pv2-w .pv2-lbl{font:700 clamp(16px,4vw,27px)/1 Pixelify,ui-monospace,monospace !important;color:var(--on-sel);}
+    [data-theme="musicland"] .pv2 .pv2-w .pv2-shape{width:12px !important;height:12px;box-shadow:none;}
+    [data-theme="musicland"] .pv2 .pv2-b :is(.pv2-shape,.pv2-lbl){display:none;}
+    [data-theme="musicland"] .pv2-kbd{color:rgba(17,24,63,.35);}
+    /* Songs list + Notes menu: pack rows (panel, 1px line, gold mark) */
+    [data-theme="musicland"] .sg-list{gap:7px;}
+    [data-theme="musicland"] .sg-list :is(.sg-row,summary){border:1px solid var(--line-strong);border-radius:5px;background:var(--surface);font:700 1rem system-ui,sans-serif;min-height:45px;padding:7px 13px;}
+    [data-theme="musicland"] .sg-list details[open]{border:1px solid var(--line-strong);border-radius:5px;}
+    [data-theme="musicland"] .sg-list details[open]>summary{border:none;border-bottom:1px solid var(--line-strong);border-radius:5px 5px 0 0;background:var(--surface-2);}
+    [data-theme="musicland"] .sg-list .sg-songs{padding:5px;gap:3px;}
+    [data-theme="musicland"] .sg-list .sg-card.sg-song{border:none;font:700 1rem system-ui,sans-serif;padding:7px 13px;min-height:45px;}
+    [data-theme="musicland"] .sg-list :is(.chev,.go){min-width:36px;padding:2px 6px;background:var(--gold);border-radius:4px;color:var(--on-sel);text-align:center;font-size:.95rem;}
+    [data-theme="musicland"] .sg-list details[open]>summary .chev{transform:rotate(90deg);}
+    [data-theme="musicland"] .nt-menu{grid-template-columns:minmax(0,1fr);max-width:780px;width:100%;margin:0 auto;gap:7px;}
+    [data-theme="musicland"] .nt-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;justify-items:start;text-align:left;column-gap:12px;
+      background:var(--surface);border:1px solid var(--line-strong);border-radius:5px;padding:7px 13px;min-height:45px;color:var(--text);font:700 1rem system-ui,sans-serif;}
+    [data-theme="musicland"] .nt-card .ic{display:none;}
+    [data-theme="musicland"] .nt-card small{grid-column:1;grid-row:2;color:var(--text-2);font-size:.85rem;}
+    [data-theme="musicland"] .nt-card::after{content:'▶';grid-column:2;grid-row:1/3;min-width:36px;text-align:center;background:var(--gold);color:var(--on-sel);border-radius:4px;padding:2px 6px;}
+    [data-theme="musicland"] .nt-card.lock{opacity:.58;}
+    [data-theme="musicland"] .nt-card.lock::after{content:'—';background:transparent;color:var(--text);}
+    /* Keys: instrument · Record · Keyboard, then a big keyboard */
+    #instSel{display:none;}
+    [data-theme="musicland"] body[data-tab="keys"] #instSel{display:inline-block;}
+    [data-theme="musicland"] #instBar .inst-btn{display:none;}
+    [data-theme="musicland"] body[data-tab="keys"] :is(#noteCard,#staffView){display:none !important;}
+    [data-theme="musicland"] body[data-tab="keys"] #pianoBar > :not(#pbRecGroup):not(#midiBtn):not(#pbParent){display:none !important;}
+    [data-theme="musicland"] body[data-tab="keys"] #pianoHost{--pv2-h:clamp(165px,35svh,284px);}
+    [data-theme="musicland"] body[data-tab="keys"] :is(#instBar,#pianoBar){display:flex;justify-content:center;gap:8px;}
+    [data-theme="musicland"] body[data-tab="keys"] .pv2-mini{display:none;}
+    /* Beat: four outlined cells, a track, then the mic row */
+    .ml-beat{display:none;}
+    [data-theme="musicland"] .ml-beat{display:grid;width:min(100%,560px);gap:23px;margin-inline:auto;padding:20px 0;}
+    [data-theme="musicland"] #metroCanvas{display:none;}
+    .ml-beat-cells{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(6px,3vw,21px);}
+    .ml-beat-cell{display:grid;place-items:center;height:clamp(54px,14vw,88px);background:var(--surface);border:2px solid var(--cream);border-radius:7px;
+      font:700 clamp(28px,8vw,50px)/1 Pixelify,ui-monospace,monospace;color:var(--text);}
+    .ml-beat-cell[data-active]{border-color:var(--now);color:var(--now);background:#12334C;}
+    .ml-beat-track{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line-strong);margin-top:-5px;}
+    .ml-beat-track i{justify-self:center;width:2px;height:13px;background:var(--line-strong);transform:translateY(-7px);}
+    .ml-beat-track i[data-active]{background:var(--now);width:4px;}
+    .ml-beat-status{text-align:center;color:var(--text-2);min-height:1.35em;}
+    [data-theme="musicland"] body[data-tab="flow"] #controls{flex-direction:row;justify-content:center;flex-wrap:wrap;}
+    /* phone: the five tabs share one row under the title */
+    @media(max-width:620px){
+      [data-theme="musicland"] #headerRow{flex-direction:column;align-items:stretch;gap:6px;}
+      [data-theme="musicland"] #headerRow .tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));}
+      [data-theme="musicland"] .tab{padding-inline:3px;font-size:clamp(.73rem,3.5vw,.88rem);}
+    }
+    /* screens drawn without a keyboard: the Songs list and the Notes menu */
+    [data-theme="musicland"] body.mode-songs:not(:has(#songsView.sg-open)) :is(#pianoBar,#pianoHost,#instBar),
+    [data-theme="musicland"] body[data-tab="notes"]:has(.nt-menu) :is(#pianoBar,#pianoHost,#instBar){display:none !important;}
+    /* Songs play: smaller banner, ‹ title ⚙︎, field into keys, Stop, sunset footer */
+    [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview){gap:0;padding-bottom:0;}
+    [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetBanner{height:clamp(65px,14svh,130px);}
+    [data-theme="musicland"] #songsView.sg-open .sg-gear{display:inline-flex;}
+    [data-theme="musicland"] #songsView.sg-open details.sg-grown>summary{display:none;}
+    [data-theme="musicland"] #songsView.sg-open .sg-top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;min-height:63px;border-bottom:1px solid var(--line-strong);}
+    [data-theme="musicland"] #songsView.sg-open .sg-top .t{text-align:left;font:700 clamp(1.35rem,4vw,2.15rem) Pixelify,ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    [data-theme="musicland"] #songsView.sg-fallview .sg-kid{gap:7px;margin-block:8px;}
+    [data-theme="musicland"] #songsView.sg-fallview .sg-cue{min-height:39px;padding:4px 2px;border-top:1px solid var(--line);}
+    [data-theme="musicland"] #songsView.sg-fallview .sg-cue b{font:700 clamp(1.1rem,3vw,1.6rem) Pixelify,ui-monospace,monospace;}
+    [data-theme="musicland"] #songsView.sg-fallview .sg-canvas{border:1px solid var(--line-strong);border-bottom:none;border-radius:5px 5px 0 0;}
+    #sunsetFooter{display:none;}
+    [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetFooter{display:block;height:clamp(28px,6svh,50px);
+      margin:0 calc(-1 * clamp(12px,3.4vw,36px));background:url(assets/sunset.webp) center 100%/cover no-repeat;}
+    @media(max-width:620px){
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview){padding-inline:8px;}
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) :is(#sunsetBanner,#sunsetFooter){margin-inline:-8px;}
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetBanner{height:clamp(58px,11svh,94px);}
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetBanner img{width:48px;bottom:5px;}
+      [data-theme="musicland"] #songsView.sg-open .sg-top{min-height:54px;gap:6px;}
+      [data-theme="musicland"] #songsView.sg-fallview .sg-kid{gap:4px;}
+      [data-theme="musicland"] #songsView.sg-fallview .sg-kid .sg-btn{font-size:clamp(.72rem,3.6vw,.92rem);padding-inline:4px;}
+    }
+    @media(max-height:710px){
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetBanner{height:55px;}
+      [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #sunsetFooter{height:25px;}
+    }
+    body.mode-songs:has(#songsView.sg-open.sg-fallview) #pianoHost{--pv2-h:clamp(108px,18svh,153px);}
+    @media(min-width:621px){body.mode-songs:has(#songsView.sg-open.sg-fallview) #pianoHost{--pv2-h:clamp(120px,22svh,200px);}}
+    #storyAccent canvas{width:48px;height:48px;image-rendering:pixelated;display:block;}
+
+    /* Falling notes with a song open: the field, the keys and Stop come first.
+       Grown-up keyboard settings keep only range, Keyboard status and ⚙︎;
+       on short screens the header and tabs step aside (← goes back). */
+    body.mode-songs:has(#songsView.sg-open.sg-fallview) #pianoBar:not(.in-grown){display:none !important;}
+    body.mode-songs:has(#songsView.sg-open.sg-fallview) #pianoHost .pv2-mini{display:none;}
+    #pianoBar.in-grown{display:flex;margin-top:8px;}
+    #songsBelow{display:none;justify-content:center;padding:4px 0 2px;}
+    body.mode-songs:has(#songsView.sg-open.sg-fallview) #songsBelow{display:flex;}
+    [data-theme="musicland"] body.mode-songs:has(#songsView.sg-open.sg-fallview) #headerRow{display:none !important;}
+    @media(max-height:760px),(max-width:600px){
+      body.mode-songs:has(#songsView.sg-open.sg-fallview) #headerRow,
+      body.mode-songs:has(#songsView.sg-open.sg-fallview) .tabs{display:none !important;}
+      body.mode-songs:has(#songsView.sg-open.sg-fallview){justify-content:flex-start;}
+    }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
     body{
       min-height:100vh;min-height:100dvh;background:var(--page);color:var(--text);
@@ -373,8 +542,8 @@
     }
   </style>
 </head>
-<body>
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 0d643b9</div>
+<body data-tab="listen">
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 14df3ac</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -402,12 +571,14 @@
     </div>
   </div>
 
+  <div id="sunsetBanner" aria-hidden="true"><img src="assets/bunny.png" alt=""></div>
   <div id="headerRow">
     <h1>🎵 Pitch Trainer</h1>
     <img id="avatarBadge" alt="Your avatar">
     <div class="pb-group" id="themeSel" role="group" aria-label="Appearance">
       <button class="pb-btn" data-look="studio">Studio</button>
       <button class="pb-btn" data-look="storybook">Storybook</button>
+      <button class="pb-btn" data-look="musicland">Musicland</button>
     </div>
     <span id="storyAccent" aria-hidden="true"></span><!-- Storybook character accent: artwork from Codex (unnamed characters) -->
   </div>
@@ -427,6 +598,7 @@
     <div class="note-big" id="noteName">—</div>
     <div class="note-sub" id="noteSub">tap Start then sing!</div>
     <div class="cents-wrap"><div id="centsDot"></div></div>
+    <div class="ml-pitch-meter" aria-hidden="true"><span>−</span><span class="ml-meter" id="mlMeter"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span><span>+</span></div>
   </div>
 
   <div class="staff-wrap" id="staffView">
@@ -450,7 +622,10 @@
     </svg>
   </div>
 
-  <div id="metroView"><canvas id="metroCanvas"></canvas></div>
+  <div id="metroView">
+    <div class="ml-beat" aria-label="Four-beat display"><div class="ml-beat-cells" id="mlBeatCells"><span class="ml-beat-cell">1</span><span class="ml-beat-cell">2</span><span class="ml-beat-cell">3</span><span class="ml-beat-cell">4</span></div>
+      <div class="ml-beat-track" id="mlBeatTrack" aria-hidden="true"><i></i><i></i><i></i><i></i></div><p class="ml-beat-status" id="mlBeatStatus" role="status"></p></div>
+    <canvas id="metroCanvas"></canvas></div>
 
   <div id="playView">
     <!-- OMR server (preferred — purpose-built sheet music model) -->
@@ -629,6 +804,8 @@
       <button class="pb-btn" id="recToClass">🎒 It's from class</button>
     </div>
     <div id="pianoHost"></div>
+    <div id="songsBelow"></div>
+    <div id="sunsetFooter" aria-hidden="true"></div>
   </div>
 
   <div id="controls">
@@ -638,22 +815,23 @@
       <label class="pb-btn" id="audioFileBtn" title="Turn a recording into notes (voice or one instrument works best)">📁 From audio
         <input type="file" id="audioFileIn" accept="audio/*,video/*" hidden></label>
     </div>
+    <button id="practiceLink">Practice a song</button>
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=0d643b9"></script>
-  <script src="piano.js?v=0d643b9"></script>
-  <script src="songs.js?v=0d643b9"></script>
-  <script src="hear.js?v=0d643b9"></script>
-  <script src="sound.js?v=0d643b9"></script>
-  <script src="midi.js?v=0d643b9"></script>
-  <script src="songfile.js?v=0d643b9"></script>
-  <script src="addsong.js?v=0d643b9"></script>
-  <script src="studio.js?v=0d643b9"></script>
-  <script src="echo.js?v=0d643b9"></script>
-  <script src="today.js?v=0d643b9"></script>
-  <script src="notes.js?v=0d643b9"></script>
-  <script src="progress.js?v=0d643b9"></script>
+  <script src="music-core.js?v=14df3ac"></script>
+  <script src="piano.js?v=14df3ac"></script>
+  <script src="songs.js?v=14df3ac"></script>
+  <script src="hear.js?v=14df3ac"></script>
+  <script src="sound.js?v=14df3ac"></script>
+  <script src="midi.js?v=14df3ac"></script>
+  <script src="songfile.js?v=14df3ac"></script>
+  <script src="addsong.js?v=14df3ac"></script>
+  <script src="studio.js?v=14df3ac"></script>
+  <script src="echo.js?v=14df3ac"></script>
+  <script src="today.js?v=14df3ac"></script>
+  <script src="notes.js?v=14df3ac"></script>
+  <script src="progress.js?v=14df3ac"></script>
   <script>
   // Live, staging and dev share one origin: staging must never write the keys
   // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
@@ -901,8 +1079,8 @@
     p=p&&typeof p==='object'?p:{};
     const k=p.kb&&typeof p.kb==='object'?p.kb:{};
     return {
-      view:['lane','score'].includes(p.view)?p.view:'lane',               // Rhythm lane by default
-      theme:['studio','storybook'].includes(p.theme)?p.theme:'studio',
+      view:['fall','lane','score'].includes(p.view)?p.view:'lane',        // Rhythm lane by default
+      theme:['studio','storybook','musicland'].includes(p.theme)?p.theme:'studio',
       kb:{ start:Number.isInteger(k.start)&&k.start>=21&&k.start<=108?k.start:55,     // G3…
            view:Number.isInteger(k.view)&&k.view>=5&&k.view<=36?k.view:8 },          // …to G4: 8 white keys
     };
@@ -920,10 +1098,36 @@
       text:v('--text'), text2:v('--text-2'), clef:v('--text-2'), gold:v('--gold'), fade:v('--fade'), now:v('--now'), chord:v('--chord') };
     const meta=document.querySelector('meta[name=theme-color]'); if(meta) meta.setAttribute('content',v('--page'));
     document.querySelectorAll('#themeSel .pb-btn').forEach(b=>{ const on=b.dataset.look===t; b.classList.toggle('sel',on); b.setAttribute('aria-pressed',String(on)); });
+    paintMusiclandBunny(t);
+    arrangeShell(t);
+  }
+  // Musicland (Sunset Stage): title and tabs share one row; the look switch is a
+  // grown-up setting, so it moves to the ⚙︎-hold page. Other looks: as before.
+  function arrangeShell(t){
+    const hdr=document.getElementById('headerRow'), tabs=document.querySelector('.tabs'), sel=document.getElementById('themeSel');
+    const stats=document.getElementById('statsView'); if(!hdr||!tabs||!sel||!stats) return;
+    tabs.querySelectorAll('.tab').forEach(b=>{ if(!b.dataset.label) b.dataset.label=b.textContent;
+      b.textContent=t==='musicland'?b.dataset.label.replace(/^[^A-Za-z]+/,'').trim():b.dataset.label; });
+    const sb=document.getElementById('startBtn');
+    if(sb&&sb.classList.contains('btn-start')) sb.textContent=t==='musicland'?'Start mic':'🎤 Start';
+    if(t==='musicland'){ if(tabs.parentNode!==hdr) hdr.appendChild(tabs); if(sel.parentNode!==stats) stats.insertBefore(sel,stats.firstChild); }
+    else{ if(tabs.parentNode===hdr) hdr.after(tabs); if(sel.parentNode!==hdr) hdr.insertBefore(sel,document.getElementById('storyAccent')); }
+  }
+  // Musicland's guide: the Beat Hive pixel bunny (same 16×16 sprite, ~/beat-hive CHARS.bunny)
+  const BUNNY={pal:['#FFF6EA','#F58BA8','#1b2410'],px:["...111....111...","...121....121...","...121....121...","...121....121...","...111....111...","..111111111111..",".11111111111111.",".11331111113311.",".11331111113311.",".11111111111111.",".11111122111111.","..111111111111..","...1111111111...","...1111111111...","..111111111111..","..111......111.."]};
+  function paintMusiclandBunny(t){
+    const slot=document.getElementById('storyAccent'); if(!slot) return;
+    if(t!=='musicland'){ if(slot.querySelector('canvas')) slot.innerHTML=''; return; }
+    if(slot.querySelector('canvas')) return;
+    const c=document.createElement('canvas'); c.width=16; c.height=16; const g=c.getContext('2d');
+    BUNNY.px.forEach((row,y)=>[...row].forEach((ch,x)=>{ if(ch!=='.'){ g.fillStyle=BUNNY.pal[+ch-1]; g.fillRect(x,y,1,1); } }));
+    slot.innerHTML=''; slot.appendChild(c);
   }
   applyTheme(prefs.theme);
   let level=MC.getLevel(), labelOverride=null, twoRow=false, zoomView=null;
   let kb=null;
+  let keyGeo=null;                                   // Falling notes key geometry (see keyRects)
+  let retargetSongs=null;                            // set once Songs exists: re-lights + scrolls to the current target
 
   function pianoCfg(){
     const isDrum=currentInstrument==='drum', listen=currentMode==='listen';
@@ -935,17 +1139,21 @@
     const range=wide?[Math.min(level.range[0],48),Math.max(level.range[1],84)]:lesson?[Math.min(level.range[0],36),Math.max(level.range[1],84)]:level.range;
     // keys narrower than ~30px are too small for a finger
     const fit=Math.max(7,Math.floor((pianoHost.clientWidth||360)/30));
-    const view=lesson?Math.min(prefs.kb.view,fit):level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
+    const mlListen=listen&&prefs.theme==='musicland';                 // Musicland Listen: one octave beside the staff
+    // Sprout songs live in C4–C5 (the classroom bell set): the lesson keyboard always shows
+    // all eight of those white keys, whatever zoom or width, so the target is never cut off
+    const sproutLesson=lesson&&level.id==='sprout';
+    const view=mlListen?8:sproutLesson?Math.max(8,Math.min(prefs.kb.view,fit)):lesson?Math.min(prefs.kb.view,fit):level.id==='sprout'&&!wide?8:Math.min(zoomView||Math.max(level.view,15),fit);
     const two=twoRow&&level.id!=='sprout'&&!listen;
     pianoHost.classList.toggle('sprout',level.id==='sprout'&&!wide);
     pianoHost.classList.toggle('two',two);
     return {
       range, view, twoRow:two,
       // 🧠 Notes asks "which note is this?" — names on the keys would give it away
-      labels:isDrum||currentMode==='notes'?'none':(labelOverride||level.labels),
+      labels:isDrum||currentMode==='notes'?'none':(labelOverride||(prefs.theme==='musicland'?'solfege':level.labels)),
       colorAmt:level.colorAmt,
       minimap:wide||lesson||level.minimap,
-      start:lesson?prefs.kb.start:undefined,          // other modes keep wherever the keys are
+      start:sproutLesson?sproutStart(view):lesson?prefs.kb.start:mlListen?60:undefined,          // other modes keep wherever the keys are
       levelClass:level.id,
       labelFn:isDrum?(m=>{const b=NOTE_BARE[m%12];return DRUM_LABELS[b]||b;}):null,
     };
@@ -974,11 +1182,13 @@
     KEY_MAP=map; kb.setHints(hints);
   }
   function updateKeyLabels(){
+    keyGeo=null;
     const cfg=pianoCfg();
     if(kb) Sound.allOff();             // rebuilding the keys drops their pressed state
     if(!kb){
       kb=PianoV2.create(pianoHost,{...cfg,start:cfg.start!=null?cfg.start:60,onDown:onPianoDown,onUp:onPianoUp,onView:(c,v)=>{
         if(!kb) return;                                // still being built
+        keyGeo=null;
         if(!v||!v.auto) rebuildKeyMap();
         // she slid or zoomed the Songs keyboard: remember it (the app scrolling to a note doesn't count)
         if(lessonKb()&&!(v&&v.auto)){ prefs.kb.start=kb.start; savePrefs(); }
@@ -987,8 +1197,18 @@
       rebuildKeyMap();
     } else kb.update(cfg);
     syncPianoBar(); drawRange();
+    if(currentMode==='songs'&&retargetSongs) retargetSongs();      // zoom/resize/rebuild: bring the needed key back
   }
   const lessonKb=()=>currentMode==='songs'&&!togetherWide;
+  const sproutLessonKb=()=>lessonKb()&&level.id==='sprout';
+  // first visible white key so that C4 and C5 are both on screen with `view` white keys
+  function sproutStart(view){
+    let s=prefs.kb.start; while(MC.isBlack(s)) s++;
+    if(s>60) s=60;
+    let n=0; for(let m=s;m<=72;m++) if(!MC.isBlack(m)) n++;     // white keys from s to C5
+    while(n>view){ s++; while(MC.isBlack(s)) s++; n--; }
+    return s;
+  }
   const KEY_NAME=['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'], keyName=m=>KEY_NAME[m%12]+(Math.floor(m/12)-1);
   // the actual visible ends (G3 – G4 at first), updated on every slide / zoom
   function drawRange(){
@@ -996,6 +1216,7 @@
     const span=kb.view*(pianoHost.classList.contains('two')?2:1);
     let end=kb.start; for(let i=1;i<span&&end<kb.range[1];i++) end=stepWhite(end,1);
     el.textContent=keyName(kb.start)+' – '+keyName(end);
+    const zin=document.getElementById('pbZoomIn'); if(zin) zin.disabled=sproutLessonKb()&&kb.view<=8;
   }
   function syncPianoBar(){
     document.querySelectorAll('#pbLevel .pb-btn').forEach(b=>b.classList.toggle('sel',b.dataset.level===level.id));
@@ -1089,8 +1310,38 @@
     host:document.getElementById('songsView'),
     getKb:()=>kb, getLevel:()=>level,
     getView:()=>prefs.view, setView:v=>{ prefs.view=v; savePrefs(); }, palette:()=>palette,
+    // Falling notes: where each visible key sits, relative to the note canvas (first row;
+    // the half-cut edge key is skipped). Measured once and reused every frame; dropped
+    // when the keyboard is rebuilt, slid/zoomed or resized, and re-read at most every 300 ms.
+    keyRects:cv=>{
+      const now=performance.now();
+      if(keyGeo&&keyGeo.cv===cv&&now-keyGeo.at<300) return keyGeo;
+      const row=pianoHost.querySelector('.pv2-row'), map=new Map(), edges=[]; let lo=Infinity;
+      if(row){
+        const hr=pianoHost.getBoundingClientRect(), cl=cv.getBoundingClientRect().left;
+        row.querySelectorAll('.pv2-k').forEach(el=>{
+          if(el.classList.contains('pv2-cut')) return;
+          const r=el.getBoundingClientRect(); if(r.right<=hr.left+1||r.left>=hr.right-1) return;
+          const m=+el.dataset.m; map.set(m,{x:r.left-cl+r.width/2,w:r.width}); lo=Math.min(lo,m);
+          if(!el.classList.contains('pv2-b')) edges.push(r.left-cl);
+        });
+      }
+      return keyGeo={cv,at:now,map,edges,lo:lo===Infinity?0:lo};
+    },
+    // room the keyboard (and anything between it and the field) needs under the canvas
+    belowField:cv=>{ const low=[pianoHost,document.getElementById('songsBelow'),document.getElementById('sunsetFooter')].filter(e=>e&&e.offsetParent).map(e=>e.getBoundingClientRect().bottom);
+      return Math.max(0,Math.max(...low)-cv.getBoundingClientRect().bottom)+4; },
+    belowHost:document.getElementById('songsBelow'),
+    // Grown-ups panel open: the real keyboard bar (range, MIDI, ⚙︎ hold) moves inside it; closed: back home
+    kbSettings:into=>{
+      const bar=document.getElementById('pianoBar');
+      if(into){ if(!bar._home){ bar._home=bar.parentNode; bar._next=bar.nextSibling; } into.appendChild(bar); bar.classList.add('in-grown'); }
+      else if(bar._home){ bar._home.insertBefore(bar,bar._next); bar._home=null; bar.classList.remove('in-grown'); }
+    },
     songRange:()=>[Math.min(level.range[0],36),Math.max(level.range[1],84)],   // = the Songs keyboard: songs keep their octave
-    getLabels:()=>labelOverride||level.labels,
+    getLabels:()=>labelOverride||(prefs.theme==='musicland'?'solfege':level.labels),
+    shelfList:()=>prefs.theme==='musicland',
+    plainLabels:()=>prefs.theme==='musicland',
     audio:()=>ensureKbCtx(),
     playNote:(ac,m,when,dur,o)=>Sound.schedule(m,when,dur,o),
     cancelNotes:tag=>Sound.cancel(tag),
@@ -1111,6 +1362,7 @@
       }
     },
   });
+  retargetSongs=()=>songs.retarget();
 
   // ── 🎤 Echo: hear a tune, sing it back, find it on the keyboard ───────
   // Renders into the Songs view (the piano stays below it); keys go to Echo
@@ -1267,14 +1519,37 @@
   });
   document.getElementById('pbRows').addEventListener('click',()=>{ twoRow=!twoRow; updateKeyLabels(); });
   // − = more keys, + = bigger keys (same meanings as before); zoom keeps its centre
-  const zoomKb=dir=>{ const v=kb.zoom(dir); if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); } else zoomView=v; drawRange(); };
+  const zoomKb=dir=>{
+    // Sprout lesson: bigger keys stop at eight (C4–C5 must stay on screen)
+    // (a step that would go below eight lands on eight instead)
+    if(sproutLessonKb()&&dir<0){
+      if(kb.view>8){ prefs.kb.view=Math.max(8,kb.view-7); savePrefs(); updateKeyLabels(); }
+      drawRange(); retargetSongs&&retargetSongs(); return;
+    }
+    const v=kb.zoom(dir);
+    if(lessonKb()){ prefs.kb.view=v; prefs.kb.start=kb.start; savePrefs(); if(sproutLessonKb()) updateKeyLabels(); } else zoomView=v;
+    drawRange(); retargetSongs&&retargetSongs();
+  };
   document.getElementById('pbZoomOut').addEventListener('click',()=>zoomKb(+1));
   document.getElementById('pbZoomIn') .addEventListener('click',()=>zoomKb(-1));
   document.getElementById('themeSel').addEventListener('click',e=>{
     const b=e.target.closest('.pb-btn'); if(!b||b.dataset.look===prefs.theme) return;
     if(currentMode==='songs'&&songs.running) return;      // keep a running performance stable — Stop first
-    applyTheme(b.dataset.look); savePrefs(); songs.redraw();
+    applyTheme(b.dataset.look); savePrefs(); songs.redraw(); updateKeyLabels();
+    if(currentMode==='songs') songs.refresh();
   });
+  // Listen → Songs, as drawn in the Sunset Stage Listen screen
+  document.getElementById('practiceLink').addEventListener('click',()=>setMode('songs'));
+  // Keys: Sunset Stage shows one instrument menu; it drives the existing buttons
+  (()=>{
+    const bar=document.getElementById('instBar'), sel=document.createElement('select');
+    sel.id='instSel'; sel.setAttribute('aria-label','Instrument');
+    bar.querySelectorAll('.inst-btn').forEach(b=>{ const o=document.createElement('option'); o.value=b.dataset.inst; o.textContent=b.textContent.trim(); sel.appendChild(o); });
+    sel.addEventListener('change',()=>{ const b=bar.querySelector(`.inst-btn[data-inst="${sel.value}"]`); b&&b.click(); });
+    new MutationObserver(()=>{ const on=bar.querySelector('.inst-btn.sel'); if(on&&sel.value!==on.dataset.inst) sel.value=on.dataset.inst; })
+      .observe(bar,{subtree:true,attributes:true,attributeFilter:['class']});
+    bar.insertBefore(sel,bar.firstChild);
+  })();
   // iOS fires resize when the URL bar slides; only rebuild on a real width change
   let pianoW=0, pianoRT=0;
   window.addEventListener('resize',()=>{
@@ -1337,6 +1612,9 @@
 
   // ── Note card ─────────────────────────────────────────────────────────
   function updateCents(c){
+    const ctr=c==null?null:4+Math.round(Math.max(-50,Math.min(50,c))/12.5);
+    const segs=updateCents.segs||(updateCents.segs=[...document.querySelectorAll('#mlMeter i')]);
+    segs.forEach((s,i)=>s.toggleAttribute('data-lit',ctr!=null&&Math.abs(i-ctr)<2));
     if(c==null){centsDot.style.background='#555';centsDot.style.left='50%';return;}
     centsDot.style.left=`${Math.max(4,Math.min(96,50+(c/50)*44))}%`;
     centsDot.style.background=Math.abs(c)<10?'#22c55e':Math.abs(c)<25?'#eab308':'#ef4444';
@@ -1928,6 +2206,15 @@
     metroCanvas.height=(rect.height ||340)*dpr;
   }
 
+  // Musicland Beat: the four outlined cells follow currentBeat (written only on change)
+  function paintBeatCells(){
+    const st=paintBeatCells.st||(paintBeatCells.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
+      status:document.getElementById('mlBeatStatus'),beat:-2,bpm:''});
+    if(currentBeat!==st.beat){ st.beat=currentBeat;
+      st.cells.forEach((c,i)=>c.toggleAttribute('data-active',i===currentBeat)); st.ticks.forEach((t,i)=>t.toggleAttribute('data-active',i===currentBeat)); }
+    const txt=smoothedBPM?Math.round(smoothedBPM)+' BPM':'';
+    if(txt!==st.bpm){ st.bpm=txt; if(st.status) st.status.textContent=txt; }
+  }
   function drawMetronome(){
     const dpr=window.devicePixelRatio||1;
     let W=metroCanvas.width/dpr, H=metroCanvas.height/dpr;
@@ -1954,6 +2241,7 @@
       }
     }
 
+    paintBeatCells();
     // Flash states
     const sinceFlash=now-beatFlashAt;
     const sinceBg=now-bgFlashAt;
@@ -1963,7 +2251,7 @@
     ctx.save(); ctx.scale(dpr,dpr);
 
     // ── Background ──
-    ctx.fillStyle='#06060f'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle=prefs.theme==='musicland'&&palette?palette.stage:'#06060f'; ctx.fillRect(0,0,W,H);
     if(bgFrac>0){
       const[br,bg,bb]=hexRgb(BEAT_COLS[Math.max(0,currentBeat)]);
       ctx.fillStyle=`rgba(${br},${bg},${bb},${(bgFrac*.10).toFixed(3)})`;
@@ -2528,7 +2816,7 @@
       }
 
       isRunning=true;
-      startBtn.textContent='⏹ Stop'; startBtn.className='btn btn-stop';
+      startBtn.textContent=prefs.theme==='musicland'?'Stop mic':'⏹ Stop'; startBtn.className='btn btn-stop';
       hint.textContent=currentMode==='flow'
         ?'🎵 Play music or clap — detecting beat!':'🎤 Listening — sing or play!';
       rafId=requestAnimationFrame(loop);
@@ -2547,7 +2835,7 @@
     listenTracker.reset();
     clearPiano();updateDisplay(null);
     if(currentMode!=='flow') updateStaff(null);
-    startBtn.textContent='🎤 Start'; startBtn.className='btn btn-start';
+    startBtn.textContent=prefs.theme==='musicland'?'Start mic':'🎤 Start'; startBtn.className='btn btn-start';
     hint.textContent=currentMode==='flow'
       ?'Tap Start, play music or clap to detect beat':'Tap Start, then sing any note';
   }
@@ -2672,6 +2960,7 @@
     const isDrum=currentInstrument==='drum';
     document.body.classList.toggle('mode-keys',isKeys||isSongs||isNotes);
     document.body.classList.toggle('mode-songs',isSongs);
+    document.body.dataset.tab=mode;            // the visible tab, for per-screen styling (Musicland)
     pianoBar.classList.toggle('show',isKeys||isSongs||isNotes);
     document.getElementById('pbRecGroup').style.display=isKeys?'':'none';
     document.getElementById('instBar').classList.toggle('show',isKeys);
@@ -2745,6 +3034,8 @@
     if(e.repeat||e.metaKey||e.ctrlKey||e.altKey) return;
     if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k=e.code;
+    // Enter / Space on a focused button or folder row activate it (Tab + Enter through the song list)
+    if((k==='Enter'||k==='NumpadEnter'||k==='Space')&&e.target&&e.target.closest&&e.target.closest('button,summary,a[href]')) return;
     const m=KEY_MAP[k];
     if(m==null) return;
     e.preventDefault();
