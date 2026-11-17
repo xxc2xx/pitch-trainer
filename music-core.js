@@ -1,4 +1,4 @@
-/* @shared music-core 1.2.1 */
+/* @shared music-core 1.3.0 */
 /* music-core.js — shared foundation for pitch-trainer, beat-hive and music-garden.
    VERSION (semver) is the contract consumers pin in vendor.lock.json:
    major = removed/renamed export or changed return shape, minor = additive,
@@ -21,7 +21,7 @@
 */
 (function(root){
   'use strict';
-  const VERSION = '1.2.1';
+  const VERSION = '1.3.0';
 
   // ── Environment namespace ─────────────────────────────────────────────
   // Live, staging and local dev share ONE origin (xxc2xx.github.io /
@@ -140,6 +140,7 @@
       range:   o.range || null,     // [lo, hi] fitted to her keyboard
       tag:     o.tag || null,
       analyzed: !!o.analyzed,       // notes came from the song analyzer (✨)
+      rough:   !!o.rough,           // the analyzer marked its notes low-confidence (an instrumental piece with no sheet)
       icon:    o.icon || null,
     };
   }
@@ -182,7 +183,7 @@
                                                   label: c.label, root: c.root, minor: !!c.minor }));
     return makeTake({ ...song, notes, bpm: Math.round(res.bpm) || song.bpm, key: (res.key || song.key || 'C').replace(/m$/, ''),
       sync: { ...(song.sync || {}), beatTimes: bt, offsetSec: bt[0] },
-      parts: { ...(song.parts || {}), chords }, analyzed: true });
+      parts: { ...(song.parts || {}), chords }, analyzed: true, rough: res.confidence === 'low' });
   }
 
   // Dad's part when the song has no chords: per bar, the I / IV / V / vi

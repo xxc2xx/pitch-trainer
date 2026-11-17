@@ -96,6 +96,7 @@
   .sg-cue b em{font-style:normal;color:var(--gold);}
   .sg-oct{display:inline-block;width:18px;height:18px;margin-left:10px;vertical-align:-2px;background:var(--c);}
   .sg-oct.circle{border-radius:50%;} .sg-oct.square{border-radius:3px;} .sg-oct.triangle{clip-path:polygon(50% 4%,100% 96%,0 96%);}
+  .sg-rough{margin:4px 0 8px;padding:6px 10px;border-left:3px solid var(--gold);background:var(--surface-2);font-size:.85rem;color:var(--text);}
   .sg-cue .pips{margin-left:auto;display:grid;grid-auto-flow:column;gap:3px;}
   .sg-cue .pips i{width:clamp(9px,2vw,15px);height:14px;border:1px solid var(--line-strong);border-radius:2px;}
   .sg-cue .pips i[data-lit]{background:var(--now);border-color:var(--now);}
@@ -348,6 +349,7 @@
             <button class="sg-btn go" id="sgTimed" title="The music plays — tap each note as it reaches the line">${lab('🎵', 'Play along')}</button>
             <button class="sg-btn" id="sgWait" title="The next key glows and waits for you">${lab('👆', 'Step by step')}</button></div>
         <details class="sg-grown"><summary>Grown-ups ⋯</summary>
+          ${t.rough ? '<p class="sg-rough">Rough notes: this piece was heard from the recording alone, and instrumental pieces come out rough that way. Add its sheet music (📷 Sheet music photo, or a .song.json made with the sheet) for exact notes.</p>' : ''}
           <div class="sg-ctrl">
             ${d.mic ? '<button class="sg-btn" id="sgSing">🎤 Sing it</button>' : ''}
             <button class="sg-btn" id="sgTogether" title="Her keyboard plays the tune — the screen keyboard is Dad's chords">👨‍👧 Together</button>

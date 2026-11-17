@@ -46,6 +46,8 @@ ok(an.notes[0].t === 2 && an.notes[1].t === 4 && an.parts.chords[0].t === 2 && a
   const s2 = C.songFromAnalysis(C.makeTake({ title: 'clip', source: 'video', notes: [] }), res2);
   ok(C.toTokens(s2) === 'G4:1 A4:1 B4:2' && s2.key === 'G' && s2.sync.offsetSec === 2,
      'song.json import: score-mode melody becomes the song (offset at the first beat) → ' + C.toTokens(s2));
+  ok(!s2.rough && C.songFromAnalysis(C.makeTake({ title: 'clip', notes: [] }), { ...res2, melodyModel: 'basic-pitch', confidence: 'low' }).rough === true,
+     'song.json import: an analyzer-marked low-confidence melody is flagged rough (the app asks for the sheet)');
 }
 ok(Math.abs(C.beatToSec(an, an.notes[0].t) - 1.3) < 1e-9, 'analyzed note plays back at its audio time');
 
