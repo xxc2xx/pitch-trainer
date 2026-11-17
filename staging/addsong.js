@@ -110,7 +110,7 @@
         }
         await MC.store.saveTake(song);
       }catch(e){ return fail('Couldn’t save: ' + e.message); }
-      work(`✓ “${song.title}” — ${song.notes.length} notes, ${song.bpm} BPM`, 1);
+      work(`✓ “${song.title}” — ${song.notes.length} notes, ${song.bpm} BPM` + (song.rough ? ' · rough notes — add the sheet for exact ones' : ''), 1);
       $('asAct').innerHTML = '<button class="as-btn go" id="asOpen">▶ Open it</button>';
       $('asOpen').onclick = () => { close(); o.onSaved && o.onSaved(song); };
       busy = false;
