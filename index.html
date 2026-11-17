@@ -1087,9 +1087,11 @@
   function savePrefs(){ try{ localStorage.setItem(PREFS_KEY,JSON.stringify(prefs)); }catch(e){} }
   // canvas colours: read the theme tokens ONCE per change, never per frame
   let palette=null;
+  const beatShown={beat:-2,bpm:-1,pending:false,st:null};   // what the Musicland Beat cells show (see paintBeatCells)
   function applyTheme(t){
     const root=document.documentElement;
     root.classList.add('theme-swap'); prefs.theme=t; root.dataset.theme=t;
+    updateCents.ctr=undefined; beatShown.beat=-2; beatShown.bpm=-1;   // repaint the Musicland meter/beat cells on the next frame
     setTimeout(()=>root.classList.remove('theme-swap'),60);
     const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim();
     palette={ stage:v('--stage'), staff:v('--staff'), line:v('--line-strong'), line2:v('--line-strong'), grid:v('--line'),
@@ -2209,7 +2211,6 @@
 
   // Musicland Beat: the four outlined cells follow currentBeat. The frame loop only
   // compares two numbers; the DOM is written later, off the frame, and only on a change
-  const beatShown={beat:-2,bpm:-1,pending:false,st:null};
   function paintBeatCells(){
     beatShown.pending=false;
     const st=beatShown.st||(beatShown.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
