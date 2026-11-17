@@ -543,7 +543,7 @@
   </style>
 </head>
 <body data-tab="listen">
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 62a8c6f</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING c612c13</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -819,19 +819,19 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=62a8c6f"></script>
-  <script src="piano.js?v=62a8c6f"></script>
-  <script src="songs.js?v=62a8c6f"></script>
-  <script src="hear.js?v=62a8c6f"></script>
-  <script src="sound.js?v=62a8c6f"></script>
-  <script src="midi.js?v=62a8c6f"></script>
-  <script src="songfile.js?v=62a8c6f"></script>
-  <script src="addsong.js?v=62a8c6f"></script>
-  <script src="studio.js?v=62a8c6f"></script>
-  <script src="echo.js?v=62a8c6f"></script>
-  <script src="today.js?v=62a8c6f"></script>
-  <script src="notes.js?v=62a8c6f"></script>
-  <script src="progress.js?v=62a8c6f"></script>
+  <script src="music-core.js?v=c612c13"></script>
+  <script src="piano.js?v=c612c13"></script>
+  <script src="songs.js?v=c612c13"></script>
+  <script src="hear.js?v=c612c13"></script>
+  <script src="sound.js?v=c612c13"></script>
+  <script src="midi.js?v=c612c13"></script>
+  <script src="songfile.js?v=c612c13"></script>
+  <script src="addsong.js?v=c612c13"></script>
+  <script src="studio.js?v=c612c13"></script>
+  <script src="echo.js?v=c612c13"></script>
+  <script src="today.js?v=c612c13"></script>
+  <script src="notes.js?v=c612c13"></script>
+  <script src="progress.js?v=c612c13"></script>
   <script>
   // Live, staging and dev share one origin: staging must never write the keys
   // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
@@ -1089,9 +1089,11 @@
   function savePrefs(){ try{ localStorage.setItem(PREFS_KEY,JSON.stringify(prefs)); }catch(e){} }
   // canvas colours: read the theme tokens ONCE per change, never per frame
   let palette=null;
+  const beatShown={beat:-2,bpm:-1,pending:false,st:null};   // what the Musicland Beat cells show (see paintBeatCells)
   function applyTheme(t){
     const root=document.documentElement;
     root.classList.add('theme-swap'); prefs.theme=t; root.dataset.theme=t;
+    updateCents.ctr=undefined; beatShown.beat=-2; beatShown.bpm=-1;   // repaint the Musicland meter/beat cells on the next frame
     setTimeout(()=>root.classList.remove('theme-swap'),60);
     const cs=getComputedStyle(document.documentElement), v=n=>cs.getPropertyValue(n).trim();
     palette={ stage:v('--stage'), staff:v('--staff'), line:v('--line-strong'), line2:v('--line-strong'), grid:v('--line'),
@@ -2211,7 +2213,6 @@
 
   // Musicland Beat: the four outlined cells follow currentBeat. The frame loop only
   // compares two numbers; the DOM is written later, off the frame, and only on a change
-  const beatShown={beat:-2,bpm:-1,pending:false,st:null};
   function paintBeatCells(){
     beatShown.pending=false;
     const st=beatShown.st||(beatShown.st={cells:[...document.querySelectorAll('#mlBeatCells span')],ticks:[...document.querySelectorAll('#mlBeatTrack i')],
