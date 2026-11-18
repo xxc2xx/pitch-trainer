@@ -127,6 +127,9 @@
   .sg-strip{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface);border-radius:12px;padding:8px 10px;}
   .sg-conf{position:fixed;top:-40px;font-size:26px;pointer-events:none;animation:sgfall linear forwards;z-index:51;}
   @keyframes sgfade{from{opacity:0}to{opacity:1}}
+  @keyframes sgnudge{50%{transform:scale(1.08);box-shadow:0 0 0 6px var(--gold)}}
+  .sg-btn.sg-nudge{animation:sgnudge 1.1s ease-in-out infinite;}
+  @media (prefers-reduced-motion:reduce){.sg-btn.sg-nudge{animation:none;box-shadow:0 0 0 4px var(--gold)}}
   @keyframes sgdance{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-14px) rotate(6deg)}}
   @keyframes sgfall{to{transform:translateY(110vh) rotate(540deg)}}
   `;
@@ -813,7 +816,8 @@
     function heardBeat(run){ return nowBeat(run) - latencySec() / (60 / run.bpm); }
     // keep a loop going; returns true when it jumped
     function keepLoop(run, beat){
-      if(!run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
+      // a lesson step (onDone) plays the part once and finishes — it never loops
+      if(onDone || !run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
       run.media.currentTime = Math.max(0, MC.beatToSec(take, loopAB.from - 0.5));
       notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to){ judged.delete(i); hits.delete(i); } });
       return true;
@@ -893,7 +897,9 @@
         if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
         draw(beat); arrLabel(beat);
-        if((beat > len + 0.6 || (run.media && run.media.ended)) && !(loopAB && loopAB.to != null)){ run.running = false; finish(); return; }
+        const looping = loopAB && loopAB.to != null && !onDone;
+        const partEnd = onDone && loopAB && loopAB.to != null && beat > loopAB.to + 0.6;
+        if((beat > len + 0.6 || partEnd || (run.media && run.media.ended)) && !looping){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);
@@ -1231,7 +1237,14 @@
       play(t, o){
         o = o || {};
         open(t); onDone = o.onDone || null;
-        if(o.mode === 'timed'){ const me = take; mediaReady.then(() => { if(take === me) startMode('timed'); }); }
+        // her recording loads asynchronously, and Safari won't start it outside a tap: with a
+        // recording, Play along waits for her tap (the button pulses); without one it starts now
+        if(o.mode === 'timed'){ const me = take; mediaReady.then(() => {
+          if(take !== me) return;
+          const b = media && host.querySelector('#sgTimed');
+          if(b){ b.classList.add('sg-nudge'); b.focus(); b.addEventListener('click', () => b.classList.remove('sg-nudge'), { once: true }); }
+          else startMode('timed');
+        }); }
       },
       // drop the open song without drawing the shelf (the path draws next)
       release(){ stopAll(); pulse(false); stopSing(); dropMedia(); take = null; onDone = null; d.onClose && d.onClose(); },

@@ -112,7 +112,7 @@
   const ICON = { echo: '🎤', notes: '🧠', write: '✏️', learn: '🎹', review: '🔁', reward: '🎁' };
   const NAME = { echo: 'Echo', notes: 'Notes', write: 'Write', learn: 'Learn', review: 'Review', reward: 'Prize' };
 
-  function readDone(today){ try{ const v = JSON.parse(localStorage.getItem(DONE_KEY)); return v && v.day === today ? v.done : []; }catch(e){ return []; } }
+  function readDone(today){ try{ const v = JSON.parse(localStorage.getItem(DONE_KEY)); return v && v.day === today && Array.isArray(v.done) ? v.done : []; }catch(e){ return []; } }
   function writeDone(today, done){ try{ localStorage.setItem(DONE_KEY, JSON.stringify({ day: today, done })); }catch(e){} }
 
   function create(d){

@@ -1,4 +1,4 @@
-/* @shared echo 1.0.0 */
+/* @shared echo 1.0.1 */
 /* echo.js — 🎤→🎹 Echo: hear a little tune, sing it back, then find it on
    the keyboard. Classic script → window.Echo. Depends on music-core.js.
 
@@ -168,6 +168,8 @@
       // timers. Frames are ignored except while she's singing, so the tune
       // coming out of the speaker is never judged.
       micErr = null;
+      // same for the speaker: create/resume the playback context in the tap, not in the first round's timer
+      try{ d.audio && d.audio(); }catch(_){}
       if(d.mic){
         try{ micP = Promise.resolve(d.mic(mf => { if(frameFn) frameFn(mf); })); }
         catch(e){ micP = Promise.reject(e); }
@@ -338,5 +340,5 @@
              get _round(){ return round; }, get _state(){ return state; } };
   }
 
-  window.Echo = { VERSION: '1.0.0', STAGES, STAGES_VERSION, patterns, matchSung, liveSeg, adapt, syllable, create };
+  window.Echo = { VERSION: '1.0.1', STAGES, STAGES_VERSION, patterns, matchSung, liveSeg, adapt, syllable, create };
 })();
