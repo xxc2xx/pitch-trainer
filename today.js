@@ -30,7 +30,7 @@
   // which card game today: 🌱's keyboard is C4–C5 only, so no octave cards there
   const GAMES = { sprout: ['keys', 'g'], bloom: ['keys', 'oct', 'g'], grow: ['g', 'oct', 'keys'] };
   const dayNum = day => { const [y, m, d] = day.split('-').map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
-  const DONE_KEY = MC.adoptKey('musicEco_today');          // { day, done:[step index…] } — resume where she stopped
+  const DONE_KEY = MC.adoptKey('musicEco_today');          // { day, done:[step key…] } — resume where she stopped (see stepKey)
 
   const bpbOf = t => t.timeSig ? t.timeSig[0] * 4 / t.timeSig[1] : 4;
 
@@ -112,8 +112,20 @@
   const ICON = { echo: '🎤', notes: '🧠', write: '✏️', learn: '🎹', review: '🔁', reward: '🎁' };
   const NAME = { echo: 'Echo', notes: 'Notes', write: 'Write', learn: 'Learn', review: 'Review', reward: 'Prize' };
 
-  function readDone(today){ try{ const v = JSON.parse(localStorage.getItem(DONE_KEY)); return v && v.day === today && Array.isArray(v.done) ? v.done : []; }catch(e){ return []; } }
-  function writeDone(today, done){ try{ localStorage.setItem(DONE_KEY, JSON.stringify({ day: today, done })); }catch(e){} }
+  // done steps are stored by WHAT they are (kind, song, part), not their place in
+  // the list: if the plan changes the same day (level switch, a new class song),
+  // a stored index would tick off a different step. In memory: indexes into steps.
+  const stepKey = s => [s.kind, s.songId || '', s.phrase == null ? '' : s.phrase].join(':');
+  function readDone(today, steps){
+    try{
+      const v = JSON.parse(localStorage.getItem(DONE_KEY));
+      if(!v || v.day !== today || !Array.isArray(v.done)) return [];
+      // older saves held indexes: read them against today's plan once
+      const keys = new Set(v.done.map(x => typeof x === 'number' ? (steps[x] ? stepKey(steps[x]) : null) : x));
+      return steps.map((s, i) => keys.has(stepKey(s)) ? i : -1).filter(i => i >= 0);
+    }catch(e){ return []; }
+  }
+  function writeDone(today, done, steps){ try{ localStorage.setItem(DONE_KEY, JSON.stringify({ day: today, done: done.map(i => stepKey(steps[i])) })); }catch(e){} }
 
   function create(d){
     // d: { host, songs, echo, getLevel, listSongs: async → takes, onExit, sticker(id) }
@@ -143,7 +155,7 @@
     }
     async function fillCard(){
       const el = document.getElementById('sgToday'); if(!el) return;
-      const p = await build(), done = readDone(p.today), n = await streakNow(p.today);
+      const p = await build(), done = readDone(p.today, p.steps), n = await streakNow(p.today);
       const all = done.length >= p.steps.length;
       el.querySelector('.chips').textContent = p.steps.map((s, i) => done.includes(i) ? '✅' : ICON[s.kind]).join(' ');
       el.querySelector('.st').textContent = (all ? 'Done today ✓ ' : `~${p.minutes} min `) + (n ? `🔥 ${n}` : '');
@@ -153,7 +165,7 @@
       injectCSS();
       busy = true; t0 = performance.now();
       cur = await build();
-      cur.done = readDone(cur.today);
+      cur.done = readDone(cur.today, cur.steps);
       next(true);
     }
 
@@ -188,7 +200,7 @@
              sub, first ? '▶ Start' : 'Next ▶', () => run(i));
     }
 
-    function mark(i){ if(!cur.done.includes(i)) cur.done.push(i); writeDone(cur.today, cur.done); }
+    function mark(i){ if(!cur.done.includes(i)) cur.done.push(i); writeDone(cur.today, cur.done, cur.steps); }
 
     function run(i){
       const s = cur.steps[i];
@@ -255,5 +267,5 @@
     return { start, card, get busy(){ return busy; }, stop(){ busy = false; }, get _plan(){ return cur; } };
   }
 
-  window.Today = { plan, phrases, afterSong, create, MINUTES };
+  window.Today = { plan, phrases, afterSong, create, MINUTES, _done: { read: readDone, write: writeDone } };   // _done: test hook
 })();

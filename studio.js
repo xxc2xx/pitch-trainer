@@ -55,7 +55,7 @@
       </div>
       <canvas class="st-roll" id="stRoll"></canvas>
       <div class="st-tools" id="stTools"></div>
-      <div class="st-hint" id="stHint">Tap a note, then press the right key to fix it · double-tap to add · drag to scroll</div>
+      <div class="st-hint" id="stHint"${d.notice ? ' role="alert" style="color:#ffb74d;font-weight:700"' : ''}>${d.notice ? esc(d.notice) : 'Tap a note, then press the right key to fix it · double-tap to add · drag to scroll'}</div>
     </div>`;
     const $ = id => host.querySelector('#' + id);
     s.canvas = $('stRoll'); s.g = s.canvas.getContext('2d');

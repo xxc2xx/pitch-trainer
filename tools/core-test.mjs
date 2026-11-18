@@ -63,6 +63,25 @@ const w1 = SF.writeMidi(tw), w2 = SF.writeMidi(bass);
 const trk = b => b.slice(14);                                  // strip header, keep MTrk chunk
 const two = new Uint8Array([...w1.slice(0, 10), 0, 2, ...w1.slice(12, 14), ...trk(w2), ...trk(w1)]);
 ok(SF.parseMidi(two.buffer).notes[0].m === tw.notes[0].m, 'multi-track MIDI picks the melody, not the bass');
+// tiny SMF builder: tracks = [[ [deltaTicks, ...bytes], … ], …], 480 ppq
+const smf = tracks => {
+  const vlq = n => { const b = [n & 0x7f]; while((n >>= 7)) b.unshift((n & 0x7f) | 0x80); return b; };
+  const be = (n, k) => Array.from({ length: k }, (_, i) => (n >> (8 * (k - 1 - i))) & 0xff);
+  const out = [...'MThd'].map(c => c.charCodeAt(0)).concat(be(6, 4), be(1, 2), be(tracks.length, 2), be(480, 2));
+  tracks.forEach(evs => {
+    const body = evs.flatMap(([dt, ...b]) => [...vlq(dt), ...b]).concat([0, 0xff, 0x2f, 0]);
+    out.push(...[...'MTrk'].map(c => c.charCodeAt(0)), ...be(body.length, 4), ...body);
+  });
+  return new Uint8Array(out).buffer;
+};
+const tempo = bpm => { const us = Math.round(60000000 / bpm); return [0xff, 0x51, 3, (us >> 16) & 0xff, (us >> 8) & 0xff, us & 0xff]; };
+const line = (ms, len = 480) => ms.flatMap(m => [[0, 0x90, m, 90], [len, 0x80, m, 0]]);
+const rit = SF.parseMidi(smf([[[0, ...tempo(120)], ...line([60, 62, 64, 65]), [0, ...tempo(60)], ...line([67])]]));
+ok(rit.bpm === 120, 'MIDI with an ending ritardando keeps its opening tempo (got ' + rit.bpm + ' bpm)');
+const tune = Array.from({ length: 40 }, (_, i) => 60 + (i % 8)), orn = Array(8).fill(84), low = Array.from({ length: 40 }, (_, i) => 40 + (i % 5));
+const three = SF.parseMidi(smf([line(low, 240), line(tune, 240), line(orn, 1200)]));
+ok(three.notes.filter(n => n.m >= 60 && n.m < 68).length >= 30 && !three.notes.some(n => n.m === 84),
+   'unnamed multi-track MIDI: the busy tune wins over a sparse high ornament track');
 
 // Dad's part: auto chords for Twinkle in C → C | C F C | F C G C …
 const tch = C.autoChords(tw);
@@ -227,6 +246,24 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
 }
 
 // ── Today (today.js): daily plan ────────────────────────────────────────
+{
+  // finished steps are kept by identity: a same-day plan change can't tick off the wrong step
+  const vm = require('vm'), fs = require('fs'), store = new Map();
+  const ls = { getItem: k => store.has(k) ? store.get(k) : null, setItem: (k, v) => store.set(k, String(v)) };
+  const win = { MusicCore: C };
+  vm.runInNewContext(fs.readFileSync(new URL('../today.js', import.meta.url), 'utf8'), { window: win, performance, console, setTimeout, localStorage: ls });
+  const T = win.Today, B = C.builtinTakes(), day = '2026-10-21';
+  const a = T.plan({ songs: [...B], items: {}, level: 'sprout', today: day });
+  const li = a.steps.findIndex(s => s.kind === 'learn');
+  T._done.write(day, [0, li], a.steps);                           // Echo + Learn done at 🌱
+  const b = T.plan({ songs: [...B], items: {}, level: 'bloom', today: day });   // switched to 🌸: a Write step appears
+  const got = T._done.read(day, b.steps).map(i => b.steps[i].kind).sort().join();
+  ok(got === 'echo,learn', 'Today: after a same-day level change, done = the same steps (echo,learn), not the same positions — got ' + got);
+  store.set([...store.keys()][0], JSON.stringify({ day, done: [0] }));
+  ok(T._done.read(day, b.steps).join() === '0', 'Today: an older save of indexes still reads');
+  store.set([...store.keys()][0], JSON.stringify({ day, done: 'x' }));
+  ok(T._done.read(day, b.steps).length === 0, 'Today: a corrupt saved list reads as nothing done');
+}
 {
   const vm = require('vm'), fs = require('fs');
   const win = { MusicCore: C };
