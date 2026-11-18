@@ -112,10 +112,14 @@
   const ICON = { echo: '🎤', notes: '🧠', write: '✏️', learn: '🎹', review: '🔁', reward: '🎁' };
   const NAME = { echo: 'Echo', notes: 'Notes', write: 'Write', learn: 'Learn', review: 'Review', reward: 'Prize' };
 
-  // done steps are stored by WHAT they are (kind, song, part), not their place in
-  // the list: if the plan changes the same day (level switch, a new class song),
-  // a stored index would tick off a different step. In memory: indexes into steps.
-  const stepKey = s => [s.kind, s.songId || '', s.phrase == null ? '' : s.phrase].join(':');
+  // done steps are stored by WHAT they are, not their place in the list: if the
+  // plan changes the same day (level switch, a new class song), a stored index
+  // would tick off a different step. Learn/review: the song (finishing a part
+  // moves her progress on, and today's Learn slot must stay done); the other
+  // steps: their task (rounds, card game, count) — a level switch that changes
+  // the task asks for it again. In memory: indexes into steps.
+  const stepKey = s => s.kind === 'learn' || s.kind === 'review' ? s.kind + ':' + s.songId
+    : [s.kind, s.game || '', s.n || '', s.rounds || ''].join(':');
   function readDone(today, steps){
     try{
       const v = JSON.parse(localStorage.getItem(DONE_KEY));
