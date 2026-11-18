@@ -10,8 +10,9 @@
    These are the "no transcription errors" path: a public-domain MIDI or
    MusicXML of her song gives exact notes; the audio path (hear.js) guesses.
    Melody choice for multi-track files: a track/part literally named
-   melody/vocal/voice/right/RH wins; otherwise the busiest non-drum track
-   with the highest average pitch — the tune usually sits on top.
+   melody/vocal/voice/right/RH wins; otherwise, of the busy non-drum tracks
+   (≥ ⅓ of the busiest track's notes), the one with the highest average pitch —
+   the tune usually sits on top.
 */
 (function(root){
   'use strict';
@@ -30,7 +31,7 @@
     const hlen = u32(); const fmt = u16(), ntrk = u16(), div = u16(); p += hlen - 6;
     if(div & 0x8000) throw new Error('SMPTE-timed MIDI is not supported');
     const ppq = div;
-    let tempoUs = 500000, timeSig = [4, 4], keySig = null;
+    let tempoUs = 500000, tempoTick = Infinity, timeSig = [4, 4], keySig = null;
     const tracks = [];
     for(let t = 0; t < ntrk && p < d.byteLength; t++){
       const id = str(4), len = u32(), end = p + len;
@@ -45,7 +46,9 @@
         if(status === 0xff){                           // meta
           const mt = d.getUint8(p++), ml = vlq(), at = p;
           if(mt === 0x03) name = str(ml);
-          else if(mt === 0x51 && ml === 3) tempoUs = (d.getUint8(at) << 16) | (d.getUint8(at+1) << 8) | d.getUint8(at+2);
+          // one tempo per song: the OPENING one (earliest Set Tempo) — the last
+          // event was used before, so an ending ritardando slowed the whole song
+          else if(mt === 0x51 && ml === 3 && tick < tempoTick){ tempoTick = tick; tempoUs = (d.getUint8(at) << 16) | (d.getUint8(at+1) << 8) | d.getUint8(at+2); }
           else if(mt === 0x58 && ml >= 2) timeSig = [d.getUint8(at), Math.pow(2, d.getUint8(at+1))];
           else if(mt === 0x59 && ml >= 2) keySig = [d.getInt8(at), d.getUint8(at+1)];
           p = at + ml;
@@ -70,7 +73,10 @@
     if(!cands.length) throw new Error('No notes found in this MIDI file');
     const avg = tr => tr.notes.reduce((s, n) => s + n.m, 0) / tr.notes.length;
     const named = cands.find(tr => MELODY_NAME.test(tr.name));
-    const busy = cands.filter(tr => tr.notes.length >= Math.min(8, Math.max(...cands.map(c => c.notes.length))));
+    // unnamed: of the tracks with at least a third of the busiest track's notes
+    // (a sparse high ornament/backing track can't win), the highest one
+    const most = Math.max(...cands.map(c => c.notes.length));
+    const busy = cands.filter(tr => tr.notes.length >= Math.min(8, most) && tr.notes.length >= most / 3);
     const pick = named || busy.sort((a, b) => avg(b) - avg(a))[0];
     let notes = pick.notes.map(n => ({ m: n.m, t: n.t0 / ppq, d: Math.max(1 / 16, (n.t1 - n.t0) / ppq), v: n.v / 127 }));
     notes = MC.skyline(notes.sort((a, b) => a.t - b.t));

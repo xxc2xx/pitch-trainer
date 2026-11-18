@@ -422,7 +422,7 @@
       };
       host.querySelector('#sgLoop').onclick = setLoop;
       const wb = host.querySelector('#sgWhole'); if(wb) wb.onclick = () => open({ ...t, section: null });
-      const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = openStudio;
+      const eb = host.querySelector('#sgEdit'); if(eb) eb.onclick = () => openStudio();
       host.querySelector('#sgTogether').onclick = () => setTogether(!together);
       const xb = host.querySelector('#sgExport');
       if(xb){
@@ -508,11 +508,13 @@
     }
 
     // ✏️ Fix notes (studio.js) takes over this panel; the keyboard stays below
-    function openStudio(){
+    // song/notice: reopen on unsaved edits after a failed save (the shelf copy is still `take`)
+    function openStudio(song, notice){
       const t = take;
       stopAll(); stopSing(); pulse(false); dropMedia();
       d.onClose && d.onClose();
-      Studio.open(host, t, {
+      Studio.open(host, song || t, {
+        notice,
         audio: d.audio,
         playNote: (m, when, dur, o) => d.playNote(d.audio(), m, when, dur, o),
         cancelNotes: d.cancelNotes,
@@ -521,7 +523,10 @@
           // a starter song is saved as her own copy; the built-in stays as is
           if(edited.source === 'builtin') edited = MC.makeTake({ ...edited, id: null, createdAt: Date.now(),
             source: 'edited', title: edited.title + ' (my version)' });
-          try{ await MC.store.saveTake(edited); }catch(e){}
+          // a failed write (storage full / blocked) must not look saved: back to
+          // the editor with the edits and say so — Save tries again
+          try{ await MC.store.saveTake(edited); }
+          catch(e){ console.warn('[songs] save failed:', e && e.message); openStudio(edited, '⚠️ Couldn’t save on this device (storage full or blocked) — your changes are still here. Free some space, then press Save again.'); return; }
           open(edited);
         },
         onClose: () => open(t),
