@@ -552,7 +552,7 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   msg([0xb0, 64, 127]);                 // pedal down
   msg([0x90, 60, 90]); msg([0x80, 60, 0]); msg([0x90, 60, 90]);   // press, release (held), press again
   msg([0x80, 60, 0]); msg([0xb0, 64, 0]);                         // release, pedal up
-  msg([0x90, 62, 90]); msg([0x90, 62, 90]); msg([0x80, 62, 0]);   // doubled note-on
+  msg([0x90, 62, 90]); msg([0x90, 62, 90]); msg([0x80, 62, 0]); msg([0x80, 62, 0]);   // doubled note-on, doubled note-off
   ok(pressed.get(60) === 0 && pressed.get(62) === 0, 'MIDI: re-pressing a pedal-held key (or a doubled note-on) still ends released');
 }
 
