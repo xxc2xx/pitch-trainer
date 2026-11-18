@@ -258,7 +258,10 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   T._done.write(day, [0, li], a.steps);                           // Echo + Learn done at 🌱
   const b = T.plan({ songs: [...B], items: {}, level: 'bloom', today: day });   // switched to 🌸: a Write step appears
   const got = T._done.read(day, b.steps).map(i => b.steps[i].kind).sort().join();
-  ok(got === 'echo,learn', 'Today: after a same-day level change, done = the same steps (echo,learn), not the same positions — got ' + got);
+  // 🌱→🌸 changes Echo's rounds, so Echo is asked again; the song's Learn slot stays done; Write isn't ticked
+  ok(got === 'learn', 'Today: after a same-day level change, done = the same tasks only (learn), not the same positions — got ' + got);
+  const a2 = T.plan({ songs: [...B], items: { ['song:' + B[0].id]: { phrase: 1, phrases: 4, wins: 0 } }, level: 'sprout', today: day });
+  ok(T._done.read(day, a2.steps).some(i => a2.steps[i].kind === 'learn'), 'Today: Learn stays done after finishing a part moves her to the next part');
   store.set([...store.keys()][0], JSON.stringify({ day, done: [0] }));
   ok(T._done.read(day, b.steps).join() === '0', 'Today: an older save of indexes still reads');
   store.set([...store.keys()][0], JSON.stringify({ day, done: 'x' }));
