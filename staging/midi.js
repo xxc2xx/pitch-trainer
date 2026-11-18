@@ -1,4 +1,4 @@
-/* @shared midi 1.0.1 */
+/* @shared midi 1.0.2 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -36,7 +36,12 @@
       range = r; try{ localStorage.setItem(RANGE_KEY, JSON.stringify(r)); }catch(e){}
     }
   }
-  function on(m, v){ held.delete(m); sounding.add(m); learn(m); noteFn(m, v, true); }
+  function on(m, v){
+    // pressed again while still sounding (pedal held it, or a doubled note-on):
+    // release it first, so every "on" a consumer sees has exactly one "off"
+    if(sounding.has(m)) noteFn(m, 0, false);
+    held.delete(m); sounding.add(m); learn(m); noteFn(m, v, true);
+  }
   function off(m){
     if(pedal){ held.add(m); return; }
     sounding.delete(m); noteFn(m, 0, false);
@@ -64,7 +69,7 @@
   }
 
   const Midi = {
-    VERSION: '1.0.1',
+    VERSION: '1.0.2',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },
