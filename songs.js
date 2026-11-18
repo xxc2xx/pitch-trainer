@@ -816,7 +816,8 @@
     function heardBeat(run){ return nowBeat(run) - latencySec() / (60 / run.bpm); }
     // keep a loop going; returns true when it jumped
     function keepLoop(run, beat){
-      if(!run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
+      // a lesson step (onDone) plays the part once and finishes — it never loops
+      if(onDone || !run.media || !loopAB || loopAB.to == null || beat < loopAB.to) return false;
       run.media.currentTime = Math.max(0, MC.beatToSec(take, loopAB.from - 0.5));
       notes.forEach((n, i) => { if(n.t >= loopAB.from - 0.5 && n.t < loopAB.to){ judged.delete(i); hits.delete(i); } });
       return true;
@@ -896,7 +897,9 @@
         if(kb) kb.setTarget(notes[idx] && notes[idx].t - beat < lead ? notes[idx].m : null);
         camX = xOf(Math.max(-bar, beat)) - camLead();
         draw(beat); arrLabel(beat);
-        if((beat > len + 0.6 || (run.media && run.media.ended)) && !(loopAB && loopAB.to != null)){ run.running = false; finish(); return; }
+        const looping = loopAB && loopAB.to != null && !onDone;
+        const partEnd = onDone && loopAB && loopAB.to != null && beat > loopAB.to + 0.6;
+        if((beat > len + 0.6 || partEnd || (run.media && run.media.ended)) && !looping){ run.running = false; finish(); return; }
         raf = requestAnimationFrame(tick);
       };
       raf = requestAnimationFrame(tick);

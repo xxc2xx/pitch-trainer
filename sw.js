@@ -1,4 +1,4 @@
-const CACHE = 'pt-v38';
+const CACHE = 'pt-v39';
 // Both apps (live AND staging) share Cache Storage on xxc2xx.github.io: only
 // ever delete OUR caches (same prefix). The old 'pitch-vN' names are still
 // LIVE Pitch Trainer's current cache until go-live — never touch them.
@@ -42,13 +42,14 @@ self.addEventListener('fetch', e => {
         // old cached page booting newer scripts is worse than no offline page
         if (r.ok && url.pathname.endsWith('.js')) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
         return r;
-      }).catch(() => caches.match(e.request, { ignoreSearch: true }))
+      }).catch(() => caches.open(CACHE).then(c => c.match(e.request, { ignoreSearch: true })))
     );
     return;
   }
 
   // Cache-first for static assets (icons, manifest)
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
+    // only OUR cache: live Pitch Trainer's older cache on this origin must not answer for us
+    caches.open(CACHE).then(c => c.match(e.request)).then(r => r || fetch(e.request))
   );
 });
