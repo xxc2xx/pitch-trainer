@@ -127,6 +127,9 @@
   .sg-strip{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface);border-radius:12px;padding:8px 10px;}
   .sg-conf{position:fixed;top:-40px;font-size:26px;pointer-events:none;animation:sgfall linear forwards;z-index:51;}
   @keyframes sgfade{from{opacity:0}to{opacity:1}}
+  @keyframes sgnudge{50%{transform:scale(1.08);box-shadow:0 0 0 6px var(--gold)}}
+  .sg-btn.sg-nudge{animation:sgnudge 1.1s ease-in-out infinite;}
+  @media (prefers-reduced-motion:reduce){.sg-btn.sg-nudge{animation:none;box-shadow:0 0 0 4px var(--gold)}}
   @keyframes sgdance{from{transform:translateY(0) rotate(-6deg)}to{transform:translateY(-14px) rotate(6deg)}}
   @keyframes sgfall{to{transform:translateY(110vh) rotate(540deg)}}
   `;
@@ -1231,7 +1234,14 @@
       play(t, o){
         o = o || {};
         open(t); onDone = o.onDone || null;
-        if(o.mode === 'timed'){ const me = take; mediaReady.then(() => { if(take === me) startMode('timed'); }); }
+        // her recording loads asynchronously, and Safari won't start it outside a tap: with a
+        // recording, Play along waits for her tap (the button pulses); without one it starts now
+        if(o.mode === 'timed'){ const me = take; mediaReady.then(() => {
+          if(take !== me) return;
+          const b = media && host.querySelector('#sgTimed');
+          if(b){ b.classList.add('sg-nudge'); b.focus(); b.addEventListener('click', () => b.classList.remove('sg-nudge'), { once: true }); }
+          else startMode('timed');
+        }); }
       },
       // drop the open song without drawing the shelf (the path draws next)
       release(){ stopAll(); pulse(false); stopSing(); dropMedia(); take = null; onDone = null; d.onClose && d.onClose(); },

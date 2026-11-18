@@ -146,8 +146,8 @@
   },
   "echo.js": {
     "global": "Echo",
-    "version": "1.0.0",
-    "sha256": "be85af1e3058542e443e2464cf54902a08d05899a5d6ed008bb71a53afc4b741",
+    "version": "1.0.1",
+    "sha256": "6117246628f3ec8ae8b171d228a23e40b6c12f8a0ebad0da8c2aa5b282b729c8",
     "api": {
       "STAGES": "object",
       "STAGES_VERSION": "number",
