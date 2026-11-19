@@ -74,7 +74,8 @@
 
   // ── Original recording + loudness envelope (so you can see the notes) ─
   async function loadMedia(){
-    const s = S, id = s.song.sync && (s.song.sync.audioId || s.song.audioId);
+    // the song's recording wherever it was stored (as songs.js recId)
+    const s = S, id = (s.song.sync && s.song.sync.audioId) || s.song.audioId;
     if(!id) return;
     let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
     if(!blob || S !== s) return;
