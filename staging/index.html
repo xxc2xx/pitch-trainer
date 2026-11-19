@@ -543,7 +543,7 @@
   </style>
 </head>
 <body data-tab="listen">
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 18d274a</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING 483b639</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -819,20 +819,25 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=18d274a"></script>
-  <script src="piano.js?v=18d274a"></script>
-  <script src="songs.js?v=18d274a"></script>
-  <script src="hear.js?v=18d274a"></script>
-  <script src="sound.js?v=18d274a"></script>
-  <script src="midi.js?v=18d274a"></script>
-  <script src="songfile.js?v=18d274a"></script>
-  <script src="addsong.js?v=18d274a"></script>
-  <script src="studio.js?v=18d274a"></script>
-  <script src="echo.js?v=18d274a"></script>
-  <script src="today.js?v=18d274a"></script>
-  <script src="notes.js?v=18d274a"></script>
-  <script src="progress.js?v=18d274a"></script>
+  <script src="music-core.js?v=483b639"></script>
+  <script src="piano.js?v=483b639"></script>
+  <script src="songs.js?v=483b639"></script>
+  <script src="hear.js?v=483b639"></script>
+  <script src="sound.js?v=483b639"></script>
+  <script src="midi.js?v=483b639"></script>
+  <script src="songfile.js?v=483b639"></script>
+  <script src="addsong.js?v=483b639"></script>
+  <script src="studio.js?v=483b639"></script>
+  <script src="echo.js?v=483b639"></script>
+  <script src="today.js?v=483b639"></script>
+  <script src="notes.js?v=483b639"></script>
+  <script src="progress.js?v=483b639"></script>
   <script>
+  // ── App configuration: external service settings live here, not inline ──
+  // visionModel: the Claude model the browser's sheet-reading fallback uses
+  // (owner override: localStorage `pitchy_vision_model`, for a retired or
+  // unavailable model without a code change).
+  const APP_CONFIG=Object.freeze({ visionModel:'claude-opus-5-5' });
   // Live, staging and dev share one origin: staging must never write the keys
   // LIVE reads. Env-scoped names (MusicCore.ns); adoptKey copies what she
   // already had once, never deletes the original.
@@ -3339,9 +3344,8 @@
     },
     read:async file=>{ const tokens=await transcribeViaOmrServer(file); return {tokens,xml:lastOmrXml}; },
   };
-  // the one place the browser's sheet-reading fallback names a Claude model
-  // (owner setting `pitchy_vision_model` overrides it)
-  const VISION_MODEL=(()=>{ try{ return localStorage.getItem('pitchy_vision_model')||'claude-opus-4-7'; }catch(e){ return 'claude-opus-4-7'; } })();
+  // sheet-reading fallback model: APP_CONFIG, unless the owner overrides it
+  const VISION_MODEL=(()=>{ try{ return localStorage.getItem('pitchy_vision_model')||APP_CONFIG.visionModel; }catch(e){ return APP_CONFIG.visionModel; } })();
   // A read sheet becomes a song in 🎵 Songs (it used to live only in this
   // preview): from the server's MusicXML when there is one, else the tokens.
   async function saveSheetAsSong(tokens, file){
@@ -3415,6 +3419,9 @@ Output the token list now, nothing else:`
     if(!resp.ok){
       const txt=await resp.text();
       logPlay(`API body: ${txt.slice(0,160)}`,'err');
+      // a retired / unavailable model: say how to recover instead of a bare API error
+      if((resp.status===404||resp.status===400)&&/model/i.test(txt))
+        throw new Error(`The sheet reader's model (${VISION_MODEL}) isn't available — set another with localStorage pitchy_vision_model, or use the sheet-reading server.`);
       throw new Error(`API error ${resp.status}: ${txt.slice(0,200)}`);
     }
     const json=await resp.json();
