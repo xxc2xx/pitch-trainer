@@ -195,10 +195,13 @@
   // Whole bars only (a closing rest is part of the music), one clock, real
   // tempo — never stretched notes or silent padding. Recordings never repeat.
   const MIN_SEC = 20, EX_REPEATS = 8;
+  // the song's own recording, wherever it was stored: imports and sung takes
+  // keep it in sync.audioId and/or the top-level audioId (older takes: no sync)
+  const recId = t => (t.sync && t.sync.audioId) || t.audioId || null;
   function arrangeFor(t, phrase, bpm){
     const bar = bpbOf(t), last = phrase.reduce((mx, n) => Math.max(mx, n.t + n.d), 0);
     const beats = Math.max(bar, Math.ceil(last / bar - 1e-6) * bar), sec = beats * 60 / bpm;
-    const reps = (t.audioId || (t.sync && t.sync.audioId)) ? 1
+    const reps = recId(t) ? 1
       : t.exercise ? Math.max(EX_REPEATS, Math.ceil(MIN_SEC / sec)) : sec < MIN_SEC ? Math.ceil(MIN_SEC / sec) : 1;
     const notes = reps === 1 ? phrase : [];
     for(let r = 0; reps > 1 && r < reps; r++) phrase.forEach(n => notes.push({ ...n, t: n.t + r * beats, rep: r }));
@@ -242,7 +245,7 @@
     }
     // "Exercise · 8× · 25 s" / "18 s": how long Listen and Play along last
     function lengthLabel(t){
-      if(t.audioId || (t.sync && t.sync.audioId)) return '';
+      if(recId(t)) return '';
       const b = Math.round((t.bpm || 90) * (d.getLevel().id === 'sprout' ? 0.8 : 1)), a = arrangeFor(t, MC.skyline(t.notes), b);
       return (t.exercise ? 'Exercise · ' : '') + (a.reps > 1 ? `${a.reps}× · ` : '') + `${Math.round(a.sec)} s`;
     }
@@ -333,7 +336,7 @@
         // no recording: the part starts at beat 0, so Play along doesn't sit
         // through empty bars first. With a recording the clock IS the media,
         // so beats stay absolute and the loop handles the part.
-        else notes = (t.sync && (t.sync.audioId || t.audioId)) ? part : part.map(n => ({ ...n, t: n.t - t.section.from }));
+        else notes = (recId(t)) ? part : part.map(n => ({ ...n, t: n.t - t.section.from }));
       }
       // Sprout starts a little slower — rhythm is new
       if(together){ together = false; dadChords = []; dadAt = undefined; const kb0 = d.getKb(); kb0 && kb0.setDad([]); d.onTogether && d.onTogether(false); }
@@ -457,11 +460,11 @@
     }
     async function loadMedia(t){
       dropMedia();
-      const id = t.sync && (t.sync.audioId || t.audioId);
+      const id = recId(t);
       if(!id) return;
       let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
       if(!blob || take !== t) return;                       // gone, or user moved on
-      const isVideo = t.sync.kind === 'video' || /^video\//.test(blob.type);
+      const isVideo = (t.sync && t.sync.kind) === 'video' || /^video\//.test(blob.type);
       const el = document.createElement(isVideo ? 'video' : 'audio');
       mediaUrl = URL.createObjectURL(blob);
       el.src = mediaUrl; el.preload = 'auto'; el.playsInline = true;
@@ -488,7 +491,7 @@
       const t = take, b = host.querySelector('#sgBetter');
       let url = ''; try{ url = localStorage.getItem(AN_KEY) || ''; }catch(e){}
       if(!url){ host.querySelector('#sgAnRow').style.display = 'flex'; host.querySelector('#sgAnUrl').focus(); return; }
-      const id = t.sync && (t.sync.audioId || t.audioId);
+      const id = recId(t);
       let blob = null; try{ blob = await MC.store.getAudio(id); }catch(e){}
       if(!blob){ b.textContent = '✨ No recording'; return; }
       stopAll();
@@ -814,7 +817,8 @@
     // 100–250 ms). Judge her presses against the heard beat, or a perfect
     // player looks late. Calibrated on the Progress page; else the browser's guess.
     function latencySec(){
-      try{ const v = localStorage.getItem(LATENCY_KEY); if(v != null && v !== '') return Math.max(0, +v) / 1000; }catch(e){}
+      // a calibrated value must be a real number (a stray string or Infinity would freeze judging)
+      try{ const v = localStorage.getItem(LATENCY_KEY); if(v != null && v !== '' && Number.isFinite(+v)) return Math.min(1000, Math.max(0, +v)) / 1000; }catch(e){}
       const ac = d.audio && d.audio();
       return ac ? (ac.outputLatency || ac.baseLatency || 0) : 0;
     }
