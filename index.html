@@ -1478,11 +1478,15 @@
     if(take.notes.length<2){ showRecToast('Didn’t catch the notes — try singing a little louder',false); return; }
     let n=1; try{ n=(await MC.store.listTakes()).filter(t=>t.source===take.source).length+1; }catch(e){}
     take.title=prefix+' '+n;
+    let newAudio=null;                       // rolled back if the take itself doesn't save
     try{
-      if(blob){ take.audioId='aud_'+take.id; await MC.store.saveAudio(take.audioId,blob); }
+      if(blob){ newAudio=take.audioId='aud_'+take.id; await MC.store.saveAudio(take.audioId,blob); }
       await MC.store.saveTake(take); lastRecTake=take;
       showRecToast('Saved “'+take.title+'” ('+take.notes.length+' notes) → 🎵 Songs',true);
-    }catch(e){ showRecToast('Could not save ('+e.message+')',false); }
+    }catch(e){
+      if(newAudio){ try{ await MC.store.deleteAudio(newAudio); }catch(_){} }
+      showRecToast('Could not save ('+e.message+')',false);
+    }
   }
   singRecBtn.addEventListener('click',async()=>{
     if(singRec){

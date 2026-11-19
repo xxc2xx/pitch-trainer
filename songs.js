@@ -200,6 +200,13 @@
   const recId = t => (t.sync && t.sync.audioId) || t.audioId || null;
   // after deleting a take: its recording(s) can be MBs — remove them unless
   // another saved take still plays the same one
+  // the raw recording can be MBs — don't strand it in IndexedDB; but only once
+  // the take itself is gone (a failed delete keeps the song AND its recording)
+  async function deleteSong(t){
+    try{ await MC.store.deleteTake(t.id); }catch(e){ console.warn('[songs] delete failed:', e && e.message); return false; }
+    await dropRecordings(t);
+    return true;
+  }
   async function dropRecordings(t){
     const ids = new Set([t.sync && t.sync.audioId, t.audioId].filter(Boolean));
     if(!ids.size) return;
@@ -317,9 +324,7 @@
         if(e.target.dataset.del){
           e.stopPropagation();
           el.style.opacity = .3;
-          try{ await MC.store.deleteTake(t.id); }catch(_){}
-          // the raw recording can be MBs — don't strand it in IndexedDB
-          await dropRecordings(t);
+          await deleteSong(t);
           renderShelf(); return;
         }
         open(t);
@@ -327,8 +332,7 @@
       host.querySelectorAll('.sg-delbtn').forEach(b => b.addEventListener('click', async () => {
         const t = shelfTakes.get(b.dataset.delId); if(!t) return;
         b.closest('.sg-rowwrap').style.opacity = .3;
-        try{ await MC.store.deleteTake(t.id); }catch(_){}
-        await dropRecordings(t);
+        await deleteSong(t);
         renderShelf();
       }));
     }
