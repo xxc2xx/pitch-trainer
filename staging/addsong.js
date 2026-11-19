@@ -102,14 +102,19 @@
       if(song.notes.length < 2) return fail('Didn’t find a tune in that — try a clearer part of the song.');
       song.title = ($('asTitle').value.trim() || song.title || 'My song').slice(0, 40);
       if($('asClass').checked) song.tag = 'class';
+      let newAudio = null;                     // a recording written by THIS save (rolled back if the song isn't)
       try{
         if(blob){
-          song.audioId = song.audioId || ('aud_' + song.id);
+          if(!song.audioId) newAudio = song.audioId = 'aud_' + song.id;
           song.sync = { ...(song.sync || {}), audioId: song.audioId, kind: kind || 'audio' };
           await MC.store.saveAudio(song.audioId, blob);
         }
         await MC.store.saveTake(song);
-      }catch(e){ return fail('Couldn’t save: ' + e.message); }
+      }catch(e){
+        // the recording can be hundreds of MB: don't leave it orphaned when the song failed to save
+        if(newAudio){ try{ await MC.store.deleteAudio(newAudio); }catch(_){} }
+        return fail('Couldn’t save: ' + e.message);
+      }
       work(`✓ “${song.title}” — ${song.notes.length} notes, ${song.bpm} BPM` + (song.rough ? ' · rough notes — add the sheet for exact ones' : ''), 1);
       $('asAct').innerHTML = '<button class="as-btn go" id="asOpen">▶ Open it</button>';
       $('asOpen').onclick = () => { close(); o.onSaved && o.onSaved(song); };

@@ -543,7 +543,7 @@
   </style>
 </head>
 <body data-tab="listen">
-<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING d0788e6</div>
+<div style="position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:99999;background:#ff9800;color:#000;font:700 10px/1.6 sans-serif;padding:0 8px;border-radius:0 0 6px 6px;pointer-events:none">STAGING d312fb3</div>
   <div id="avatarGate">
     <div class="gate-inner">
       <h2>Welcome! Set up your avatar</h2>
@@ -819,19 +819,19 @@
     <p class="hint" id="hint">Tap Start, then sing or play any note</p>
   </div>
 
-  <script src="music-core.js?v=d0788e6"></script>
-  <script src="piano.js?v=d0788e6"></script>
-  <script src="songs.js?v=d0788e6"></script>
-  <script src="hear.js?v=d0788e6"></script>
-  <script src="sound.js?v=d0788e6"></script>
-  <script src="midi.js?v=d0788e6"></script>
-  <script src="songfile.js?v=d0788e6"></script>
-  <script src="addsong.js?v=d0788e6"></script>
-  <script src="studio.js?v=d0788e6"></script>
-  <script src="echo.js?v=d0788e6"></script>
-  <script src="today.js?v=d0788e6"></script>
-  <script src="notes.js?v=d0788e6"></script>
-  <script src="progress.js?v=d0788e6"></script>
+  <script src="music-core.js?v=d312fb3"></script>
+  <script src="piano.js?v=d312fb3"></script>
+  <script src="songs.js?v=d312fb3"></script>
+  <script src="hear.js?v=d312fb3"></script>
+  <script src="sound.js?v=d312fb3"></script>
+  <script src="midi.js?v=d312fb3"></script>
+  <script src="songfile.js?v=d312fb3"></script>
+  <script src="addsong.js?v=d312fb3"></script>
+  <script src="studio.js?v=d312fb3"></script>
+  <script src="echo.js?v=d312fb3"></script>
+  <script src="today.js?v=d312fb3"></script>
+  <script src="notes.js?v=d312fb3"></script>
+  <script src="progress.js?v=d312fb3"></script>
   <script>
   // ── App configuration: external service settings live here, not inline ──
   // visionModel: the Claude model the browser's sheet-reading fallback uses
@@ -1480,11 +1480,15 @@
     if(take.notes.length<2){ showRecToast('Didn’t catch the notes — try singing a little louder',false); return; }
     let n=1; try{ n=(await MC.store.listTakes()).filter(t=>t.source===take.source).length+1; }catch(e){}
     take.title=prefix+' '+n;
+    let newAudio=null;                       // rolled back if the take itself doesn't save
     try{
-      if(blob){ take.audioId='aud_'+take.id; await MC.store.saveAudio(take.audioId,blob); }
+      if(blob){ newAudio=take.audioId='aud_'+take.id; await MC.store.saveAudio(take.audioId,blob); }
       await MC.store.saveTake(take); lastRecTake=take;
       showRecToast('Saved “'+take.title+'” ('+take.notes.length+' notes) → 🎵 Songs',true);
-    }catch(e){ showRecToast('Could not save ('+e.message+')',false); }
+    }catch(e){
+      if(newAudio){ try{ await MC.store.deleteAudio(newAudio); }catch(_){} }
+      showRecToast('Could not save ('+e.message+')',false);
+    }
   }
   singRecBtn.addEventListener('click',async()=>{
     if(singRec){
