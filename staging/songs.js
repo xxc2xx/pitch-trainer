@@ -198,6 +198,18 @@
   // the song's own recording, wherever it was stored: imports and sung takes
   // keep it in sync.audioId and/or the top-level audioId (older takes: no sync)
   const recId = t => (t.sync && t.sync.audioId) || t.audioId || null;
+  // after deleting a take: its recording(s) can be MBs — remove them unless
+  // another saved take still plays the same one
+  async function dropRecordings(t){
+    const ids = new Set([t.sync && t.sync.audioId, t.audioId].filter(Boolean));
+    if(!ids.size) return;
+    let others = [];
+    try{ others = (await MC.store.listTakes()).filter(o => o.id !== t.id); }catch(_){ return; }   // unsure → keep
+    for(const id of ids){
+      if(others.some(o => o.audioId === id || (o.sync && o.sync.audioId === id))) continue;
+      try{ await MC.store.deleteAudio(id); }catch(_){}
+    }
+  }
   function arrangeFor(t, phrase, bpm){
     const bar = bpbOf(t), last = phrase.reduce((mx, n) => Math.max(mx, n.t + n.d), 0);
     const beats = Math.max(bar, Math.ceil(last / bar - 1e-6) * bar), sec = beats * 60 / bpm;
@@ -307,7 +319,7 @@
           el.style.opacity = .3;
           try{ await MC.store.deleteTake(t.id); }catch(_){}
           // the raw recording can be MBs — don't strand it in IndexedDB
-          if(t.audioId){ try{ await MC.store.deleteAudio(t.audioId); }catch(_){} }
+          await dropRecordings(t);
           renderShelf(); return;
         }
         open(t);
@@ -316,7 +328,7 @@
         const t = shelfTakes.get(b.dataset.delId); if(!t) return;
         b.closest('.sg-rowwrap').style.opacity = .3;
         try{ await MC.store.deleteTake(t.id); }catch(_){}
-        if(t.audioId){ try{ await MC.store.deleteAudio(t.audioId); }catch(_){} }
+        await dropRecordings(t);
         renderShelf();
       }));
     }
