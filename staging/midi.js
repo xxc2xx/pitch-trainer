@@ -1,4 +1,4 @@
-/* @shared midi 1.0.4 */
+/* @shared midi 1.0.5 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -22,7 +22,7 @@
   const RANGE_KEY = window.MusicCore && MusicCore.adoptKey ? MusicCore.adoptKey('musicEco_kbRange') : 'musicEco_kbRange';
   const supported = typeof navigator !== 'undefined' && typeof navigator.requestMIDIAccess === 'function';
   let access = null, noteFn = () => {}, statusFn = () => {};
-  let pedal = false;
+  let pedal = false, pedalSrc = null;                           // pedalSrc: the input whose pedal is down
   const sounding = new Set(), held = new Set();
   const owner = new Map();                                      // sounding note → id of the input that pressed it
   let range = (() => { try{ const r = JSON.parse(localStorage.getItem(RANGE_KEY)); return Array.isArray(r) ? r : null; }catch(e){ return null; } })();
@@ -57,8 +57,8 @@
     else if(type === 0x80 || (type === 0x90 && b === 0)) off(a);
     else if(type === 0xb0 && a === 64){                          // sustain pedal
       const down = b >= 64;
-      if(pedal && !down){ pedal = false; [...held].forEach(release); }
-      else pedal = down;
+      if(pedal && !down){ pedal = false; pedalSrc = null; [...held].forEach(release); }
+      else if(down){ pedal = true; pedalSrc = src; }
     }
     else if(type === 0xb0 && (a === 123 || a === 120)){          // all notes off
       [...sounding].forEach(release);
@@ -70,13 +70,15 @@
     // unplugged mid-note: nothing will ever send its note-off — release the
     // notes that keyboard was holding (all of them when none is left)
     const live = new Set([...access.inputs.values()].filter(i => i.state !== 'disconnected').map(i => i.id));
-    if(!live.size){ pedal = false; [...sounding].forEach(release); }
+    if(!live.size){ pedal = false; pedalSrc = null; [...sounding].forEach(release); }
+    // the keyboard holding the sustain pedal went away: the pedal is up
+    else if(pedal && pedalSrc != null && !live.has(pedalSrc)){ pedal = false; pedalSrc = null; [...held].forEach(release); }
     else [...sounding].filter(m => owner.get(m) != null && !live.has(owner.get(m))).forEach(release);
     report();
   }
 
   const Midi = {
-    VERSION: '1.0.4',
+    VERSION: '1.0.5',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },
