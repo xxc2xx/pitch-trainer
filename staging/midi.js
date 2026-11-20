@@ -1,4 +1,4 @@
-/* @shared midi 1.0.5 */
+/* @shared midi 1.0.6 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -24,7 +24,7 @@
   let access = null, noteFn = () => {}, statusFn = () => {};
   let pedal = false, pedalSrc = null;                           // pedalSrc: the input whose pedal is down
   const sounding = new Set(), held = new Set();
-  const owner = new Map();                                      // sounding note → id of the input that pressed it
+  const owner = new Map();                                      // sounding note → Set of input ids holding its key down
   let range = (() => { try{ const r = JSON.parse(localStorage.getItem(RANGE_KEY)); return Array.isArray(r) ? r : null; }catch(e){ return null; } })();
 
   // Chrome can keep an unplugged port in `inputs` with state 'disconnected'
@@ -38,14 +38,20 @@
     }
   }
   function on(m, v, src){
-    // pressed again while still sounding (pedal held it, or a doubled note-on):
-    // release it first, so every "on" a consumer sees has exactly one "off"
+    // pressed again while still sounding (pedal held it, another keyboard has
+    // it down, or a doubled note-on): release it first, so every "on" a
+    // consumer sees has exactly one "off"
     if(sounding.has(m)) noteFn(m, 0, false);
-    held.delete(m); sounding.add(m); owner.set(m, src); learn(m); noteFn(m, v, true);
+    held.delete(m); sounding.add(m);
+    if(!owner.has(m)) owner.set(m, new Set());
+    owner.get(m).add(src == null ? '?' : src);
+    learn(m); noteFn(m, v, true);
   }
   function release(m){ sounding.delete(m); held.delete(m); owner.delete(m); noteFn(m, 0, false); }
-  function off(m){
+  function off(m, src){
     if(!sounding.has(m)) return;                // already released (e.g. a second note-off after a doubled note-on)
+    const keys = owner.get(m);
+    if(keys){ keys.delete(src == null ? '?' : src); if(keys.size) return; }   // another keyboard still holds it
     if(pedal){ held.add(m); return; }
     release(m);
   }
@@ -54,7 +60,7 @@
     if(ch === 9) return;                                         // drum channel
     const src = e.target && e.target.id;                        // which keyboard (several can be plugged in)
     if(type === 0x90 && b > 0) on(a, b, src);
-    else if(type === 0x80 || (type === 0x90 && b === 0)) off(a);
+    else if(type === 0x80 || (type === 0x90 && b === 0)) off(a, src);
     else if(type === 0xb0 && a === 64){                          // sustain pedal
       const down = b >= 64;
       if(pedal && !down){ pedal = false; pedalSrc = null; [...held].forEach(release); }
@@ -70,15 +76,20 @@
     // unplugged mid-note: nothing will ever send its note-off — release the
     // notes that keyboard was holding (all of them when none is left)
     const live = new Set([...access.inputs.values()].filter(i => i.state !== 'disconnected').map(i => i.id));
-    if(!live.size){ pedal = false; pedalSrc = null; [...sounding].forEach(release); }
+    if(!live.size){ pedal = false; pedalSrc = null; [...sounding].forEach(release); report(); return; }
     // the keyboard holding the sustain pedal went away: the pedal is up
-    else if(pedal && pedalSrc != null && !live.has(pedalSrc)){ pedal = false; pedalSrc = null; [...held].forEach(release); }
-    else [...sounding].filter(m => owner.get(m) != null && !live.has(owner.get(m))).forEach(release);
+    if(pedal && pedalSrc != null && !live.has(pedalSrc)){ pedal = false; pedalSrc = null; [...held].forEach(release); }
+    // keys held down on an unplugged keyboard: let go of them there
+    [...sounding].forEach(m => {
+      const keys = owner.get(m); if(!keys) return;
+      [...keys].forEach(k => { if(k !== '?' && !live.has(k)) keys.delete(k); });
+      if(!keys.size && !held.has(m)) pedal ? held.add(m) : release(m);
+    });
     report();
   }
 
   const Midi = {
-    VERSION: '1.0.5',
+    VERSION: '1.0.6',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },
