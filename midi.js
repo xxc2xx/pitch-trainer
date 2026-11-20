@@ -1,4 +1,4 @@
-/* @shared midi 1.0.3 */
+/* @shared midi 1.0.4 */
 /* midi.js — her physical keyboard over Web MIDI. Classic script → window.Midi.
 
    Web MIDI exists in Chrome / Edge / Firefox, NOT Safari (so not iPad/iPhone).
@@ -24,6 +24,7 @@
   let access = null, noteFn = () => {}, statusFn = () => {};
   let pedal = false;
   const sounding = new Set(), held = new Set();
+  const owner = new Map();                                      // sounding note → id of the input that pressed it
   let range = (() => { try{ const r = JSON.parse(localStorage.getItem(RANGE_KEY)); return Array.isArray(r) ? r : null; }catch(e){ return null; } })();
 
   // Chrome can keep an unplugged port in `inputs` with state 'disconnected'
@@ -36,41 +37,46 @@
       range = r; try{ localStorage.setItem(RANGE_KEY, JSON.stringify(r)); }catch(e){}
     }
   }
-  function on(m, v){
+  function on(m, v, src){
     // pressed again while still sounding (pedal held it, or a doubled note-on):
     // release it first, so every "on" a consumer sees has exactly one "off"
     if(sounding.has(m)) noteFn(m, 0, false);
-    held.delete(m); sounding.add(m); learn(m); noteFn(m, v, true);
+    held.delete(m); sounding.add(m); owner.set(m, src); learn(m); noteFn(m, v, true);
   }
+  function release(m){ sounding.delete(m); held.delete(m); owner.delete(m); noteFn(m, 0, false); }
   function off(m){
     if(!sounding.has(m)) return;                // already released (e.g. a second note-off after a doubled note-on)
     if(pedal){ held.add(m); return; }
-    sounding.delete(m); noteFn(m, 0, false);
+    release(m);
   }
   function message(e){
     const [st, a, b] = e.data, type = st & 0xf0, ch = st & 0x0f;
     if(ch === 9) return;                                         // drum channel
-    if(type === 0x90 && b > 0) on(a, b);
+    const src = e.target && e.target.id;                        // which keyboard (several can be plugged in)
+    if(type === 0x90 && b > 0) on(a, b, src);
     else if(type === 0x80 || (type === 0x90 && b === 0)) off(a);
     else if(type === 0xb0 && a === 64){                          // sustain pedal
       const down = b >= 64;
-      if(pedal && !down){ pedal = false; held.forEach(m => { sounding.delete(m); noteFn(m, 0, false); }); held.clear(); }
+      if(pedal && !down){ pedal = false; [...held].forEach(release); }
       else pedal = down;
     }
     else if(type === 0xb0 && (a === 123 || a === 120)){          // all notes off
-      sounding.forEach(m => noteFn(m, 0, false)); sounding.clear(); held.clear();
+      [...sounding].forEach(release);
     }
   }
   function attach(){
     if(!access) return;
     access.inputs.forEach(inp => { inp.onmidimessage = message; });
-    // unplugged mid-note: nothing will ever send its note-off — release now
-    if(!names().length){ pedal = false; held.clear(); sounding.forEach(m => noteFn(m, 0, false)); sounding.clear(); }
+    // unplugged mid-note: nothing will ever send its note-off — release the
+    // notes that keyboard was holding (all of them when none is left)
+    const live = new Set([...access.inputs.values()].filter(i => i.state !== 'disconnected').map(i => i.id));
+    if(!live.size){ pedal = false; [...sounding].forEach(release); }
+    else [...sounding].filter(m => owner.get(m) != null && !live.has(owner.get(m))).forEach(release);
     report();
   }
 
   const Midi = {
-    VERSION: '1.0.3',
+    VERSION: '1.0.4',
     supported,
     get range(){ return range; },
     get connected(){ return names().length > 0; },
@@ -95,6 +101,7 @@
     },
     resetRange(){ range = null; try{ localStorage.removeItem(RANGE_KEY); }catch(e){} },
     _message: message,                                             // test hook
+    _attach(acc){ access = acc; attach(); },                       // test hook: a fake MIDIAccess
   };
   window.Midi = Midi;
 })();

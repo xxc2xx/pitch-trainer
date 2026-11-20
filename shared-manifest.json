@@ -100,10 +100,11 @@
   },
   "midi.js": {
     "global": "Midi",
-    "version": "1.0.3",
-    "sha256": "49a67299b07a26c307d44e8ddd07b017998d1f1581b3506c61fd64ce6f69d6ac",
+    "version": "1.0.4",
+    "sha256": "cc15406b5fba171632e83ed20f62c0f3f9c3922fb1e175c9c63c8df0633e2f73",
     "api": {
       "VERSION": "string",
+      "_attach": "fn/1",
       "_message": "fn/1",
       "autoConnect": "fn/0",
       "connect": "fn/0",

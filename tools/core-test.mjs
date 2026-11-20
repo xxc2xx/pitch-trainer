@@ -594,6 +594,15 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   msg([0x80, 60, 0]); msg([0xb0, 64, 0]);                         // release, pedal up
   msg([0x90, 62, 90]); msg([0x90, 62, 90]); msg([0x80, 62, 0]); msg([0x80, 62, 0]);   // doubled note-on, doubled note-off
   ok(pressed.get(60) === 0 && pressed.get(62) === 0, 'MIDI: re-pressing a pedal-held key (or a doubled note-on) still ends released');
+  // two keyboards: unplugging one releases ITS held notes, the other's stay down
+  const kA = { id: 'A', name: 'Kbd A', state: 'connected' }, kB = { id: 'B', name: 'Kbd B', state: 'connected' };
+  const acc = { inputs: new Map([['A', kA], ['B', kB]]) };
+  M._attach(acc);
+  M._message({ data: [0x90, 64, 90], target: kA }); M._message({ data: [0x90, 67, 90], target: kB });
+  kA.state = 'disconnected'; M._attach(acc);
+  ok(pressed.get(64) === 0 && pressed.get(67) === 1, 'MIDI: unplugging one of two keyboards releases only its held notes');
+  kB.state = 'disconnected'; M._attach(acc);
+  ok(pressed.get(67) === 0, 'MIDI: unplugging the last keyboard releases everything');
 }
 
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
