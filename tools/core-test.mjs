@@ -610,6 +610,18 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   kA.state = 'disconnected'; M._attach(acc);
   M._message({ data: [0x90, 71, 90], target: kB }); M._message({ data: [0x80, 71, 0], target: kB });
   ok(pressed.get(69) === 0 && pressed.get(71) === 0, 'MIDI: unplugging the keyboard holding the pedal lifts it (no stuck notes)');
+  // the pedal keyboard is unplugged while it also holds a key: that key is released too
+  kA.state = 'connected'; M._attach(acc);
+  M._message({ data: [0xb0, 64, 127], target: kA }); M._message({ data: [0x90, 72, 90], target: kA });
+  kA.state = 'disconnected'; M._attach(acc);
+  ok(pressed.get(72) === 0, 'MIDI: a key held on the unplugged pedal keyboard is released');
+  // same pitch on two keyboards: letting go on one keeps it sounding until the other lets go
+  kA.state = 'connected'; M._attach(acc);
+  M._message({ data: [0x90, 74, 90], target: kA }); M._message({ data: [0x90, 74, 90], target: kB });
+  M._message({ data: [0x80, 74, 0], target: kA });
+  const stillDown = pressed.get(74);
+  M._message({ data: [0x80, 74, 0], target: kB });
+  ok(stillDown === 1 && pressed.get(74) === 0, 'MIDI: the same key on two keyboards sounds until both let go');
 }
 
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');
