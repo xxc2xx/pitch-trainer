@@ -603,6 +603,13 @@ ok(C.streak(['2026-10-15', '2026-10-17', '2026-10-18'], '2026-10-20') === 0, 'st
   ok(pressed.get(64) === 0 && pressed.get(67) === 1, 'MIDI: unplugging one of two keyboards releases only its held notes');
   kB.state = 'disconnected'; M._attach(acc);
   ok(pressed.get(67) === 0, 'MIDI: unplugging the last keyboard releases everything');
+  // the keyboard with the sustain pedal is unplugged: the other's notes are released normally again
+  kA.state = 'connected'; kB.state = 'connected'; M._attach(acc);
+  M._message({ data: [0xb0, 64, 127], target: kA });                    // A: pedal down
+  M._message({ data: [0x90, 69, 90], target: kB }); M._message({ data: [0x80, 69, 0], target: kB });   // B: held by the pedal
+  kA.state = 'disconnected'; M._attach(acc);
+  M._message({ data: [0x90, 71, 90], target: kB }); M._message({ data: [0x80, 71, 0], target: kB });
+  ok(pressed.get(69) === 0 && pressed.get(71) === 0, 'MIDI: unplugging the keyboard holding the pedal lifts it (no stuck notes)');
 }
 
 console.log(fail ? `\n${fail} FAILED` : '\nall passed');

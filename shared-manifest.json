@@ -100,8 +100,8 @@
   },
   "midi.js": {
     "global": "Midi",
-    "version": "1.0.4",
-    "sha256": "cc15406b5fba171632e83ed20f62c0f3f9c3922fb1e175c9c63c8df0633e2f73",
+    "version": "1.0.5",
+    "sha256": "d855e4cf6c4b178fa8a8a3eec2bcffa7ee62e11c845bc90a8d17fe4911dd1029",
     "api": {
       "VERSION": "string",
       "_attach": "fn/1",
